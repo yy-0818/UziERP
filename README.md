@@ -1,4 +1,4 @@
-## 价格管理系统（Vue3 + Supabase）
+## Uzi管理系统（Vue3 + Supabase）
 
 ### 本地开发
 
