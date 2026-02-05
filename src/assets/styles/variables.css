@@ -1,0 +1,40 @@
+/* ERP 主题变量 - 现代简约 */
+:root {
+  /* 主色 */
+  --erp-primary: #1890ff;
+  --erp-primary-hover: #40a9ff;
+  --erp-primary-light: #e6f7ff;
+
+  /* 侧栏 */
+  --sidebar-bg: #001529;
+  --sidebar-text: rgba(255, 255, 255, 0.85);
+  --sidebar-text-active: #fff;
+  --sidebar-width: 220px;
+  --sidebar-collapsed-width: 64px;
+
+  /* 顶栏 */
+  --header-height: 56px;
+  --header-bg: #fff;
+  --header-border: #f0f0f0;
+  --header-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+
+  /* 内容区 */
+  --page-bg: #f5f7fa;
+  --page-padding: 20px;
+  --card-radius: 8px;
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+
+  /* 文字 */
+  --text-primary: #262626;
+  --text-secondary: #595959;
+  --text-placeholder: #8c8c8c;
+  --text-disabled: #bfbfbf;
+
+  /* 边框与分割 */
+  --border-color: #e8e8e8;
+  --border-radius: 6px;
+
+  /* 过渡 */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.2s ease;
+}
