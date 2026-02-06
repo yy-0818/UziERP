@@ -5,11 +5,13 @@
         <div class="erp-card-header">
           <div>
             <div class="title">产品价格查询与维护</div>
-            <div class="subtitle">按公司、账户、等级、国家、价格类型严格匹配；仅 super_admin / manager 可修改</div>
+            <div class="subtitle">按公司、账户、等级、国家、价格类型严格匹配；仅 super_admin / manager / sales可修改</div>
           </div>
           <template v-if="canEdit">
-            <el-button type="success" @click="openEdit(null)">新增价格</el-button>
-            <el-button type="warning" plain @click="exportData">导出数据</el-button>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <el-button type="success" @click="openEdit(null)">新增价格</el-button>
+              <el-button type="warning" plain @click="exportData">导出数据</el-button>
+            </div>
           </template>
         </div>
       </template>
@@ -222,7 +224,7 @@ const priceTypeOptions = ref<string[]>([]);
 
 /** 仅 super_admin、manager 可编辑价格 */
 const canEdit = computed(() =>
-  ['super_admin', 'manager'].includes(auth.role || '')
+  ['super_admin', 'manager', 'sales'].includes(auth.role || '')
 );
 
 /** 修改人邮箱：优先 localStorage 的 user.email，其次 auth.email */
@@ -774,6 +776,8 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  border-bottom:0cap;
+  padding:0;
 }
 
 .title {
