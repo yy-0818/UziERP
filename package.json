@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --open --port 5173",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "echo \"no linter configured\""
