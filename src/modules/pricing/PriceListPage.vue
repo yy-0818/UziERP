@@ -222,7 +222,7 @@ const levelOptions = ref<string[]>([]);
 const regionOptions = ref<string[]>([]);
 const priceTypeOptions = ref<string[]>([]);
 
-/** 仅 super_admin、manager 可编辑价格 */
+/** 仅 super_admin、manager、sales 可编辑价格 */
 const canEdit = computed(() =>
   ['super_admin', 'manager', 'sales'].includes(auth.role || '')
 );

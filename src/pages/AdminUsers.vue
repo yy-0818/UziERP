@@ -8,13 +8,13 @@
       </template>
       <div class="erp-card-body">
         <p class="page-desc">
-          仅 super_admin 可访问。为已注册用户分配角色：super_admin（超级管理员）、manager（经理，可改价格/客户/产品）、sales（销售，仅查看）、viewer（只读）。
+          仅 super_admin 可访问。为已注册用户分配角色：super_admin、manager、sales、viewer。请从 Supabase Dashboard → Authentication → Users 中复制对应用户的 UUID 填入下方。
         </p>
         <div class="erp-toolbar">
           <el-input
             v-model="email"
-            placeholder="输入用户邮箱（需已注册）"
-            style="width: 280px"
+            placeholder="输入用户 UUID（Supabase 认证页可复制）"
+            style="width: 320px"
           />
           <el-select v-model="role" placeholder="选择角色" style="width: 160px">
             <el-option label="超级管理员" value="super_admin" />
@@ -25,7 +25,9 @@
           <el-button type="primary" :loading="saving" @click="setRole">设置角色</el-button>
         </div>
         <el-table :data="rows" v-loading="loading">
-          <el-table-column prop="user_id" label="用户 ID" min-width="280" show-overflow-tooltip />
+          <el-table-column prop="user_id" label="用户 UUID" min-width="280" show-overflow-tooltip />
+          <el-table-column prop="email" label="邮箱" min-width="200" show-overflow-tooltip />
+          <el-table-column prop="name" label="姓名" min-width="120" show-overflow-tooltip />
           <el-table-column prop="role" label="角色" width="140">
             <template #default="{ row }">
               <el-tag :type="roleTagType(row.role)">{{ roleLabel(row.role) }}</el-tag>
@@ -67,7 +69,7 @@ function roleTagType(r: string) {
 
 async function fetchData() {
   loading.value = true;
-  const { data, error } = await supabase.from('user_roles').select('user_id, role');
+  const { data, error } = await supabase.from('user_roles').select('user_id, email, name, role');
   if (error) {
     ElMessage.error('查询失败');
     rows.value = [];
@@ -77,29 +79,59 @@ async function fetchData() {
   loading.value = false;
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 async function setRole() {
-  if (!email.value || !role.value) {
-    ElMessage.error('请输入邮箱并选择角色');
+  const input = (email.value || '').trim();
+  if (!input || !role.value) {
+    ElMessage.error('请输入用户 UUID 并选择角色');
     return;
   }
   saving.value = true;
   try {
-    const { data: userData, error: e1 } = await supabase.auth.admin.getUserByEmail(email.value);
-    if (e1 || !userData?.user) {
-      ElMessage.error('未找到该邮箱对应的用户（需在 Supabase Dashboard 中先注册）');
+    let userId: string;
+    if (UUID_REGEX.test(input)) {
+      userId = input;
+    } else {
+      const admin = (supabase as any).auth?.admin;
+      if (typeof admin?.getUserByEmail !== 'function') {
+        ElMessage.error('按邮箱查询需 service_role，请直接输入用户 UUID（Supabase Dashboard → Authentication → Users 中复制）');
+        return;
+      }
+      const { data: userData, error: e1 } = await admin.getUserByEmail(input);
+      if (e1 || !userData?.user) {
+        ElMessage.error('未找到该邮箱对应用户，请确认已在 Supabase 认证中注册，或改用用户 UUID');
+        return;
+      }
+      userId = userData.user.id;
+    }
+    const { data: updated, error: updateErr } = await supabase
+      .from('user_roles')
+      .update({ role: role.value })
+      .eq('user_id', userId)
+      .select('id');
+    if (updateErr) {
+      ElMessage.error('设置失败：' + (updateErr.message || ''));
       return;
     }
-    const userId = userData.user.id;
-    await supabase.from('user_roles').delete().eq('user_id', userId);
-    const { error } = await supabase.from('user_roles').insert({ user_id: userId, role: role.value });
-    if (error) {
-      ElMessage.error('设置失败：' + (error.message || ''));
+    if (updated && updated.length > 0) {
+      ElMessage.success('设置成功');
+      email.value = '';
+      await fetchData();
+      return;
+    }
+    const { error: insertErr } = await supabase
+      .from('user_roles')
+      .insert({ user_id: userId, role: role.value });
+    if (insertErr) {
+      ElMessage.error('设置失败：' + (insertErr.message || ''));
     } else {
       ElMessage.success('设置成功');
+      email.value = '';
       await fetchData();
     }
   } catch (e: any) {
-    ElMessage.error(e?.message || '设置失败（设置角色需在 Supabase Dashboard 或后端用 service_role 操作）');
+    ElMessage.error(e?.message || '设置失败');
   } finally {
     saving.value = false;
   }
