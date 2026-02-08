@@ -14,7 +14,7 @@ const Dashboard = () => import('../modules/dashboard/DashboardPage.vue');
 const PriceList = () => import('../modules/pricing/PriceListPage.vue'); // 产品价格查询
 const Customers = () => import('../pages/Customers.vue'); // 客户主数据
 const Products = () => import('../pages/Products.vue'); // 产品主数据
-const Contracts = () => import('../pages/Contracts.vue'); // 合同管理
+const Contracts = () => import('../modules/contracts/ContractsPage.vue'); // 合同与附件管理
 const Sales = () => import('../pages/Sales.vue'); // 销售数据管理
 const EmployeesUz = () => import('../pages/EmployeesUz.vue'); // 乌兹员工
 const EmployeesCn = () => import('../pages/EmployeesCn.vue'); // 中国员工
