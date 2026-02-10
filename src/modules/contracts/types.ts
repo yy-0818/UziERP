@@ -21,6 +21,12 @@ export interface ContractVersion {
   bank_name: string | null;
   bank_account: string | null;
   bank_mfo: string | null;
+  /** 出口合同：SWIFT 代码 */
+  bank_swift: string | null;
+  /** 出口合同：OKED 行业代码 */
+  oked_code: string | null;
+  /** 出口合同：swift_code（兼容） */
+  swift_code: string | null;
   director_name: string | null;
   producer: string | null;
   change_reason: string | null;

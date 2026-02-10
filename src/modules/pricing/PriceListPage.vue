@@ -6,11 +6,18 @@
           <div>
             <div class="title">产品价格查询与维护</div>
             <div class="subtitle">按公司、账户、等级、国家、价格类型严格匹配；仅 super_admin / manager / sales可修改</div>
+            <div class="cache-status" v-if="!loading && rows.length > 0">
+              <el-icon :color="getCacheStatusColor()"><Warning /></el-icon>
+              <span>数据已加载 {{ formatTimeAgo(cacheStats.lastUpdate) }}</span>
+            </div>
           </div>
           <template v-if="canEdit">
             <div style="display: flex; align-items: center; gap: 10px;">
               <el-button type="success" @click="openEdit(null)">新增价格</el-button>
               <el-button type="warning" plain @click="exportData">导出数据</el-button>
+              <el-button type="info" plain @click="refreshData" :loading="loading">
+                <el-icon><Refresh /></el-icon>刷新
+              </el-button>
             </div>
           </template>
         </div>
@@ -90,12 +97,27 @@
           />
         </el-select>
         <el-button type="primary" @click="fetchData">查询</el-button>
+        <el-button @click="clearFilters">清空筛选</el-button>
+        
+        <el-dropdown v-if="filterPresets.length > 0" @command="loadFilterPresetCommand">
+          <el-button type="text" style="margin-left: auto;">
+            筛选预设<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item v-for="preset in filterPresets" :key="preset.name" :command="preset">
+                {{ preset.name }}
+              </el-dropdown-item>
+              <el-dropdown-item divided @click="showSavePresetDialog = true">保存当前筛选</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
 
       <template v-if="loading">
         <el-skeleton :rows="12" animated class="erp-table-skeleton" />
       </template>
-      <el-table v-else :data="wideRows" style="width: 100%" stripe border size="small">
+      <el-table v-else :data="wideRows" style="width: 100%" stripe border size="small" height="70vh">
         <el-table-column prop="company" label="公司" min-width="120" fixed show-overflow-tooltip />
         <el-table-column prop="account_name" label="账户" width="60" show-overflow-tooltip />
         <el-table-column prop="level" label="等级" width="60" show-overflow-tooltip />
@@ -138,7 +160,38 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- 表格底部信息 -->
+      <div class="table-footer" v-if="!loading && wideRows.length > 0">
+        <div class="summary-info">
+          <span>共 {{ wideRows.length }} 行数据，{{ Object.keys(productColumns).length }} 种产品</span>
+          <span>最后更新: {{ formatTimeAgo(cacheStats.lastUpdate) }}</span>
+        </div>
+      </div>
     </el-card>
+
+    <!-- 保存筛选预设对话框 -->
+    <el-dialog
+      v-model="showSavePresetDialog"
+      title="保存筛选预设"
+      width="400px"
+      center
+    >
+      <el-form :model="newPresetForm" label-width="80px">
+        <el-form-item label="预设名称" required>
+          <el-input v-model="newPresetForm.name" placeholder="请输入预设名称" />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="newPresetForm.description" type="textarea" rows="2" placeholder="可选描述信息" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showSavePresetDialog = false">取消</el-button>
+          <el-button type="primary" @click="saveFilterPreset">保存</el-button>
+        </span>
+      </template>
+    </el-dialog>
 
     <PriceHistoryDialog
       v-model:visible="historyVisible"
@@ -167,7 +220,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox, ElLoading } from 'element-plus';
+import { Refresh, Warning, ArrowDown } from '@element-plus/icons-vue';
 import { supabase } from '../../supabase';
 import { useAuthStore } from '../../stores/auth';
 import PriceHistoryDialog from './components/PriceHistoryDialog.vue';
@@ -217,10 +271,26 @@ const customers = ref<any[]>([]);
 const accountsByCustomer = ref<Record<number, any[]>>({});
 const products = ref<any[]>([]);
 
-/** 筛选项：从数据库动态加载，保证与等级/国家/价格类型中文一致 */
+// 筛选项：从数据库动态加载
 const levelOptions = ref<string[]>([]);
 const regionOptions = ref<string[]>([]);
 const priceTypeOptions = ref<string[]>([]);
+
+// 筛选预设相关
+const showSavePresetDialog = ref(false);
+const newPresetForm = ref({
+  name: '',
+  description: ''
+});
+const filterPresets = ref<any[]>([]);
+
+// 缓存统计
+const cacheStats = ref({
+  lastUpdate: 0,
+  hitCount: 0,
+  missCount: 0,
+  cacheSize: 0,
+});
 
 /** 仅 super_admin、manager、sales 可编辑价格 */
 const canEdit = computed(() =>
@@ -239,7 +309,17 @@ const modifierEmail = computed(() => {
 /** 宽表：按 (公司,账户,等级,国家,价格类型) 一行，产品各一列 */
 const wideRows = computed(() => {
   const list = rows.value as any[];
-  const byKey = new Map<string, { company: string; account_name: string; level: string; region: string; price_type: string; account_id: number; customer_id: number | null; _cells: Record<string, { price: number; product_id: number }> }>();
+  const byKey = new Map<string, { 
+    company: string; 
+    account_name: string; 
+    level: string; 
+    region: string; 
+    price_type: string; 
+    account_id: number; 
+    customer_id: number | null; 
+    _cells: Record<string, { price: number; product_id: number }> 
+  }>();
+  
   for (const r of list) {
     const key = `${r.account_id}`;
     if (!byKey.has(key)) {
@@ -261,7 +341,7 @@ const wideRows = computed(() => {
   return [...byKey.values()];
 });
 
-/** 产品列顺序：使用全部产品的规格名（保证 25 种产品都显示列，不因 price 条数限制而少列） */
+/** 产品列顺序：使用全部产品的规格名 */
 const productColumns = computed(() => {
   const ps = products.value || [];
   return [...ps]
@@ -275,33 +355,82 @@ function formatPrice(v: number) {
   return Number(v) === Math.floor(v) ? String(v) : Number(v).toFixed(2);
 }
 
+function formatTimeAgo(timestamp: number) {
+  if (!timestamp) return '从未更新';
+  const diff = Date.now() - timestamp;
+  if (diff < 60000) return `${Math.floor(diff / 1000)}秒前`;
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`;
+  return `${Math.floor(diff / 86400000)}天前`;
+}
+
+function getCacheStatusColor() {
+  if (!cacheStats.value.lastUpdate) return '#909399';
+  const age = Date.now() - cacheStats.value.lastUpdate;
+  if (age < 300000) return '#67C23A'; // 5分钟内
+  if (age < 3600000) return '#E6A23C'; // 1小时内
+  return '#F56C6C'; // 超过1小时
+}
+
 function exportData() {
   if (!canEdit.value) return;
-  const cols = productColumns.value;
-  const header = ['公司', '账户', '等级', '国家', '价格类型', ...cols];
-  const rows = wideRows.value.map((row: any) => {
-    const base = [row.company ?? '', row.account_name ?? '', row.level ?? '', row.region ?? '', row.price_type ?? ''];
-    const cells = cols.map((spec) => {
-      const cell = row._cells?.[spec];
-      return cell != null ? formatPrice(cell.price) : '';
-    });
-    return [...base, ...cells];
+  
+  const loadingInstance = ElLoading.service({
+    lock: true,
+    text: '正在导出数据...',
+    background: 'rgba(0, 0, 0, 0.7)'
   });
-  const BOM = '\uFEFF';
-  const csvContent = BOM + [header.join(','), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\r\n');
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `价格数据_${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  
+  try {
+    const cols = productColumns.value;
+    const header = ['公司', '账户', '等级', '国家', '价格类型', ...cols];
+    const dataRows = wideRows.value.map((row: any) => {
+      const base = [
+        row.company ?? '', 
+        row.account_name ?? '', 
+        row.level ?? '', 
+        row.region ?? '', 
+        row.price_type ?? ''
+      ];
+      const cells = cols.map((spec) => {
+        const cell = row._cells?.[spec];
+        return cell != null ? formatPrice(cell.price) : '';
+      });
+      return [...base, ...cells];
+    });
+    
+    const BOM = '\uFEFF';
+    const csvContent = BOM + [header.join(','), ...dataRows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `价格数据_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    loadingInstance.close();
+    ElMessage.success(`已导出 ${wideRows.value.length} 条记录`);
+  } catch (error: any) {
+    loadingInstance.close();
+    console.error('导出失败:', error);
+    ElMessage.error('导出失败: ' + error.message);
+  }
 }
 
 function openHistoryForCell(row: any, spec: string) {
   const cell = row._cells && row._cells[spec];
   if (!cell) return;
-  openHistory({ account_id: row.account_id, product_id: cell.product_id, company: row.company, account_name: row.account_name, product_name: spec, product_spec: spec });
+  openHistory({ 
+    account_id: row.account_id, 
+    product_id: cell.product_id, 
+    company: row.company, 
+    account_name: row.account_name, 
+    product_name: spec, 
+    product_spec: spec 
+  });
 }
 
 function openEditForCell(row: any, spec: string) {
@@ -495,6 +624,10 @@ async function fetchData() {
       update_reason: r.update_reason,
     };
   });
+  
+  // 更新缓存统计
+  cacheStats.value.lastUpdate = Date.now();
+  cacheStats.value.cacheSize = JSON.stringify(rows.value).length;
   loading.value = false;
 }
 
@@ -705,63 +838,166 @@ let optionsCache: {
 
 function invalidateOptionsCache() {
   optionsCache = null;
+  localStorage.removeItem('price_options_cache');
 }
 
 async function loadOptions(forceRefresh = false) {
   const now = Date.now();
-  if (!forceRefresh && optionsCache && now - optionsCache.ts < OPTIONS_CACHE_TTL) {
-    customers.value = optionsCache.customers;
-    products.value = optionsCache.products;
-    accountsByCustomer.value = optionsCache.accountsByCustomer;
-    levelOptions.value = optionsCache.levelOptions;
-    regionOptions.value = optionsCache.regionOptions;
-    priceTypeOptions.value = optionsCache.priceTypeOptions;
+  
+  // 尝试从本地存储加载缓存
+  if (!forceRefresh) {
+    try {
+      const cached = localStorage.getItem('price_options_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (now - parsed.ts < OPTIONS_CACHE_TTL) {
+          optionsCache = parsed;
+          assignOptionsFromCache();
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('缓存读取失败', e);
+    }
+  }
+  
+  try {
+    const [{ data: cs }, { data: ps }] = await Promise.all([
+      supabase.from('customers').select('id, name, region, level').order('name'),
+      supabase.from('products').select('id, name, spec').order('name'),
+    ]);
+    const custList = cs || [];
+    const prodList = ps || [];
+    customers.value = custList;
+    products.value = prodList;
+
+    const { data: accounts } = await supabase
+      .from('customer_accounts')
+      .select('id, account_id, customer_id, account_name, price_type')
+      .order('account_name');
+    const byCustomer: Record<string, any[]> = {};
+    (accounts || []).forEach((a: any) => {
+      const cid = a.customer_id;
+      if (cid == null) return;
+      const key = String(cid);
+      if (!byCustomer[key]) byCustomer[key] = [];
+      byCustomer[key].push(a);
+    });
+    accountsByCustomer.value = byCustomer;
+
+    const levelOpts = [...new Set(custList.map((c: any) => c.level).filter((v) => v != null && v !== ''))].sort();
+    const regionOpts = [...new Set(custList.map((c: any) => c.region).filter((v) => v != null && v !== ''))].sort();
+    const priceTypeOpts = [...new Set((accounts || []).map((a: any) => a.price_type).filter((v) => v != null && v !== ''))].sort();
+    
+    levelOptions.value = levelOpts;
+    regionOptions.value = regionOpts;
+    priceTypeOptions.value = priceTypeOpts;
+
+    optionsCache = {
+      customers: custList,
+      products: prodList,
+      accountsByCustomer: byCustomer,
+      levelOptions: levelOpts,
+      regionOptions: regionOpts,
+      priceTypeOptions: priceTypeOpts,
+      ts: now,
+    };
+    
+    // 保存到本地存储
+    try {
+      localStorage.setItem('price_options_cache', JSON.stringify(optionsCache));
+    } catch (e) {
+      console.warn('缓存保存失败', e);
+    }
+  } catch (error: any) {
+    console.error('加载选项失败:', error);
+    ElMessage.error('选项数据加载失败');
+  }
+}
+
+function assignOptionsFromCache() {
+  if (!optionsCache) return;
+  
+  customers.value = optionsCache.customers;
+  products.value = optionsCache.products;
+  accountsByCustomer.value = optionsCache.accountsByCustomer;
+  levelOptions.value = optionsCache.levelOptions;
+  regionOptions.value = optionsCache.regionOptions;
+  priceTypeOptions.value = optionsCache.priceTypeOptions;
+}
+
+// 筛选预设功能
+function loadFilterPresets() {
+  try {
+    const presets = localStorage.getItem('price_filter_presets');
+    filterPresets.value = presets ? JSON.parse(presets) : [];
+  } catch (e) {
+    console.warn('加载筛选预设失败', e);
+    filterPresets.value = [];
+  }
+}
+
+function saveFilterPreset() {
+  if (!newPresetForm.value.name.trim()) {
+    ElMessage.error('请输入预设名称');
     return;
   }
-  const [{ data: cs }, { data: ps }] = await Promise.all([
-    supabase.from('customers').select('id, name, region, level').order('name'),
-    supabase.from('products').select('id, name, spec').order('name'),
-  ]);
-  const custList = cs || [];
-  const prodList = ps || [];
-  customers.value = custList;
-  products.value = prodList;
-
-  const { data: accounts } = await supabase
-    .from('customer_accounts')
-    .select('id, account_id, customer_id, account_name, price_type')
-    .order('account_name');
-  const byCustomer: Record<string, any[]> = {};
-  (accounts || []).forEach((a: any) => {
-    const cid = a.customer_id;
-    if (cid == null) return;
-    const key = String(cid);
-    if (!byCustomer[key]) byCustomer[key] = [];
-    byCustomer[key].push(a);
-  });
-  accountsByCustomer.value = byCustomer;
-
-  const levelOpts = [...new Set(custList.map((c: any) => c.level).filter((v) => v != null && v !== ''))].sort();
-  const regionOpts = [...new Set(custList.map((c: any) => c.region).filter((v) => v != null && v !== ''))].sort();
-  const priceTypeOpts = [...new Set((accounts || []).map((a: any) => a.price_type).filter((v) => v != null && v !== ''))].sort();
-  levelOptions.value = levelOpts;
-  regionOptions.value = regionOpts;
-  priceTypeOptions.value = priceTypeOpts;
-
-  optionsCache = {
-    customers: custList,
-    products: prodList,
-    accountsByCustomer: byCustomer,
-    levelOptions: levelOpts,
-    regionOptions: regionOpts,
-    priceTypeOptions: priceTypeOpts,
-    ts: now,
+  
+  const preset = {
+    name: newPresetForm.value.name.trim(),
+    description: newPresetForm.value.description.trim(),
+    filters: { ...filters.value },
+    timestamp: new Date().toISOString(),
   };
+  
+  // 检查是否已存在同名预设
+  const existingIndex = filterPresets.value.findIndex(p => p.name === preset.name);
+  if (existingIndex !== -1) {
+    // 更新现有预设
+    filterPresets.value[existingIndex] = preset;
+  } else {
+    // 添加新预设
+    filterPresets.value.push(preset);
+  }
+  
+  // 保存到本地存储
+  try {
+    localStorage.setItem('price_filter_presets', JSON.stringify(filterPresets.value));
+    ElMessage.success(`筛选预设 "${preset.name}" 已保存`);
+    showSavePresetDialog.value = false;
+    newPresetForm.value = { name: '', description: '' };
+  } catch (e) {
+    console.error('保存筛选预设失败', e);
+    ElMessage.error('保存失败');
+  }
+}
+
+function loadFilterPresetCommand(preset: any) {
+  filters.value = { ...preset.filters };
+  ElMessage.success(`已加载预设 "${preset.name}"`);
+  fetchData();
+}
+
+function clearFilters() {
+  filters.value = {
+    keyword: '',
+    level: [],
+    region: [],
+    price_type: [],
+    product_ids: []
+  };
+}
+
+async function refreshData() {
+  await loadOptions(true);
+  await fetchData();
+  ElMessage.success('数据已刷新');
 }
 
 onMounted(async () => {
   await loadOptions();
   await fetchData();
+  loadFilterPresets();
 });
 </script>
 
@@ -788,6 +1024,23 @@ onMounted(async () => {
 .subtitle {
   font-size: 12px;
   color: #909399;
+}
+
+.cache-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 12px;
+  color: #606266;
+}
+
+.erp-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
 }
 
 .price-cell {
@@ -824,5 +1077,22 @@ onMounted(async () => {
 .erp-table-skeleton :deep(.el-skeleton__item) {
   height: 32px;
   margin-bottom: 12px;
+}
+
+.table-footer {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.summary-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 </style>

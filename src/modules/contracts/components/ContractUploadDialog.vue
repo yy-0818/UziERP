@@ -80,7 +80,7 @@
       </el-form-item>
       <el-row :gutter="20">
         <el-col :span="8">
-          <el-form-item label="账号(р/с)：" prop="bank_account">
+          <el-form-item label="账号：" prop="bank_account">
             <el-input v-model="contractForm.bank_account" placeholder="必填" :disabled="isContractAddToExisting" />
           </el-form-item>
         </el-col>
@@ -92,6 +92,19 @@
         <el-col :span="8">
           <el-form-item label="银行：">
             <el-input v-model="contractForm.bank_name" placeholder="选填" :disabled="isContractAddToExisting" />
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <!-- 出口合同专属：SWIFT、OKED -->
+      <el-row v-if="contractForm.business_type === 'export'" :gutter="20">
+        <el-col :span="12">
+          <el-form-item label="SWIFT：" prop="bank_swift">
+            <el-input v-model="contractForm.bank_swift" placeholder="出口合同填写，如 - 或 SWIFT 代码" :disabled="isContractAddToExisting" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="OKED：" prop="oked_code">
+            <el-input v-model="contractForm.oked_code" placeholder="出口合同行业代码" :disabled="isContractAddToExisting" />
           </el-form-item>
         </el-col>
       </el-row>
@@ -288,6 +301,26 @@ const contractForm = ref({
   bank_name: '',
   bank_account: '',
   bank_mfo: '',
+  bank_swift: '' as string,
+  oked_code: '' as string,
+  director_name: '',
+  producer: '',
+  change_reason: '',
+});
+
+const emptyContractForm = () => ({
+  business_type: '' as 'uz_domestic' | 'export' | '',
+  contract_no: '',
+  account_name: '',
+  contract_date: '',
+  company_name: '',
+  tax_number: '',
+  address: '',
+  bank_name: '',
+  bank_account: '',
+  bank_mfo: '',
+  bank_swift: '',
+  oked_code: '',
   director_name: '',
   producer: '',
   change_reason: '',
@@ -303,7 +336,7 @@ const contractRules: FormRules = {
   address: [{ required: true, message: '请输入地址', trigger: 'blur' }],
   director_name: [{ required: true, message: '请输入老板', trigger: 'blur' }],
   bank_account: [{ required: true, message: '请输入账号', trigger: 'blur' }],
-  bank_mfo: [{ required: true, message: '请输入银行代码', trigger: 'blur' }],
+  bank_mfo: [{ required: true, message: '请输入银行代码(МФО)', trigger: 'blur' }],
   producer: [{ required: true, message: '请输入制作人', trigger: 'blur' }],
   change_reason: [{ required: true, message: '请输入修订原因', trigger: 'blur' }],
 };
@@ -373,27 +406,15 @@ watch(
               bank_name: ver.bank_name ?? '',
               bank_account: ver.bank_account ?? '',
               bank_mfo: ver.bank_mfo ?? '',
+              bank_swift: ver.bank_swift ?? ver.swift_code ?? '',
+              oked_code: ver.oked_code ?? '',
               director_name: ver.director_name ?? '',
               producer: ver.producer ?? '',
               change_reason: ver.change_reason ?? '',
             };
           }
         } else if (!props.preselectedContractId) {
-          contractForm.value = {
-            business_type: '',
-            contract_no: '',
-            account_name: '',
-            contract_date: '',
-            company_name: '',
-            tax_number: '',
-            address: '',
-            bank_name: '',
-            bank_account: '',
-            bank_mfo: '',
-            director_name: '',
-            producer: '',
-            change_reason: '',
-          };
+          contractForm.value = emptyContractForm();
         }
         if (contractFileList.value.length === 0) addContractFile();
       }
@@ -418,21 +439,7 @@ function removeAttachmentFile(idx: number) {
 }
 
 function reset() {
-  contractForm.value = {
-    business_type: '',
-    contract_no: '',
-    account_name: '',
-    contract_date: '',
-    company_name: '',
-    tax_number: '',
-    address: '',
-    bank_name: '',
-    bank_account: '',
-    bank_mfo: '',
-    director_name: '',
-    producer: '',
-    change_reason: '',
-  };
+  contractForm.value = emptyContractForm();
   contractFileList.value = [];
   attachmentForm.value = {
     contractId: props.preselectedContractId || '',
@@ -478,6 +485,8 @@ async function submit() {
           bank_name: contractForm.value.bank_name?.trim() || null,
           bank_account: contractForm.value.bank_account?.trim() || null,
           bank_mfo: contractForm.value.bank_mfo?.trim() || null,
+          bank_swift: contractForm.value.business_type === 'export' ? (contractForm.value.bank_swift?.trim() || null) : null,
+          oked_code: contractForm.value.business_type === 'export' ? (contractForm.value.oked_code?.trim() || null) : null,
           director_name: contractForm.value.director_name.trim(),
           producer: contractForm.value.producer.trim(),
           change_reason: contractForm.value.change_reason.trim(),

@@ -93,6 +93,10 @@ export async function createContractWithFiles(params: {
   bank_name?: string | null;
   bank_account?: string | null;
   bank_mfo?: string | null;
+  /** 出口合同：SWIFT 代码 */
+  bank_swift?: string | null;
+  /** 出口合同：OKED 行业代码 */
+  oked_code?: string | null;
   director_name: string;
   producer: string;
   change_reason: string;
@@ -131,6 +135,8 @@ export async function createContractWithFiles(params: {
       bank_name: params.bank_name ?? null,
       bank_account: params.bank_account ?? null,
       bank_mfo: params.bank_mfo ?? null,
+      bank_swift: params.bank_swift ?? null,
+      oked_code: params.oked_code ?? null,
       director_name: params.director_name,
       producer: params.producer,
       change_reason: params.change_reason,

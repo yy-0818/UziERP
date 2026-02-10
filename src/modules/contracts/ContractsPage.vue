@@ -8,8 +8,9 @@
             <div class="subtitle">一客户一合同；合同与附件均区分乌兹国内/出口；支持上传合同或为指定合同上传附件</div>
           </div>
           <div class="header-actions">
-            <el-button type="primary" @click="openUpload('contract')">上传合同</el-button>
-            <el-button @click="openUpload('attachment')">上传附件</el-button>
+            <el-button v-if="canManage" type="primary" @click="openUpload('contract')">上传合同</el-button>
+            <el-button v-if="canManage" @click="openUpload('attachment')">上传附件</el-button>
+            <el-button v-if="canManage" type="success" plain @click="exportData">导出</el-button>
             <el-button :icon="Refresh" @click="fetchData">刷新</el-button>
           </div>
         </div>
@@ -69,6 +70,10 @@
                   <dt>银行：</dt><dd>{{ currentVersion(row)!.bank_name || '—' }}</dd>
                   <dt>账号(р/с)：</dt><dd>{{ currentVersion(row)!.bank_account || '—' }}</dd>
                   <dt>银行代码(МФО)：</dt><dd>{{ currentVersion(row)!.bank_mfo || '—' }}</dd>
+                  <template v-if="row.business_type === 'export'">
+                    <dt>SWIFT：</dt><dd>{{ currentVersion(row)!.bank_swift || currentVersion(row)!.swift_code || '—' }}</dd>
+                    <dt>OKED：</dt><dd>{{ currentVersion(row)!.oked_code || '—' }}</dd>
+                  </template>
                   <dt>税号(ИНН)：</dt><dd>{{ currentVersion(row)!.tax_number }}</dd>
                   <dt>老板(Директор)：</dt><dd>{{ currentVersion(row)!.director_name || '—' }}</dd>
                   <dt>制作人：</dt><dd>{{ currentVersion(row)!.producer || '—' }}</dd>
@@ -77,11 +82,14 @@
               </div>
               <div class="expand-section">
                 <div class="expand-section-title">合同
-                  <el-button type="primary" link size="small" @click="openUpload('contract', row.id)">+ 上传合同</el-button>
+                  <el-button v-if="canManage" type="primary" link size="small" @click="openUpload('contract', row.id)">+ 上传合同</el-button>
                 </div>
                 <div class="file-tags">
                   <template v-for="a in contractFiles(row)" :key="a.id">
                     <el-tag size="small" class="file-tag">
+                      <span v-if="a.is_current && (a.file_ext || '').toLowerCase() === 'pdf'">[当前PDF]</span>
+                      <span v-else-if="(a.file_ext || '').toLowerCase() === 'pdf'">[历史PDF]</span>
+                      <span v-else>[其他]</span>
                       {{ a.logical_name }}
                       <el-button link type="primary" size="small" @click="viewAttachment(a)">查看</el-button>
                       <el-button link type="primary" size="small" @click="downloadAttachment(a)">下载</el-button>
@@ -93,11 +101,14 @@
               <div class="expand-section">
                 <div class="expand-section-title">
                   附件
-                  <el-button type="primary" link size="small" @click="openUpload('attachment', row.id)">+ 上传附件</el-button>
+                  <el-button v-if="canManage" type="primary" link size="small" @click="openUpload('attachment', row.id)">+ 上传附件</el-button>
                 </div>
                 <div class="file-tags">
                   <template v-for="a in attachmentFiles(row)" :key="a.id">
                     <el-tag size="small" class="file-tag">
+                      <span v-if="a.is_current && (a.file_ext || '').toLowerCase() === 'pdf'">[当前PDF]</span>
+                      <span v-else-if="(a.file_ext || '').toLowerCase() === 'pdf'">[历史PDF]</span>
+                      <span v-else>[其他]</span>
                       {{ a.logical_name }}
                       <el-button link type="primary" size="small" @click="viewAttachment(a)">查看</el-button>
                       <el-button link type="primary" size="small" @click="downloadAttachment(a)">下载</el-button>
@@ -113,7 +124,10 @@
           <template #default="{ row }">{{ formatDateOnly(currentVersion(row)?.contract_date) }}</template>
         </el-table-column>
         <el-table-column prop="contract_no" label="合同号" min-width="140" show-overflow-tooltip />
-        <el-table-column label="税号" width="120" show-overflow-tooltip>
+        <el-table-column label="公司名称" min-width="180" show-overflow-tooltip>
+          <template #default="{ row }">{{ currentVersion(row)?.company_name || '—' }}</template>
+        </el-table-column>
+        <el-table-column label="税号" width="160" show-overflow-tooltip>
           <template #default="{ row }">{{ currentVersion(row)?.tax_number || '—' }}</template>
         </el-table-column>
         <el-table-column label="账户" min-width="160" show-overflow-tooltip>
@@ -121,6 +135,14 @@
         </el-table-column>
         <el-table-column prop="business_type" label="业务类型" width="96">
           <template #default="{ row }">{{ businessTypeLabel(row.business_type) }}</template>
+        </el-table-column>
+        <el-table-column label="附件数" width="80" align="center">
+          <template #default="{ row }">{{ pdfAttachmentCount(row) }}</template>
+        </el-table-column>
+        <el-table-column v-if="canManage" label="操作" width="110" fixed="right" align="center">
+          <template #default="{ row }">
+            <el-button size="small" link type="primary" @click="openEdit(row)">编辑</el-button>
+          </template>
         </el-table-column>
       </el-table>
 
@@ -136,20 +158,134 @@
       :preselected-contract-id="preselectedContractId"
       @uploaded="fetchData"
     />
+
+    <!-- 编辑合同信息：用于修正上传时填错的字段（不修改合同号与业务类型） -->
+    <el-dialog v-model="editVisible" title="编辑合同信息" :max-width=" '80%' " destroy-on-close>
+      <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="120px" label-position="left">
+        <el-alert
+          type="info"
+          show-icon
+          :closable="false"
+          title="仅支持修正合同信息与当前生效版本字段；合同号与业务类型不允许修改（涉及存储路径）。"
+          style="margin-bottom: 12px;"
+        />
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="合同号：">
+              <el-input :model-value="editForm.contract_no" disabled />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="业务类型：">
+              <el-input :model-value="businessTypeLabel(editForm.business_type)" disabled />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-form-item label="账户名称：">
+          <el-input v-model="editForm.account_name" placeholder="可修正账户显示名" />
+        </el-form-item>
+
+        <div class="form-section">当前生效版本字段</div>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="合同日期：" prop="contract_date">
+              <el-date-picker
+                v-model="editForm.contract_date"
+                type="date"
+                value-format="YYYY-MM-DD"
+                placeholder="必填"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="公司名称：" prop="company_name">
+              <el-input v-model="editForm.company_name" placeholder="必填" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="税号(ИНН)：" prop="tax_number">
+              <el-input v-model="editForm.tax_number" placeholder="必填" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="老板：" prop="director_name">
+              <el-input v-model="editForm.director_name" placeholder="必填" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="地址：" prop="address">
+          <el-input v-model="editForm.address" type="textarea" :rows="2" placeholder="必填" />
+        </el-form-item>
+        <el-row :gutter="20">
+          <el-col :span="8">
+            <el-form-item label="账号(р/с)：" prop="bank_account">
+              <el-input v-model="editForm.bank_account" placeholder="必填" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="银行代码(МФО)：" prop="bank_mfo">
+              <el-input v-model="editForm.bank_mfo" placeholder="必填" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="银行：">
+              <el-input v-model="editForm.bank_name" placeholder="选填" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row v-if="editForm.business_type === 'export'" :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="SWIFT：">
+              <el-input v-model="editForm.bank_swift" placeholder="出口合同填写，如 - 或 SWIFT 代码" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="OKED：">
+              <el-input v-model="editForm.oked_code" placeholder="出口合同行业代码" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="制作人：" prop="producer">
+              <el-input v-model="editForm.producer" placeholder="必填" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="修订原因：" prop="change_reason">
+              <el-input v-model="editForm.change_reason" placeholder="必填：本次修改原因" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+      </el-form>
+      <template #footer>
+        <el-button @click="editVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="saveEdit">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
+import { supabase } from '../../supabase';
 import { fetchContractsWithDetails, getAttachmentUrl } from './api';
 import { BUSINESS_TYPE_LABELS, formatContractDate, CONTRACT_FILE_TYPES, ATTACHMENT_ONLY_TYPES } from './types';
 import type { ContractWithDetails, ContractVersion, ContractAttachment } from './types';
 import ContractUploadDialog from './components/ContractUploadDialog.vue';
+import { exportToExcel } from '../../composables/useExport';
+import { useAuthStore } from '../../stores/auth';
 
 const list = ref<ContractWithDetails[]>([]);
 const loading = ref(false);
+const auth = useAuthStore();
+const canManage = computed(() => (auth.role || '') !== 'viewer');
 const filters = ref({
   keyword: '',
   business_type: '' as string,
@@ -186,7 +322,15 @@ const filteredList = computed(() => {
   if (filters.value.onlyWithAttachments) {
     rows = rows.filter((c) => (c.attachments || []).some((a) => ATTACHMENT_ONLY_TYPES.includes(a.attachment_type)));
   }
-  return rows;
+  // 默认按合同日期倒序（无日期则按 created_at 倒序兜底）
+  return [...rows].sort((a, b) => {
+    const da = currentVersion(a)?.contract_date || '';
+    const db = currentVersion(b)?.contract_date || '';
+    if (da && db) return db.localeCompare(da);
+    if (da) return -1;
+    if (db) return 1;
+    return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+  });
 });
 
 const uploadVisible = ref(false);
@@ -204,6 +348,11 @@ function contractFiles(row: ContractWithDetails): ContractAttachment[] {
 
 function attachmentFiles(row: ContractWithDetails): ContractAttachment[] {
   return (row.attachments || []).filter((a) => ATTACHMENT_ONLY_TYPES.includes(a.attachment_type));
+}
+
+function pdfAttachmentCount(row: ContractWithDetails): number {
+  const atts = row.attachments || [];
+  return atts.filter((a) => (a.file_ext || '').toLowerCase() === 'pdf').length;
 }
 
 function formatDateOnly(v: string | undefined): string {
@@ -238,6 +387,59 @@ function openUpload(mode: 'contract' | 'attachment', contractId?: string) {
   uploadVisible.value = true;
 }
 
+function exportData() {
+  if (!canManage.value) return;
+  const rows = filteredList.value;
+  if (!rows.length) {
+    ElMessage.warning('暂无可导出的数据');
+    return;
+  }
+  const data = rows.map((c) => {
+    const v = currentVersion(c);
+    return {
+      contract_no: c.contract_no,
+      business_type: businessTypeLabel(c.business_type),
+      contract_date: v?.contract_date || '',
+      account_name: c.account_name || '',
+      company_name: v?.company_name || '',
+      tax_number: v?.tax_number || '',
+      address: v?.address || '',
+      bank_name: v?.bank_name || '',
+      bank_account: v?.bank_account || '',
+      bank_mfo: v?.bank_mfo || '',
+      bank_swift: v?.bank_swift || v?.swift_code || '',
+      oked_code: v?.oked_code || '',
+      director_name: v?.director_name || '',
+      producer: v?.producer || '',
+      attachments_count: pdfAttachmentCount(c),
+      created_at: c.created_at,
+    };
+  });
+  exportToExcel(
+    data,
+    [
+      { key: 'contract_no', label: '合同号' },
+      { key: 'business_type', label: '业务类型' },
+      { key: 'contract_date', label: '合同日期' },
+      { key: 'account_name', label: '账户名称' },
+      { key: 'company_name', label: '公司名称' },
+      { key: 'tax_number', label: '税号(ИНН)' },
+      { key: 'address', label: '地址' },
+      { key: 'bank_name', label: '银行' },
+      { key: 'bank_account', label: '账号(р/с)' },
+      { key: 'bank_mfo', label: '银行代码(МФО)' },
+      { key: 'bank_swift', label: 'SWIFT' },
+      { key: 'oked_code', label: 'OKED' },
+      { key: 'director_name', label: '老板(Директор)' },
+      { key: 'producer', label: '制作人' },
+      { key: 'attachments_count', label: '附件数' },
+      { key: 'created_at', label: '创建时间' },
+    ],
+    'contracts'
+  );
+  ElMessage.success(`已导出 ${data.length} 条`);
+}
+
 async function viewAttachment(a: ContractAttachment) {
   try {
     const url = await getAttachmentUrl(a.file_path);
@@ -261,6 +463,127 @@ async function downloadAttachment(a: ContractAttachment) {
 }
 
 onMounted(() => fetchData());
+
+// 编辑合同信息
+const editVisible = ref(false);
+const saving = ref(false);
+const editFormRef = ref<FormInstance>();
+const editForm = ref<any>({
+  contract_id: '',
+  version_id: '',
+  contract_no: '',
+  business_type: '' as string,
+  account_name: '',
+  customer_display_name: '',
+  contract_date: '',
+  company_name: '',
+  tax_number: '',
+  address: '',
+  bank_name: '',
+  bank_account: '',
+  bank_mfo: '',
+  bank_swift: '',
+  oked_code: '',
+  director_name: '',
+  producer: '',
+  change_reason: '',
+});
+
+const editRules: FormRules = {
+  contract_date: [{ required: true, message: '请选择合同日期', trigger: 'change' }],
+  company_name: [{ required: true, message: '请输入公司名称', trigger: 'blur' }],
+  tax_number: [{ required: true, message: '请输入税号', trigger: 'blur' }],
+  address: [{ required: true, message: '请输入地址', trigger: 'blur' }],
+  director_name: [{ required: true, message: '请输入老板', trigger: 'blur' }],
+  bank_account: [{ required: true, message: '请输入账号', trigger: 'blur' }],
+  bank_mfo: [{ required: true, message: '请输入银行代码(МФО)', trigger: 'blur' }],
+  producer: [{ required: true, message: '请输入制作人', trigger: 'blur' }],
+  change_reason: [{ required: true, message: '请输入修订原因', trigger: 'blur' }],
+};
+
+function openEdit(row: ContractWithDetails) {
+  if (!canManage.value) return;
+  const v = currentVersion(row);
+  if (!v) {
+    ElMessage.warning('暂无可编辑的版本信息');
+    return;
+  }
+  editForm.value = {
+    contract_id: row.id,
+    version_id: v.id,
+    contract_no: row.contract_no,
+    business_type: row.business_type,
+    account_name: row.account_name || '',
+    customer_display_name: row.customer_display_name || '',
+    contract_date: v.contract_date || '',
+    company_name: v.company_name || '',
+    tax_number: v.tax_number || '',
+    address: v.address || '',
+    bank_name: v.bank_name || '',
+    bank_account: v.bank_account || '',
+    bank_mfo: v.bank_mfo || '',
+    bank_swift: (v as any).bank_swift || (v as any).swift_code || '',
+    oked_code: (v as any).oked_code || '',
+    director_name: v.director_name || '',
+    producer: v.producer || '',
+    change_reason: '',
+  };
+  editVisible.value = true;
+  editFormRef.value?.clearValidate();
+}
+
+async function saveEdit() {
+  if (!canManage.value) return;
+  await editFormRef.value?.validate().catch(() => {});
+  const f = editForm.value;
+  const reason = String(f.change_reason || '').trim();
+  if (!reason) {
+    ElMessage.error('修订原因必填');
+    return;
+  }
+  saving.value = true;
+  try {
+    const { error: e1 } = await supabase
+      .from('contracts')
+      .update({
+        account_name: f.account_name?.trim() || null,
+        customer_display_name: f.customer_display_name?.trim() || null,
+      })
+      .eq('id', f.contract_id);
+    if (e1) throw e1;
+
+    const payload: Record<string, any> = {
+      contract_date: f.contract_date,
+      company_name: String(f.company_name || '').trim(),
+      tax_number: String(f.tax_number || '').trim(),
+      address: String(f.address || '').trim(),
+      bank_name: f.bank_name?.trim() || null,
+      bank_account: String(f.bank_account || '').trim() || null,
+      bank_mfo: String(f.bank_mfo || '').trim() || null,
+      director_name: String(f.director_name || '').trim() || null,
+      producer: String(f.producer || '').trim() || null,
+      change_reason: reason,
+    };
+    if (f.business_type === 'export') {
+      payload.bank_swift = f.bank_swift?.trim() || null;
+      payload.oked_code = f.oked_code?.trim() || null;
+    } else {
+      payload.bank_swift = null;
+      payload.oked_code = null;
+    }
+
+    const { error: e2 } = await supabase.from('contract_versions').update(payload).eq('id', f.version_id);
+    if (e2) throw e2;
+
+    ElMessage.success('已保存');
+    editVisible.value = false;
+    await fetchData();
+  } catch (e: any) {
+    ElMessage.error(e?.message || '保存失败');
+  } finally {
+    saving.value = false;
+  }
+}
 </script>
 
 <style scoped>
@@ -356,6 +679,19 @@ onMounted(() => fetchData());
   font-size: 13px;
   color: var(--text-placeholder);
   padding: 8px 0;
+}
+
+.expand-actions {
+  margin-top: 10px;
+}
+
+.form-section {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 18px 0 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .table-empty {
