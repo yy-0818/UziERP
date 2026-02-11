@@ -20,9 +20,19 @@ function buildStoragePath(
   return `${businessType}/${contractNo}/v${versionNo}/${attachmentType}/${safe}`;
 }
 
-/** 避免 Storage 报错：Attribute name 不能含 ", ', < */
+/** Supabase Storage (S3) 仅支持 ASCII 作为 object key，中文等非 ASCII 需替换 */
 function sanitizeFileName(name: string): string {
-  return name.replace(/["'<>]/g, '_').replace(/\s+/g, '_');
+  const parts = name.split('.');
+  const ext = parts.length > 1 ? '.' + (parts.pop() || '').toLowerCase() : '';
+  const base = parts.join('.');
+  let safe = base
+    .replace(/["'<>]/g, '_')
+    .replace(/\s+/g, '_')
+    .replace(/[^a-zA-Z0-9._-]/g, '_') // 非 ASCII 及不安全字符 → 下划线
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
+  if (!safe || safe.length < 2) safe = `file_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  return safe + ext;
 }
 
 /** 获取合同列表（含版本与附件） */
