@@ -17,10 +17,10 @@
             style="width: 320px"
           />
           <el-select v-model="role" placeholder="选择角色" style="width: 160px">
-            <el-option label="超级管理员" value="super_admin" />
-            <el-option label="经理" value="manager" />
-            <el-option label="销售" value="sales" />
-            <el-option label="只读" value="viewer" />
+            <el-option label="决策者" value="super_admin" />
+            <el-option label="管理者" value="manager" />
+            <el-option label="执行者" value="sales" />
+            <el-option label="操作者" value="viewer" />
           </el-select>
           <el-button type="primary" :loading="saving" @click="setRole">设置角色</el-button>
         </div>
@@ -52,10 +52,10 @@ const saving = ref(false);
 
 function roleLabel(r: string) {
   const map: Record<string, string> = {
-    super_admin: '超级管理员',
-    manager: '经理',
-    sales: '销售',
-    viewer: '只读',
+    super_admin: '决策者',
+    manager: '管理者',
+    sales: '执行者',
+    viewer: '操作者',
   };
   return map[r] || r;
 }
