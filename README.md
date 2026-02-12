@@ -49,7 +49,7 @@ npm run dev
 
 4. **部署**  
    点击 **Deploy**。构建完成后会得到一条访问链接（如 `https://xxx.vercel.app`）。  
-   前端路由（如 `/pricing/prices`）已通过 `vercel.json` 的 rewrites 指向 `index.html`，刷新或直接访问子路径均可。
+   前端路由（如 `/business/pricing`）已通过 `vercel.json` 的 rewrites 指向 `index.html`，刷新或直接访问子路径均可。
 
 5. **后续更新**  
    代码推送到 GitHub 的 `main` 分支后，Vercel 会自动重新构建并发布。

@@ -1,4 +1,5 @@
 import { supabase } from '../../supabase';
+import { getLocalIsoString } from '../../utils/datetime';
 import type { Contract, ContractVersion, ContractAttachment, ContractWithDetails } from './types';
 import type { AttachmentType } from './types';
 
@@ -119,6 +120,7 @@ export async function createContractWithFiles(params: {
   change_reason: string;
   files: { attachmentType: AttachmentType; logicalName: string; file: File }[];
 }): Promise<Contract> {
+  const localNow = getLocalIsoString();
   const { data: contract, error: eContract } = await supabase
     .from('contracts')
     .insert({
@@ -126,6 +128,7 @@ export async function createContractWithFiles(params: {
       business_type: params.business_type,
       account_name: params.account_name,
       customer_display_name: null,
+      created_at: localNow,
     })
     .select()
     .single();
@@ -147,6 +150,7 @@ export async function createContractWithFiles(params: {
       is_current: true,
       contract_date: params.contract_date,
       company_name: params.company_name,
+      created_at: localNow,
       tax_number: params.tax_number,
       address: params.address,
       bank_name: params.bank_name ?? null,
@@ -188,6 +192,7 @@ export async function createContractWithFiles(params: {
       file_ext: f.file.name.includes('.') ? f.file.name.split('.').pop()?.toLowerCase() ?? null : null,
       is_current: true,
       source: 'manual',
+      created_at: localNow,
     });
   }
 
@@ -217,6 +222,7 @@ export async function uploadContractFiles(params: {
   if (eVer) throw eVer;
   const versionNo = currentVersion?.version_no ?? 1;
   const versionId = currentVersion?.id ?? null;
+  const localNow = getLocalIsoString();
 
   for (const f of params.files) {
     const storagePath = buildStoragePath(
@@ -242,6 +248,7 @@ export async function uploadContractFiles(params: {
       file_ext: f.file.name.includes('.') ? f.file.name.split('.').pop()?.toLowerCase() ?? null : null,
       is_current: true,
       source: 'manual',
+      created_at: localNow,
     });
     if (insertErr) throw insertErr;
   }
@@ -276,6 +283,7 @@ export async function uploadAttachmentFiles(params: {
   if (eVer) throw eVer;
   const versionNo = currentVersion?.version_no ?? 1;
   const versionId = currentVersion?.id ?? null;
+  const localNow = getLocalIsoString();
 
   for (const f of params.files) {
     const storagePath = buildStoragePath(
@@ -302,6 +310,7 @@ export async function uploadAttachmentFiles(params: {
       is_current: true,
       source: 'manual',
       remark: remarkText,
+      created_at: localNow,
     });
     if (insertErr) throw insertErr;
   }

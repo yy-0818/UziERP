@@ -409,13 +409,15 @@ async function onProductIdsChange() {
   form.product_prices = next;
 }
 
-function onSave() {
+async function onSave() {
   if (!formRef.value) return;
-  formRef.value.validate((valid) => {
-    if (!valid) return;
-    form.modifier_email = props.modifierEmail || form.modifier_email || '';
-    emit('save', { ...form });
-  });
+  try {
+    await formRef.value.validate();
+  } catch {
+    return;
+  }
+  form.modifier_email = props.modifierEmail || form.modifier_email || '';
+  emit('save', { ...form });
 }
 </script>
 

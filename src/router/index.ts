@@ -44,12 +44,12 @@ const routes: RouteRecordRaw[] = [
         meta: { module: 'dashboard', title: '总览首页' },
       },
 
-      // 1. 产品价格模块
+      // 业务管理 - 价格查询与维护
       {
-        path: 'pricing/prices',
-        name: 'pricing-prices',
+        path: 'business/pricing',
+        name: 'business-pricing',
         component: PriceList,
-        meta: { module: 'pricing', parentTitle: '产品价格', title: '价格查询与维护' },
+        meta: { module: 'business', parentTitle: '业务管理', title: '价格查询与维护' },
       },
 
       // 2. 主数据（客户 / 产品）
@@ -129,7 +129,7 @@ router.beforeEach(async (to, _from, next) => {
 
   const needRoles = to.meta.requiresRole as string[] | undefined;
   if (needRoles && !needRoles.includes(auth.role || '')) {
-    return next('/pricing/prices');
+    return next('/business/pricing');
   }
 
   next();

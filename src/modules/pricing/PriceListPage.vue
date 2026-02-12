@@ -223,6 +223,7 @@ import { ref, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox, ElLoading } from 'element-plus';
 import { Refresh, Warning, ArrowDown } from '@element-plus/icons-vue';
 import { supabase } from '../../supabase';
+import { getLocalIsoString } from '../../utils/datetime';
 import { useAuthStore } from '../../stores/auth';
 import PriceHistoryDialog from './components/PriceHistoryDialog.vue';
 import PriceEditDialog from './components/PriceEditDialog.vue';
@@ -703,7 +704,7 @@ async function savePrice(payload: any) {
   const f = payload;
   saving.value = true;
   invalidateOptionsCache();
-  const now = new Date().toISOString();
+  const now = getLocalIsoString();
   const reason = String(f.update_reason || '').trim();
   if (!reason) {
     ElMessage.error('修改理由必填');
@@ -727,6 +728,7 @@ async function savePrice(payload: any) {
         currency: f.currency || 'USD',
         valid_from: now,
         update_reason: reason,
+        created_at: now,
       };
       if (emailForDb) insertPayload.modifier_email = emailForDb;
       const { error } = await supabase.from('prices').insert(insertPayload);
@@ -754,6 +756,7 @@ async function savePrice(payload: any) {
           name: companyVal.trim(),
           level: f.level || null,
           region: f.region || null,
+          created_at: now,
         })
         .select('id')
         .single();
@@ -772,6 +775,7 @@ async function savePrice(payload: any) {
           customer_id: newCustomer.id,
           account_name: (f.new_account_name || '').trim(),
           price_type: f.price_type || null,
+          created_at: now,
         })
         .select('id')
         .single();

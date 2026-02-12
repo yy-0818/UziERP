@@ -459,7 +459,11 @@ async function submit() {
       return;
     }
     if (!isContractAddToExisting.value) {
-      await contractFormRef.value?.validate().catch(() => {});
+      try {
+        await contractFormRef.value?.validate();
+      } catch {
+        return;
+      }
     }
     uploading.value = true;
     try {
@@ -508,7 +512,11 @@ async function submit() {
     return;
   }
 
-  await attachmentFormRef.value?.validate().catch(() => {});
+  try {
+    await attachmentFormRef.value?.validate();
+  } catch {
+    return;
+  }
   const valid = attachmentFileList.value.filter((x) => x.file);
   if (!valid.length) {
     ElMessage.warning('请至少添加一个附件文件');

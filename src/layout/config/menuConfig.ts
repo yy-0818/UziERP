@@ -13,15 +13,6 @@ export const rawMenuTree: MenuNode[] = [
   },
   {
     type: 'group',
-    index: 'pricing',
-    title: '产品价格',
-    icon: 'Money',
-    children: [
-      { type: 'item', index: '/pricing/prices', title: '价格查询与维护' },
-    ],
-  },
-  {
-    type: 'group',
     index: 'master',
     title: '主数据',
     icon: 'FolderOpened',
@@ -36,6 +27,7 @@ export const rawMenuTree: MenuNode[] = [
     title: '业务管理',
     icon: 'Document',
     children: [
+      { type: 'item', index: '/business/pricing', title: '价格查询与维护' },
       { type: 'item', index: '/contracts', title: '合同管理' },
       { type: 'item', index: '/sales', title: '销售数据' },
     ],

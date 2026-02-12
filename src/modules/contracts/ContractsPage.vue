@@ -412,7 +412,6 @@ function exportData() {
       director_name: v?.director_name || '',
       producer: v?.producer || '',
       attachments_count: pdfAttachmentCount(c),
-      created_at: c.created_at,
     };
   });
   exportToExcel(
@@ -433,7 +432,6 @@ function exportData() {
       { key: 'director_name', label: '老板(Директор)' },
       { key: 'producer', label: '制作人' },
       { key: 'attachments_count', label: '合同附件数' },
-      { key: 'created_at', label: '创建时间' },
     ],
     'contracts'
   );
@@ -534,7 +532,11 @@ function openEdit(row: ContractWithDetails) {
 
 async function saveEdit() {
   if (!canManage.value) return;
-  await editFormRef.value?.validate().catch(() => {});
+  try {
+    await editFormRef.value?.validate();
+  } catch {
+    return;
+  }
   const f = editForm.value;
   const reason = String(f.change_reason || '').trim();
   if (!reason) {
