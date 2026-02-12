@@ -120,11 +120,11 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="合同日期" width="110">
+        <el-table-column label="合同日期" width="100">
           <template #default="{ row }">{{ formatDateOnly(currentVersion(row)?.contract_date) }}</template>
         </el-table-column>
         <el-table-column prop="contract_no" label="合同号" min-width="140" show-overflow-tooltip />
-        <el-table-column label="公司名称" min-width="180" show-overflow-tooltip>
+        <el-table-column label="公司名称" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">{{ currentVersion(row)?.company_name || '—' }}</template>
         </el-table-column>
         <el-table-column label="税号" width="160" show-overflow-tooltip>
@@ -136,7 +136,7 @@
         <el-table-column prop="business_type" label="业务类型" width="96">
           <template #default="{ row }">{{ businessTypeLabel(row.business_type) }}</template>
         </el-table-column>
-        <el-table-column label="附件数" width="80" align="center">
+        <el-table-column label="合同附件数" width="120" align="center">
           <template #default="{ row }">{{ pdfAttachmentCount(row) }}</template>
         </el-table-column>
         <el-table-column v-if="canManage" label="操作" width="110" fixed="right" align="center">
@@ -227,7 +227,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="银行代码(МФО)：" prop="bank_mfo">
+            <el-form-item label="银行代码：" prop="bank_mfo">
               <el-input v-model="editForm.bank_mfo" placeholder="必填" />
             </el-form-item>
           </el-col>
@@ -432,7 +432,7 @@ function exportData() {
       { key: 'oked_code', label: 'OKED' },
       { key: 'director_name', label: '老板(Директор)' },
       { key: 'producer', label: '制作人' },
-      { key: 'attachments_count', label: '附件数' },
+      { key: 'attachments_count', label: '合同附件数' },
       { key: 'created_at', label: '创建时间' },
     ],
     'contracts'

@@ -8,6 +8,12 @@ import type { AttachmentType } from './types';
 const BUCKET = 'contracts';
 const SIGNED_URL_EXPIRES = 3600;
 
+/** 路径中的 segment（如 contract_no）仅保留 ASCII 安全字符，俄语/中文等非 ASCII 会替换 */
+function sanitizePathSegment(s: string): string {
+  const safe = s.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+  return safe || 'contract';
+}
+
 /** 路径格式: {business_type}/{contract_no}/v{version_no}/{attachment_type}/{filename} */
 function buildStoragePath(
   businessType: string,
@@ -16,8 +22,9 @@ function buildStoragePath(
   attachmentType: string,
   fileName: string
 ): string {
-  const safe = sanitizeFileName(fileName);
-  return `${businessType}/${contractNo}/v${versionNo}/${attachmentType}/${safe}`;
+  const safeContractNo = sanitizePathSegment(contractNo);
+  const safeFileName = sanitizeFileName(fileName);
+  return `${businessType}/${safeContractNo}/v${versionNo}/${attachmentType}/${safeFileName}`;
 }
 
 /** Supabase Storage (S3) 仅支持 ASCII 作为 object key，中文等非 ASCII 需替换 */
