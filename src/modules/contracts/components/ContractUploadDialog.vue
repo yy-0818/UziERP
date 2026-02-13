@@ -2,7 +2,8 @@
   <el-dialog
     v-model="dialogVisible"
     :title="contractDialogTitle"
-    :max-width="uploadMode === 'contract' ? '80%' : '90%'"
+    width="55vw"
+    top="8vh"
     :class="['contract-upload-dialog', uploadMode === 'contract' ? 'dialog--contract' : 'dialog--attachment']"
     destroy-on-close
     @closed="reset"

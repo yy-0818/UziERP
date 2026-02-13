@@ -70,7 +70,7 @@ export interface ContractWithDetails extends Contract {
 
 export const ATTACHMENT_TYPE_LABELS: Record<AttachmentType, string> = {
   contract_pdf: '合同 PDF',
-  didox_screenshot: 'Didox 截图',
+  didox_screenshot: '截图',
   appendix: '附件',
   agreement: '协议',
   archive_image: '存档图片',
