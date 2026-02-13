@@ -136,16 +136,6 @@ a:hover {
   font-weight: 500;
 }
 
-/* 侧边栏折叠 - 全局可拓展：通过 .erp-layout[data-sidebar-collapsed] 或 .erp-aside.is-collapsed */
-.erp-layout[data-sidebar-collapsed="true"] .erp-aside {
-  width: var(--sidebar-collapsed-width, 64px);
-}
-
-.erp-layout[data-sidebar-collapsed="true"] .erp-menu .el-sub-menu__title span,
-.erp-layout[data-sidebar-collapsed="true"] .erp-menu .el-menu-item span {
-  display: none;
-}
-
 .erp-aside .erp-menu.el-menu--collapse {
   width: 100%;
 }

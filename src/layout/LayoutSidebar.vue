@@ -7,6 +7,7 @@
     <el-menu
       :default-active="active"
       :collapse="collapsed"
+      :collapse-transition="false"
       router
       unique-opened
       class="erp-menu"
@@ -45,7 +46,8 @@ import {
   Money,
   Document,
   User,
-  Setting,
+  Setting as SettingIcon,
+  Tools,
   FolderOpened,
 } from '@element-plus/icons-vue';
 import type { Component } from 'vue';
@@ -72,19 +74,22 @@ const iconMap: Record<string, Component> = {
   Money,
   Document,
   User,
-  Setting,
+  Setting: SettingIcon,
+  Tools,
   FolderOpened,
 };
 
 function iconComponent(name: string | undefined): Component | undefined {
-  return name ? iconMap[name] : undefined;
+  return name ? (iconMap[name] ?? FolderOpened) : FolderOpened;
 }
 </script>
 
 <style scoped>
 .erp-aside {
   background: var(--sidebar-bg);
-  transition: width var(--transition-normal);
+  transition: width 0.18s cubic-bezier(0.2, 0, 0, 1);
+  overflow: hidden;
+  will-change: width;
 }
 
 .erp-logo {
@@ -108,5 +113,11 @@ function iconComponent(name: string | undefined): Component | undefined {
 
 .erp-menu {
   border-right: none;
+  transition: none !important;
+}
+
+.erp-menu :deep(.el-sub-menu__title),
+.erp-menu :deep(.el-menu-item) {
+  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 </style>

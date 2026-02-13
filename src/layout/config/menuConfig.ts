@@ -46,7 +46,7 @@ export const rawMenuTree: MenuNode[] = [
     type: 'group',
     index: 'admin',
     title: '系统管理',
-    icon: 'Setting',
+    icon: 'Tools',
     requiresRole: ['super_admin'],
     children: [
       { type: 'item', index: '/admin/users', title: '用户与角色' },

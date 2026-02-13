@@ -3,6 +3,7 @@
     <LayoutSidebar :collapsed="sidebarCollapsed" />
     <el-container class="erp-main-wrap">
       <LayoutHeader :collapsed="sidebarCollapsed" @toggle-sidebar="sidebarCollapsed = !sidebarCollapsed" />
+      <LayoutTagsView :actions="{ refresh: true, closeAll: true }" />
       <LayoutMain />
     </el-container>
   </el-container>
@@ -12,6 +13,7 @@
 import { ref } from 'vue';
 import LayoutSidebar from '../layout/LayoutSidebar.vue';
 import LayoutHeader from '../layout/LayoutHeader.vue';
+import LayoutTagsView from '../layout/LayoutTagsView.vue';
 import LayoutMain from '../layout/LayoutMain.vue';
 
 const sidebarCollapsed = ref(false);

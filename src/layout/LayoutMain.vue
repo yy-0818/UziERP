@@ -4,7 +4,9 @@
       <Suspense>
         <template #default>
           <transition name="erp-page" mode="out-in" appear>
-            <component :is="Component" :key="route.fullPath" />
+            <keep-alive>
+              <component :is="Component" :key="route.fullPath" />
+            </keep-alive>
           </transition>
         </template>
         <template #fallback>

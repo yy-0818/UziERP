@@ -23,7 +23,10 @@
         </el-button>
         <template #dropdown>
           <el-dropdown-menu>
-            <el-dropdown-item command="logout">退出登录</el-dropdown-item>
+            <el-dropdown-item command="logout">
+              <el-icon><SwitchButton /></el-icon>
+              <span>退出登录</span>
+            </el-dropdown-item>
           </el-dropdown-menu>
         </template>
       </el-dropdown>
@@ -33,7 +36,7 @@
 
 <script setup lang="ts">
 import { ElMessageBox } from 'element-plus';
-import { UserFilled, ArrowDown, Expand, Fold, Moon, Sunny } from '@element-plus/icons-vue';
+import { UserFilled, ArrowDown, Expand, Fold, Moon, Sunny, SwitchButton } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import AppBreadcrumb from '../components/common/AppBreadcrumb.vue';
 import { useAuthStore } from '../stores/auth';
