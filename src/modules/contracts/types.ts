@@ -38,7 +38,8 @@ export type AttachmentType =
   | 'contract_pdf'
   | 'didox_screenshot'
   | 'appendix'
-  | 'agreement';
+  | 'agreement'
+  | 'archive_image';
 
 /** 合同附件表 */
 export interface ContractAttachment {
@@ -54,6 +55,10 @@ export interface ContractAttachment {
   replaced_by: string | null;
   source: string | null;
   remark: string | null;
+  /** 附件日期（appendix/agreement 表单填写，用于排序） */
+  attachment_date?: string | null;
+  /** 附件编号（appendix/agreement 表单填写） */
+  attachment_no?: string | null;
   created_at: string;
 }
 
@@ -68,13 +73,14 @@ export const ATTACHMENT_TYPE_LABELS: Record<AttachmentType, string> = {
   didox_screenshot: 'Didox 截图',
   appendix: '附件',
   agreement: '协议',
+  archive_image: '存档图片',
 };
 
 /** 合同文件类型：合同 PDF、截图等 */
 export const CONTRACT_FILE_TYPES: AttachmentType[] = ['contract_pdf', 'didox_screenshot'];
 
-/** 附件类型：客户订单等 */
-export const ATTACHMENT_ONLY_TYPES: AttachmentType[] = ['appendix', 'agreement'];
+/** 附件类型：客户订单、存档图片等 */
+export const ATTACHMENT_ONLY_TYPES: AttachmentType[] = ['appendix', 'agreement', 'archive_image'];
 
 export const BUSINESS_TYPE_LABELS: Record<Contract['business_type'], string> = {
   uz_domestic: '乌兹国内',

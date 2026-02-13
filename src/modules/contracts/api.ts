@@ -254,7 +254,7 @@ export async function uploadContractFiles(params: {
   }
 }
 
-/** 为指定合同上传多个附件（appendix / agreement），使用该合同当前版本；remark 存附件日期与编号 */
+/** 为指定合同上传多个附件（appendix / agreement / archive_image），使用该合同当前版本；attachment_date、attachment_no 存表单日期与编号 */
 export async function uploadAttachmentFiles(params: {
   contractId: string;
   attachmentDate?: string;
@@ -265,6 +265,8 @@ export async function uploadAttachmentFiles(params: {
     [params.attachmentDate && `日期:${params.attachmentDate}`, params.attachmentNo && `附件编号:${params.attachmentNo}`]
       .filter(Boolean)
       .join(' ') || null;
+  const attachmentDateVal = params.attachmentDate || null;
+  const attachmentNoVal = params.attachmentNo?.trim() || null;
   const { data: contract, error: eContract } = await supabase
     .from('contracts')
     .select('contract_no, business_type')
@@ -310,6 +312,8 @@ export async function uploadAttachmentFiles(params: {
       is_current: true,
       source: 'manual',
       remark: remarkText,
+      attachment_date: attachmentDateVal,
+      attachment_no: attachmentNoVal,
       created_at: localNow,
     });
     if (insertErr) throw insertErr;

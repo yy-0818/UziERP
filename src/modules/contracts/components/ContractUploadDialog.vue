@@ -202,7 +202,7 @@
         </el-col>
       </el-row>
 
-      <div class="form-section">附件文件（订单 PDF/配图，可多选）</div>
+      <div class="form-section">附件文件（订单 PDF / 配图 / 存档图片，可多选）</div>
       <div v-for="(item, idx) in attachmentFileList" :key="idx" class="file-row">
         <el-select v-model="item.attachmentType" placeholder="类型" style="width: 120px">
           <el-option
@@ -215,8 +215,8 @@
         <el-upload
           :auto-upload="false"
           :show-file-list="false"
-          :on-change="(e: any) => (item.file = e.raw)"
-          accept=".pdf,.png,.jpg,.jpeg"
+          :on-change="(e: any) => onAttachmentFileChange(idx, e.raw)"
+          accept=".pdf,.png,.jpg,.jpeg,.webp"
         >
           <el-button size="small" type="primary" plain>{{ item.file ? item.file.name : '选择文件' }}</el-button>
         </el-upload>
@@ -424,6 +424,16 @@ watch(
 );
 
 function onContractChange() {}
+
+/** 附件文件选择时：若为 PDF 且附件编号为空，则用文件名（去扩展名）自动填充 */
+function onAttachmentFileChange(idx: number, file: File | null) {
+  const item = attachmentFileList.value[idx];
+  if (item) item.file = file;
+  if (file && /\.pdf$/i.test(file.name) && !attachmentForm.value.attachmentNo?.trim()) {
+    const nameWithoutExt = file.name.replace(/\.pdf$/i, '');
+    attachmentForm.value.attachmentNo = nameWithoutExt;
+  }
+}
 
 function addContractFile() {
   contractFileList.value.push({ attachmentType: 'contract_pdf', file: null });

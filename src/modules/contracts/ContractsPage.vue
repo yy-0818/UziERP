@@ -87,8 +87,7 @@
                 <div class="file-tags">
                   <template v-for="a in contractFiles(row)" :key="a.id">
                     <el-tag size="small" class="file-tag">
-                      <span v-if="a.is_current && (a.file_ext || '').toLowerCase() === 'pdf'">[当前PDF]</span>
-                      <span v-else-if="(a.file_ext || '').toLowerCase() === 'pdf'">[历史PDF]</span>
+                      <span v-if="(a.file_ext || '').toLowerCase() === 'pdf'">[PDF]</span>
                       <span v-else>[其他]</span>
                       {{ a.logical_name }}
                       <el-button link type="primary" size="small" @click="viewAttachment(a)">查看</el-button>
@@ -106,8 +105,8 @@
                 <div class="file-tags">
                   <template v-for="a in attachmentFiles(row)" :key="a.id">
                     <el-tag size="small" class="file-tag">
-                      <span v-if="a.is_current && (a.file_ext || '').toLowerCase() === 'pdf'">[当前PDF]</span>
-                      <span v-else-if="(a.file_ext || '').toLowerCase() === 'pdf'">[历史PDF]</span>
+                      <span v-if="a.attachment_type === 'archive_image'">[存档图片]</span>
+                      <span v-else-if="(a.file_ext || '').toLowerCase() === 'pdf'">[PDF]</span>
                       <span v-else>[其他]</span>
                       {{ a.logical_name }}
                       <el-button link type="primary" size="small" @click="viewAttachment(a)">查看</el-button>
@@ -342,12 +341,27 @@ function currentVersion(row: ContractWithDetails): ContractVersion | undefined {
   return vers.find((v) => v.is_current) || vers[vers.length - 1];
 }
 
+/** 合同文件（contract_pdf/didox_screenshot），按对应版本的合同日期倒序 */
 function contractFiles(row: ContractWithDetails): ContractAttachment[] {
-  return (row.attachments || []).filter((a) => CONTRACT_FILE_TYPES.includes(a.attachment_type));
+  const atts = (row.attachments || []).filter((a) => CONTRACT_FILE_TYPES.includes(a.attachment_type));
+  const vers = row.versions || [];
+  const getDate = (a: ContractAttachment) => {
+    if (!a.contract_version_id) return '';
+    const v = vers.find((x) => x.id === a.contract_version_id);
+    return v?.contract_date || '';
+  };
+  return [...atts].sort((a, b) => (getDate(b) || '').localeCompare(getDate(a) || ''));
 }
 
+/** 附件（appendix/agreement/archive_image），按 attachment_date 或解析 remark 中的日期倒序 */
 function attachmentFiles(row: ContractWithDetails): ContractAttachment[] {
-  return (row.attachments || []).filter((a) => ATTACHMENT_ONLY_TYPES.includes(a.attachment_type));
+  const atts = (row.attachments || []).filter((a) => ATTACHMENT_ONLY_TYPES.includes(a.attachment_type));
+  const getDate = (a: ContractAttachment): string => {
+    if (a.attachment_date) return a.attachment_date;
+    const m = a.remark?.match(/日期:([0-9]{4}-[0-9]{2}-[0-9]{2})/);
+    return m ? m[1] : '';
+  };
+  return [...atts].sort((a, b) => (getDate(b) || '').localeCompare(getDate(a) || ''));
 }
 
 function pdfAttachmentCount(row: ContractWithDetails): number {
