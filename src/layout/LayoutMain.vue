@@ -1,8 +1,12 @@
 <template>
   <el-main class="erp-main">
-    <router-view v-slot="{ Component }">
+    <router-view v-slot="{ Component, route }">
       <Suspense>
-        <component :is="Component" />
+        <template #default>
+          <transition name="erp-page" mode="out-in" appear>
+            <component :is="Component" :key="route.fullPath" />
+          </transition>
+        </template>
         <template #fallback>
           <div class="erp-page-loading">
             <div class="erp-loading-spinner" />
@@ -43,6 +47,17 @@
   border-top-color: var(--erp-primary);
   border-radius: 50%;
   animation: erp-spin 0.8s linear infinite;
+}
+
+.erp-page-enter-active,
+.erp-page-leave-active {
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.erp-page-enter-from,
+.erp-page-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
 }
 
 @keyframes erp-spin {

@@ -33,8 +33,38 @@
   /* 边框与分割 */
   --border-color: #e8e8e8;
   --border-radius: 6px;
+  --surface-bg: #ffffff;
+  --surface-bg-elevated: #ffffff;
+  --scrollbar-thumb: rgba(0, 0, 0, 0.2);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.35);
 
   /* 过渡 */
   --transition-fast: 0.25s ease;
   --transition-normal: 0.25s ease;
+}
+
+:root.dark {
+  --sidebar-bg: #0f1720;
+  --sidebar-text: rgba(255, 255, 255, 0.78);
+  --sidebar-text-active: #ffffff;
+
+  --header-bg: #141a23;
+  --header-border: #252d38;
+  --header-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+
+  --page-bg: #0b111a;
+  --surface-bg: #141a23;
+  --surface-bg-elevated: #1a2230;
+
+  --text-primary: #e6edf6;
+  --text-secondary: #a7b3c3;
+  --text-placeholder: #7d8a9a;
+  --text-disabled: #5b6673;
+
+  --border-color: #283241;
+  --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
+
+  --erp-primary-light: rgba(24, 144, 255, 0.2);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.26);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.4);
 }

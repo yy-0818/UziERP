@@ -10,6 +10,11 @@
     </el-button>
     <AppBreadcrumb />
     <div class="erp-header-right">
+      <el-tooltip :content="isDark ? '切换浅色模式' : '切换深色模式'" placement="bottom">
+        <el-button class="erp-theme-toggle" text circle @click="toggleTheme">
+          <el-icon><Sunny v-if="isDark" /><Moon v-else /></el-icon>
+        </el-button>
+      </el-tooltip>
       <span class="erp-user-email">{{ auth.user?.email }}</span>
       <el-dropdown trigger="click" @command="onCommand">
         <el-button type="primary" link>
@@ -28,10 +33,11 @@
 
 <script setup lang="ts">
 import { ElMessageBox } from 'element-plus';
-import { UserFilled, ArrowDown, Expand, Fold } from '@element-plus/icons-vue';
+import { UserFilled, ArrowDown, Expand, Fold, Moon, Sunny } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import AppBreadcrumb from '../components/common/AppBreadcrumb.vue';
 import { useAuthStore } from '../stores/auth';
+import { useTheme } from '../composables/useTheme';
 
 defineProps<{
   collapsed: boolean;
@@ -43,6 +49,7 @@ const emit = defineEmits<{
 
 const router = useRouter();
 const auth = useAuthStore();
+const { isDark, toggleTheme } = useTheme();
 
 function onCommand(cmd: string) {
   if (cmd === 'logout') {
@@ -87,6 +94,10 @@ function onCommand(cmd: string) {
 
 .erp-user-email {
   font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.erp-theme-toggle {
   color: var(--text-secondary);
 }
 </style>
