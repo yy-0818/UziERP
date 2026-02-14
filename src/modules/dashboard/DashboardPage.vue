@@ -15,15 +15,16 @@
         <el-card class="erp-card">
           <template #header>
             <div class="erp-card-header">
-              <span>最近 7 天价格变更（示例数据）</span>
+              <span>最近销售记录</span>
             </div>
           </template>
-          <el-table :data="recentPriceChanges" size="small">
-            <el-table-column prop="date" label="日期" width="120" />
-            <el-table-column prop="customer" label="客户" />
-            <el-table-column prop="product" label="产品" />
-            <el-table-column prop="oldPrice" label="原价" width="100" />
-            <el-table-column prop="newPrice" label="新价" width="100" />
+          <el-table :data="recentSales" size="small" v-loading="salesTableLoading">
+            <el-table-column prop="document_date" label="日期" width="110" />
+            <el-table-column prop="document_no" label="单据编号" min-width="160" show-overflow-tooltip />
+            <el-table-column prop="customer_name" label="客户" min-width="160" show-overflow-tooltip />
+            <el-table-column prop="product_name" label="商品" min-width="120" show-overflow-tooltip />
+            <el-table-column prop="amount_usd" label="合计$" width="110" align="right" />
+            <el-table-column prop="amount_uzs" label="苏姆合计" width="130" align="right" />
           </el-table>
         </el-card>
       </el-col>
@@ -31,19 +32,16 @@
         <el-card class="erp-card">
           <template #header>
             <div class="erp-card-header">
-              <span>待处理事项（示例数据）</span>
+              <span>最近收款记录</span>
             </div>
           </template>
-          <el-timeline>
-            <el-timeline-item
-              v-for="item in todos"
-              :key="item.id"
-              :timestamp="item.due"
-              :type="item.type"
-            >
-              {{ item.title }}
-            </el-timeline-item>
-          </el-timeline>
+          <el-table :data="recentReceipts" size="small" v-loading="receiptsTableLoading">
+            <el-table-column prop="receipt_date" label="日期" width="110" />
+            <el-table-column prop="customer_name" label="客户" min-width="160" show-overflow-tooltip />
+            <el-table-column prop="amount_usd" label="美金$" width="110" align="right" />
+            <el-table-column prop="amount_uzs" label="苏姆" width="130" align="right" />
+            <el-table-column prop="note" label="备注" min-width="140" show-overflow-tooltip />
+          </el-table>
         </el-card>
       </el-col>
     </el-row>
@@ -53,110 +51,120 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { supabase } from '../../supabase';
+import { fetchRecentSales, fetchRecentReceipts } from '../sales/api';
+import type { SalesRow, ReceiptRow } from '../sales/types';
 
 const customerCount = ref<number | null>(null);
 const productCount = ref<number | null>(null);
-const statsLoading = ref(true);
+const recentContractCount = ref<number | null>(null);
+const recentAttachmentCount = ref<number | null>(null);
+const salesRecordCount = ref<number | null>(null);
+const receiptRecordCount = ref<number | null>(null);
+
+const recentSales = ref<SalesRow[]>([]);
+const recentReceipts = ref<ReceiptRow[]>([]);
+const salesTableLoading = ref(true);
+const receiptsTableLoading = ref(true);
+
+function toLocalDateString(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+const rangeEnd = toLocalDateString(new Date());
+const rangeStart = toLocalDateString(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
 
 const cards = ref([
+  { title: '客户总数', value: '—', sub: '来自 customers 表', loading: true },
+  { title: '产品种类', value: '—', sub: '来自 products 表', loading: true },
   {
-    title: '客户总数',
+    title: '近30天新增（合同/附件）',
     value: '—',
-    sub: '来自 customers 表',
+    sub: `${rangeStart} ~ ${rangeEnd}（按创建日期）`,
     loading: true,
   },
   {
-    title: '产品种类',
+    title: '销售/收款总量',
     value: '—',
-    sub: '来自 products 表',
+    sub: '销售记录 / 收款记录',
     loading: true,
-  },
-  {
-    title: '本月合同金额',
-    value: '¥ 3,580,000',
-    sub: '较上月 +12.3%',
-    loading: false,
-  },
-  {
-    title: '待处理代办',
-    value: '18',
-    sub: 'HR 7 / 合同 6 / 价格 5',
-    loading: false,
   },
 ]);
 
+function fmtNumber(n: number): string {
+  return n.toLocaleString('zh-CN');
+}
+
 async function loadStats() {
-  statsLoading.value = true;
   try {
-    const [custRes, prodRes] = await Promise.all([
+    const [custRes, prodRes, contractRes, attachmentRes, salesCountRes, receiptCountRes] = await Promise.all([
       supabase.from('customers').select('*', { count: 'exact', head: true }),
       supabase.from('products').select('*', { count: 'exact', head: true }),
+      supabase
+        .from('contract_versions')
+        .select('id', { count: 'exact', head: true })
+        .not('contract_date', 'is', null)
+        .gte('contract_date', rangeStart),
+      supabase
+        .from('contract_attachments')
+        .select('id', { count: 'exact', head: true })
+        .not('attachment_date', 'is', null)
+        .gte('attachment_date', rangeStart),
+      supabase.from('sales_records').select('id', { count: 'exact', head: true }),
+      supabase.from('sales_receipts').select('id', { count: 'exact', head: true }),
     ]);
     customerCount.value = custRes.count ?? 0;
     productCount.value = prodRes.count ?? 0;
-    cards.value[0].value = String(customerCount.value);
+    recentContractCount.value = contractRes.count ?? 0;
+    recentAttachmentCount.value = attachmentRes.count ?? 0;
+    salesRecordCount.value = salesCountRes.count ?? 0;
+    receiptRecordCount.value = receiptCountRes.count ?? 0;
+
+    cards.value[0].value = fmtNumber(customerCount.value);
     cards.value[0].loading = false;
-    cards.value[1].value = String(productCount.value);
+    cards.value[1].value = fmtNumber(productCount.value);
     cards.value[1].loading = false;
+    cards.value[2].value = `${fmtNumber(recentContractCount.value)} / ${fmtNumber(recentAttachmentCount.value)}`;
+    cards.value[2].loading = false;
+    cards.value[3].value = `${fmtNumber(salesRecordCount.value)} / ${fmtNumber(receiptRecordCount.value)}`;
+    cards.value[3].loading = false;
   } catch (e) {
     console.error(e);
-    cards.value[0].value = '—';
-    cards.value[0].loading = false;
-    cards.value[1].value = '—';
-    cards.value[1].loading = false;
+    cards.value.forEach((c) => { c.value = '—'; c.loading = false; });
+  }
+}
+
+async function loadRecentSales() {
+  salesTableLoading.value = true;
+  try {
+    recentSales.value = await fetchRecentSales(10);
+  } catch (e) {
+    console.error(e);
+    recentSales.value = [];
   } finally {
-    statsLoading.value = false;
+    salesTableLoading.value = false;
+  }
+}
+
+async function loadRecentReceipts() {
+  receiptsTableLoading.value = true;
+  try {
+    recentReceipts.value = await fetchRecentReceipts(10);
+  } catch (e) {
+    console.error(e);
+    recentReceipts.value = [];
+  } finally {
+    receiptsTableLoading.value = false;
   }
 }
 
 onMounted(() => {
   loadStats();
+  loadRecentSales();
+  loadRecentReceipts();
 });
-
-const recentPriceChanges = [
-  {
-    date: '2026-02-01',
-    customer: '蓝森电器',
-    product: '12P 普通款',
-    oldPrice: '5.30',
-    newPrice: '5.55',
-  },
-  {
-    date: '2026-02-02',
-    customer: '宏达批发',
-    product: '12F 加厚款',
-    oldPrice: '6.10',
-    newPrice: '6.35',
-  },
-  {
-    date: '2026-02-03',
-    customer: '边贸公司 A',
-    product: '12G 特级',
-    oldPrice: '7.80',
-    newPrice: '8.05',
-  },
-];
-
-const todos = [
-  {
-    id: 1,
-    title: '审核蓝森 2 月价格调整方案',
-    due: '今日',
-    type: 'danger',
-  },
-  {
-    id: 2,
-    title: '签署与乌兹经销商年度合同',
-    due: '明日',
-    type: 'warning',
-  },
-  {
-    id: 3,
-    title: '完成 3 名新入职乌兹员工入职手续',
-    due: '本周内',
-    type: 'primary',
-  },
-];
 </script>
 
 <style scoped>
@@ -188,10 +196,9 @@ const todos = [
   color: #a0a0a0;
 }
 
-.card-header {
+.erp-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 </style>
-
