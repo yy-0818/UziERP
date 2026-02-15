@@ -29,7 +29,7 @@ export interface SalesRow {
   contract_no: string | null;
 }
 
-/** 收款记录行 */
+/** 收款记录行（已移除 exchange_rate, sales_document_no, contract_no） */
 export interface ReceiptRow {
   id: string;
   account_name: string | null;
@@ -37,9 +37,6 @@ export interface ReceiptRow {
   receipt_date: string | null;
   amount_usd: number | null;
   amount_uzs: number | null;
-  exchange_rate: number | null;
-  sales_document_no: string | null;
-  contract_no: string | null;
   note: string | null;
 }
 

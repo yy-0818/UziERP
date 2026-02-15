@@ -5,7 +5,7 @@ const SALES_SELECT =
   'id, document_date, document_no, payment_method, customer_name, product_name, color_code, spec_model, category, grade, box_count, area_sqm, unit_price_usd, amount_usd, exchange_rate, amount_uzs, order_no, vehicle_no, export_country, dealer_name, shipper_name, note, refund_uzs, driver_tax_no, logistics_tax_no, vehicle_type, contract_no';
 
 const RECEIPT_SELECT =
-  'id, account_name, customer_name, receipt_date, amount_usd, amount_uzs, exchange_rate, sales_document_no, contract_no, note';
+  'id, account_name, customer_name, receipt_date, amount_usd, amount_uzs, note';
 
 /** 销售数据：服务端分页 + 日期筛选 + 关键词 */
 export async function fetchSalesPage(params: {
@@ -59,12 +59,87 @@ export async function fetchReceiptPage(params: {
   if (params.dateTo) query = query.lte('receipt_date', params.dateTo);
   if (params.keyword) {
     const k = `%${params.keyword}%`;
-    query = query.or(`account_name.ilike.${k},customer_name.ilike.${k},sales_document_no.ilike.${k},contract_no.ilike.${k}`);
+    query = query.or(`account_name.ilike.${k},customer_name.ilike.${k}`);
   }
 
   const { data, count, error } = await query;
   if (error) throw error;
   return { rows: (data || []) as ReceiptRow[], total: count ?? 0 };
+}
+
+/**
+ * 分批获取全部销售数据（用于导出）
+ * Supabase 单次 .range() 最多返回约 1000 行，这里循环拉取直到拿完
+ */
+export async function fetchAllSalesRows(params: {
+  dateFrom?: string | null;
+  dateTo?: string | null;
+  keyword?: string;
+}): Promise<SalesRow[]> {
+  const PAGE = 1000;
+  const all: SalesRow[] = [];
+  let offset = 0;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    let query = supabase
+      .from('sales_records')
+      .select(SALES_SELECT)
+      .order('document_date', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + PAGE - 1);
+
+    if (params.dateFrom) query = query.gte('document_date', params.dateFrom);
+    if (params.dateTo) query = query.lte('document_date', params.dateTo);
+    if (params.keyword) {
+      const k = `%${params.keyword}%`;
+      query = query.or(`document_no.ilike.${k},customer_name.ilike.${k},product_name.ilike.${k},contract_no.ilike.${k}`);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    const rows = (data || []) as SalesRow[];
+    all.push(...rows);
+    if (rows.length < PAGE) break;
+    offset += PAGE;
+  }
+  return all;
+}
+
+/**
+ * 分批获取全部收款数据（用于导出）
+ */
+export async function fetchAllReceiptRows(params: {
+  dateFrom?: string | null;
+  dateTo?: string | null;
+  keyword?: string;
+}): Promise<ReceiptRow[]> {
+  const PAGE = 1000;
+  const all: ReceiptRow[] = [];
+  let offset = 0;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    let query = supabase
+      .from('sales_receipts')
+      .select(RECEIPT_SELECT)
+      .order('receipt_date', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + PAGE - 1);
+
+    if (params.dateFrom) query = query.gte('receipt_date', params.dateFrom);
+    if (params.dateTo) query = query.lte('receipt_date', params.dateTo);
+    if (params.keyword) {
+      const k = `%${params.keyword}%`;
+      query = query.or(`account_name.ilike.${k},customer_name.ilike.${k}`);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    const rows = (data || []) as ReceiptRow[];
+    all.push(...rows);
+    if (rows.length < PAGE) break;
+    offset += PAGE;
+  }
+  return all;
 }
 
 export async function importSalesRowsLegacy(rows: Record<string, any>[]) {
@@ -103,41 +178,6 @@ export async function updateSalesRecord(params: {
 
   const { error } = await supabase.from('sales_records').update(updatePayload).eq('id', params.id);
   if (error) throw error;
-}
-
-/** 仪表盘统计：近 N 天销售/收款概况 */
-export async function fetchDashboardSalesStats(days = 30) {
-  const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
-
-  const [salesCountRes, salesSumRes, receiptCountRes, receiptSumRes] = await Promise.all([
-    supabase
-      .from('sales_records')
-      .select('id', { count: 'exact', head: true })
-      .gte('document_date', since),
-    supabase
-      .from('sales_records')
-      .select('amount_uzs.sum(), amount_usd.sum()')
-      .gte('document_date', since)
-      .single(),
-    supabase
-      .from('sales_receipts')
-      .select('id', { count: 'exact', head: true })
-      .gte('receipt_date', since),
-    supabase
-      .from('sales_receipts')
-      .select('amount_uzs.sum(), amount_usd.sum()')
-      .gte('receipt_date', since)
-      .single(),
-  ]);
-
-  return {
-    salesCount: salesCountRes.count ?? 0,
-    salesTotalUzs: Number((salesSumRes.data as any)?.sum ?? 0),
-    salesTotalUsd: Number((salesSumRes.data as any)?.sum ?? 0),
-    receiptCount: receiptCountRes.count ?? 0,
-    receiptTotalUzs: Number((receiptSumRes.data as any)?.sum ?? 0),
-    receiptTotalUsd: Number((receiptSumRes.data as any)?.sum ?? 0),
-  };
 }
 
 /** 仪表盘：最近 N 条销售记录 */

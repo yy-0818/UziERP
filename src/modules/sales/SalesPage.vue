@@ -1,18 +1,6 @@
 <template>
   <div class="page-container page sales-page">
     <el-card class="erp-card">
-      <!-- <template #header>
-        <div class="erp-card-header">
-          <div>
-            <div class="title">销售数据管理</div>
-            <div class="subtitle">销售与收款数据统一维护；支持导入、导出与编辑</div>
-          </div>
-          <div class="header-actions">
-            <el-button :icon="Refresh" :loading="loading" @click="fetchActiveTabData(true)">刷新</el-button>
-          </div>
-        </div>
-      </template> -->
-
       <el-tabs v-model="activeTab" @tab-change="onTabChange">
         <!-- ==================== 销售数据 ==================== -->
         <el-tab-pane label="销售数据" name="sales">
@@ -36,35 +24,35 @@
             <el-button type="primary" @click="fetchSalesData">查询</el-button>
             <el-button @click="resetSalesFilters">清空</el-button>
             <el-button v-if="canEdit" type="success" plain @click="openImportDialog('sales')">导入</el-button>
-            <el-button v-if="canExport" type="warning" plain @click="exportSales">导出</el-button>
+            <el-button v-if="canExport" type="warning" plain :loading="exporting" @click="exportSales">导出</el-button>
           </div>
 
           <el-table :data="salesRows" v-loading="loading" stripe border row-key="id" style="width: 100%" height="62vh">
-            <el-table-column prop="document_date" label="单据日期" width="110" />
-            <el-table-column prop="document_no" label="单据编号" min-width="170" show-overflow-tooltip />
-            <el-table-column prop="payment_method" label="客户分类/支付方式" min-width="160" show-overflow-tooltip />
-            <el-table-column prop="customer_name" label="客户名称" min-width="200" show-overflow-tooltip />
-            <el-table-column prop="product_name" label="商品名称" min-width="120" show-overflow-tooltip />
-            <el-table-column prop="color_code" label="色号" width="90" show-overflow-tooltip />
+            <el-table-column prop="document_date" label="单据日期" width="110" sortable />
+            <el-table-column prop="document_no" label="单据编号" min-width="170" show-overflow-tooltip sortable />
+            <el-table-column prop="payment_method" label="客户分类" min-width="120" show-overflow-tooltip sortable />
+            <el-table-column prop="customer_name" label="客户名称" min-width="180" show-overflow-tooltip sortable />
+            <el-table-column prop="product_name" label="商品名称" min-width="120" show-overflow-tooltip sortable />
+            <el-table-column prop="color_code" label="色号" width="60" show-overflow-tooltip />
             <el-table-column prop="spec_model" label="规格型号" min-width="120" show-overflow-tooltip />
-            <el-table-column prop="category" label="类别" width="90" show-overflow-tooltip />
-            <el-table-column prop="grade" label="等级" width="90" show-overflow-tooltip />
-            <el-table-column prop="box_count" label="箱数" width="90" align="right" />
-            <el-table-column prop="area_sqm" label="平方数" width="100" align="right" />
-            <el-table-column prop="unit_price_usd" label="单价$" width="110" align="right" />
-            <el-table-column prop="amount_usd" label="合计$" width="110" align="right" />
-            <el-table-column prop="exchange_rate" label="汇率" width="100" align="right" />
-            <el-table-column prop="amount_uzs" label="苏姆合计" width="130" align="right" />
-            <el-table-column prop="refund_uzs" label="退货苏姆" width="120" align="right" />
-            <el-table-column prop="order_no" label="订单号" min-width="140" show-overflow-tooltip />
-            <el-table-column prop="vehicle_no" label="车号" width="120" show-overflow-tooltip />
-            <el-table-column prop="export_country" label="出口国" width="100" show-overflow-tooltip />
-            <el-table-column prop="dealer_name" label="经销商" min-width="140" show-overflow-tooltip />
-            <el-table-column prop="shipper_name" label="发货人" width="120" show-overflow-tooltip />
+            <el-table-column prop="category" label="类别" width="80" show-overflow-tooltip sortable />
+            <el-table-column prop="grade" label="等级" width="80" show-overflow-tooltip sortable />
+            <el-table-column prop="box_count" label="箱数" width="80" align="right" sortable />
+            <el-table-column prop="area_sqm" label="平方数" width="100" align="right" sortable />
+            <el-table-column prop="unit_price_usd" label="单价$" width="100" align="right" sortable />
+            <el-table-column prop="amount_usd" label="合计$" width="100" align="right" sortable />
+            <el-table-column prop="exchange_rate" label="汇率" width="100" align="right" sortable />
+            <el-table-column prop="amount_uzs" label="苏姆合计" width="110" align="right" sortable />
+            <el-table-column prop="refund_uzs" label="退货苏姆" width="110" align="right" sortable />
+            <el-table-column prop="order_no" label="订单号" min-width="140" show-overflow-tooltip sortable />
+            <el-table-column prop="vehicle_no" label="车号" width="100" show-overflow-tooltip />
+            <el-table-column prop="export_country" label="出口国" width="100" show-overflow-tooltip sortable />
+            <el-table-column prop="dealer_name" label="经销商" min-width="100" show-overflow-tooltip />
+            <el-table-column prop="shipper_name" label="发货人" width="100" show-overflow-tooltip />
             <el-table-column prop="driver_tax_no" label="司机税号" min-width="130" show-overflow-tooltip />
             <el-table-column prop="logistics_tax_no" label="物流税号" min-width="130" show-overflow-tooltip />
             <el-table-column prop="vehicle_type" label="车型" width="110" show-overflow-tooltip />
-            <el-table-column prop="contract_no" label="合同编号" min-width="150" show-overflow-tooltip />
+            <el-table-column prop="contract_no" label="合同编号" min-width="150" show-overflow-tooltip sortable />
             <el-table-column prop="note" label="备注" min-width="220" show-overflow-tooltip />
             <el-table-column v-if="canEdit" label="操作" width="90" fixed="right" align="center">
               <template #default="{ row }">
@@ -77,7 +65,7 @@
               v-model:current-page="salesPage"
               v-model:page-size="salesPageSize"
               layout="total, sizes, prev, pager, next, jumper"
-              :page-sizes="[50, 100, 200, 500]"
+              :page-sizes="[200, 500, 1000]"
               :total="salesTotalCount"
               @current-change="fetchSalesData"
               @size-change="onSalesPageSizeChange"
@@ -90,7 +78,7 @@
           <div class="erp-toolbar">
             <el-input
               v-model="receiptFilters.keyword"
-              placeholder="账户 / 客户 / 单据号 / 合同号"
+              placeholder="账户 / 客户"
               clearable
               style="width: 280px"
               @keyup.enter="fetchReceiptData"
@@ -107,26 +95,23 @@
             <el-button type="primary" @click="fetchReceiptData">查询</el-button>
             <el-button @click="resetReceiptFilters">清空</el-button>
             <el-button v-if="canEdit" type="success" plain @click="openImportDialog('receipt')">导入</el-button>
-            <el-button v-if="canExport" type="warning" plain @click="exportReceipts">导出</el-button>
+            <el-button v-if="canExport" type="warning" plain :loading="exporting" @click="exportReceipts">导出</el-button>
           </div>
 
           <el-table :data="receiptRows" v-loading="loading" stripe border row-key="id" style="width: 100%" height="62vh">
-            <el-table-column prop="receipt_date" label="日期" width="110" />
-            <el-table-column prop="account_name" label="账户" width="120" />
-            <el-table-column prop="customer_name" label="客户名称" min-width="220" show-overflow-tooltip />
-            <el-table-column prop="amount_usd" label="美金金额$" width="130" align="right" />
-            <el-table-column prop="amount_uzs" label="苏姆金额" width="130" align="right" />
-            <el-table-column prop="exchange_rate" label="汇率" width="100" align="right" />
-            <el-table-column prop="sales_document_no" label="单据编号" min-width="160" show-overflow-tooltip />
-            <el-table-column prop="contract_no" label="合同编号" min-width="150" show-overflow-tooltip />
-            <el-table-column prop="note" label="备注" min-width="260" show-overflow-tooltip />
+            <el-table-column prop="receipt_date" label="日期" width="110" sortable />
+            <el-table-column prop="account_name" label="账户" width="80" sortable />
+            <el-table-column prop="customer_name" label="客户名称" min-width="100" show-overflow-tooltip sortable />
+            <el-table-column prop="amount_usd" label="美金金额" width="110" align="right" sortable />
+            <el-table-column prop="amount_uzs" label="苏姆金额" width="130" align="right" sortable />
+            <el-table-column prop="note" label="备注" min-width="400" show-overflow-tooltip />
           </el-table>
           <div class="pager-wrap">
             <el-pagination
               v-model:current-page="receiptPage"
               v-model:page-size="receiptPageSize"
               layout="total, sizes, prev, pager, next, jumper"
-              :page-sizes="[50, 100, 200, 500]"
+              :page-sizes="[200, 500, 1000]"
               :total="receiptTotalCount"
               @current-change="fetchReceiptData"
               @size-change="onReceiptPageSizeChange"
@@ -138,7 +123,7 @@
 
     <!-- ==================== 导入弹窗 ==================== -->
     <el-dialog v-model="importVisible" :title="importTitle" width="760px" destroy-on-close>
-      <el-alert type="info" :closable="false" show-icon title="支持 xlsx/csv/json；大文件自动分批写入" style="margin-bottom: 12px" />
+      <el-alert type="info" :closable="false" show-icon title="支持 xlsx/csv/json；大文件自动分批写入，全部行直接提交给服务器" style="margin-bottom: 12px" />
       <div class="import-actions">
         <input ref="fileInputRef" type="file" accept=".json,.csv,.xlsx,.xls,application/json,text/csv" @change="onPickImportFile" />
       </div>
@@ -166,9 +151,9 @@
       </template>
     </el-dialog>
 
-    <!-- ==================== 编辑弹窗 ==================== -->
-    <el-dialog v-model="editVisible" title="编辑销售数据" width="900px" destroy-on-close>
-      <el-form label-width="120px" label-position="left">
+    <!-- ==================== 编辑弹窗（展示全部字段） ==================== -->
+    <el-dialog v-model="editVisible" title="编辑销售数据" width="960px" destroy-on-close>
+      <el-form label-width="130px" label-position="left">
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="单据日期">
@@ -183,13 +168,25 @@
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12">
+            <el-form-item label="客户分类">
+              <el-input v-model="editForm.payment_method" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
             <el-form-item label="客户名称">
               <el-input v-model="editForm.customer_name" />
             </el-form-item>
           </el-col>
+        </el-row>
+        <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="商品名称">
               <el-input v-model="editForm.product_name" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="色号">
+              <el-input v-model="editForm.color_code" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -199,9 +196,14 @@
               <el-input v-model="editForm.spec_model" />
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+          <el-col :span="6">
             <el-form-item label="类别">
               <el-input v-model="editForm.category" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="6">
+            <el-form-item label="等级">
+              <el-input v-model="editForm.grade" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -217,32 +219,85 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="合计$">
-              <el-input-number v-model="editForm.amount_usd" :min="0" :step="0.01" style="width: 100%" />
+            <el-form-item label="单价$">
+              <el-input-number v-model="editForm.unit_price_usd" :min="0" :step="0.01" style="width: 100%" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="16">
-          <el-col :span="12">
+          <el-col :span="8">
+            <el-form-item label="合计$">
+              <el-input-number v-model="editForm.amount_usd" :min="0" :step="0.01" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
             <el-form-item label="汇率">
               <el-input-number v-model="editForm.exchange_rate" :min="0" :step="1" style="width: 100%" />
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+          <el-col :span="8">
             <el-form-item label="苏姆合计">
               <el-input-number v-model="editForm.amount_uzs" :min="0" :step="1" style="width: 100%" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="16">
-          <el-col :span="12">
+          <el-col :span="8">
+            <el-form-item label="退货苏姆">
+              <el-input-number v-model="editForm.refund_uzs" :min="0" :step="1" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
             <el-form-item label="订单号">
               <el-input v-model="editForm.order_no" />
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+          <el-col :span="8">
             <el-form-item label="合同编号">
               <el-input v-model="editForm.contract_no" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="车号">
+              <el-input v-model="editForm.vehicle_no" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="车型">
+              <el-input v-model="editForm.vehicle_type" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="出口国">
+              <el-input v-model="editForm.export_country" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="经销商">
+              <el-input v-model="editForm.dealer_name" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="发货人">
+              <el-input v-model="editForm.shipper_name" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="司机税号">
+              <el-input v-model="editForm.driver_tax_no" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="物流税号">
+              <el-input v-model="editForm.logistics_tax_no" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -261,13 +316,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Refresh } from '@element-plus/icons-vue';
 import * as XLSX from 'xlsx';
 import { exportToExcel } from '../../composables/useExport';
 import { useAuthStore } from '../../stores/auth';
 import {
   fetchSalesPage,
   fetchReceiptPage,
+  fetchAllSalesRows,
+  fetchAllReceiptRows,
   importSalesRowsLegacy,
   importReceiptRowsLegacy,
   updateSalesRecord,
@@ -280,7 +336,8 @@ type TabName = 'sales' | 'receipts';
 const auth = useAuthStore();
 const activeTab = ref<TabName>('sales');
 const loading = ref(false);
-const STATE_KEY = 'sales.module.ui_state.v2';
+const exporting = ref(false);
+const STATE_KEY = 'sales.module.ui_state.v3';
 
 /* ==================== 服务端分页数据 ==================== */
 const salesRows = ref<SalesRow[]>([]);
@@ -291,9 +348,9 @@ const receiptTotalCount = ref(0);
 const salesFilters = ref({ keyword: '', dateRange: null as [string, string] | null });
 const receiptFilters = ref({ keyword: '', dateRange: null as [string, string] | null });
 const salesPage = ref(1);
-const salesPageSize = ref(100);
+const salesPageSize = ref(200);
 const receiptPage = ref(1);
-const receiptPageSize = ref(100);
+const receiptPageSize = ref(200);
 
 const canEdit = computed(() => ['super_admin', 'manager', 'sales'].includes(auth.role || ''));
 const canExport = computed(() => (auth.role || '') !== 'viewer');
@@ -324,23 +381,7 @@ const importTitle = computed(() => (importMode.value === 'sales' ? '导入销售
 /* ==================== 编辑相关 ==================== */
 const editVisible = ref(false);
 const saving = ref(false);
-const editForm = ref<any>({
-  id: '',
-  document_date: null,
-  document_no: '',
-  customer_name: '',
-  product_name: '',
-  spec_model: '',
-  category: '',
-  box_count: null,
-  area_sqm: null,
-  amount_usd: null,
-  exchange_rate: null,
-  amount_uzs: null,
-  order_no: '',
-  contract_no: '',
-  note: '',
-});
+const editForm = ref<any>({});
 
 /* ==================== 数据获取 (服务端分页) ==================== */
 async function fetchSalesData() {
@@ -385,7 +426,7 @@ async function fetchReceiptData() {
   }
 }
 
-function fetchActiveTabData(force = false) {
+function fetchActiveTabData(_force = false) {
   if (activeTab.value === 'sales') return fetchSalesData();
   return fetchReceiptData();
 }
@@ -414,105 +455,105 @@ function resetReceiptFilters() {
   fetchReceiptData();
 }
 
-/* ==================== 导出 ==================== */
-function exportSales() {
-  if (!salesRows.value.length) {
-    ElMessage.warning('暂无可导出销售数据');
-    return;
+/* ==================== 导出（拉取全部数据） ==================== */
+const SALES_EXPORT_COLS = [
+  { key: 'document_date', label: '单据日期' },
+  { key: 'document_no', label: '单据编号' },
+  { key: 'payment_method', label: '客户分类' },
+  { key: 'customer_name', label: '客户名称' },
+  { key: 'product_name', label: '商品名称' },
+  { key: 'color_code', label: '色号' },
+  { key: 'spec_model', label: '规格型号' },
+  { key: 'category', label: '类别' },
+  { key: 'grade', label: '等级' },
+  { key: 'box_count', label: '箱数' },
+  { key: 'area_sqm', label: '平方数' },
+  { key: 'unit_price_usd', label: '单价$' },
+  { key: 'amount_usd', label: '合计$' },
+  { key: 'exchange_rate', label: '汇率' },
+  { key: 'amount_uzs', label: '苏姆合计' },
+  { key: 'refund_uzs', label: '退货苏姆' },
+  { key: 'order_no', label: '订单号' },
+  { key: 'vehicle_no', label: '车号' },
+  { key: 'export_country', label: '出口国' },
+  { key: 'dealer_name', label: '经销商' },
+  { key: 'shipper_name', label: '发货人' },
+  { key: 'driver_tax_no', label: '司机税号' },
+  { key: 'logistics_tax_no', label: '物流税号' },
+  { key: 'vehicle_type', label: '车型' },
+  { key: 'contract_no', label: '合同编号' },
+  { key: 'note', label: '备注' },
+];
+
+const RECEIPT_EXPORT_COLS = [
+  { key: 'receipt_date', label: '日期' },
+  { key: 'account_name', label: '账户' },
+  { key: 'customer_name', label: '客户名称' },
+  { key: 'amount_usd', label: '美金金额$' },
+  { key: 'amount_uzs', label: '苏姆金额' },
+  { key: 'note', label: '备注' },
+];
+
+async function exportSales() {
+  exporting.value = true;
+  try {
+    const allRows = await fetchAllSalesRows({
+      dateFrom: salesFilters.value.dateRange?.[0] || null,
+      dateTo: salesFilters.value.dateRange?.[1] || null,
+      keyword: salesFilters.value.keyword || undefined,
+    });
+    if (!allRows.length) {
+      ElMessage.warning('暂无可导出销售数据');
+      return;
+    }
+    exportToExcel(
+      allRows.map((r) => {
+        const row: Record<string, any> = {};
+        for (const col of SALES_EXPORT_COLS) {
+          row[col.key] = (r as any)[col.key] ?? '';
+        }
+        return row;
+      }),
+      SALES_EXPORT_COLS,
+      'sales_export'
+    );
+    ElMessage.success(`已导出 ${allRows.length} 条销售记录`);
+  } catch (e: any) {
+    ElMessage.error(e?.message || '导出失败');
+  } finally {
+    exporting.value = false;
   }
-  exportToExcel(
-    salesRows.value.map((r) => ({
-      document_date: r.document_date || '',
-      document_no: r.document_no || '',
-      payment_method: r.payment_method || '',
-      customer_name: r.customer_name || '',
-      product_name: r.product_name || '',
-      color_code: r.color_code || '',
-      spec_model: r.spec_model || '',
-      category: r.category || '',
-      grade: r.grade || '',
-      box_count: r.box_count ?? '',
-      area_sqm: r.area_sqm ?? '',
-      unit_price_usd: r.unit_price_usd ?? '',
-      amount_usd: r.amount_usd ?? '',
-      exchange_rate: r.exchange_rate ?? '',
-      amount_uzs: r.amount_uzs ?? '',
-      refund_uzs: r.refund_uzs ?? '',
-      order_no: r.order_no || '',
-      vehicle_no: r.vehicle_no || '',
-      export_country: r.export_country || '',
-      dealer_name: r.dealer_name || '',
-      shipper_name: r.shipper_name || '',
-      driver_tax_no: r.driver_tax_no || '',
-      logistics_tax_no: r.logistics_tax_no || '',
-      vehicle_type: r.vehicle_type || '',
-      contract_no: r.contract_no || '',
-      note: r.note || '',
-    })),
-    [
-      { key: 'document_date', label: '单据日期' },
-      { key: 'document_no', label: '单据编号' },
-      { key: 'payment_method', label: '客户分类/支付方式' },
-      { key: 'customer_name', label: '客户名称' },
-      { key: 'product_name', label: '商品名称' },
-      { key: 'color_code', label: '色号' },
-      { key: 'spec_model', label: '规格型号' },
-      { key: 'category', label: '类别' },
-      { key: 'grade', label: '等级' },
-      { key: 'box_count', label: '箱数' },
-      { key: 'area_sqm', label: '平方数' },
-      { key: 'unit_price_usd', label: '单价$' },
-      { key: 'amount_usd', label: '合计$' },
-      { key: 'exchange_rate', label: '汇率' },
-      { key: 'amount_uzs', label: '苏姆合计' },
-      { key: 'refund_uzs', label: '退货苏姆' },
-      { key: 'order_no', label: '订单号' },
-      { key: 'vehicle_no', label: '车号' },
-      { key: 'export_country', label: '出口国' },
-      { key: 'dealer_name', label: '经销商' },
-      { key: 'shipper_name', label: '发货人' },
-      { key: 'driver_tax_no', label: '司机税号' },
-      { key: 'logistics_tax_no', label: '物流税号' },
-      { key: 'vehicle_type', label: '车型' },
-      { key: 'contract_no', label: '合同编号' },
-      { key: 'note', label: '备注' },
-    ],
-    'sales_export'
-  );
-  ElMessage.success(`已导出 ${salesRows.value.length} 条销售记录（当前页）`);
 }
 
-function exportReceipts() {
-  if (!receiptRows.value.length) {
-    ElMessage.warning('暂无可导出收款数据');
-    return;
+async function exportReceipts() {
+  exporting.value = true;
+  try {
+    const allRows = await fetchAllReceiptRows({
+      dateFrom: receiptFilters.value.dateRange?.[0] || null,
+      dateTo: receiptFilters.value.dateRange?.[1] || null,
+      keyword: receiptFilters.value.keyword || undefined,
+    });
+    if (!allRows.length) {
+      ElMessage.warning('暂无可导出收款数据');
+      return;
+    }
+    exportToExcel(
+      allRows.map((r) => {
+        const row: Record<string, any> = {};
+        for (const col of RECEIPT_EXPORT_COLS) {
+          row[col.key] = (r as any)[col.key] ?? '';
+        }
+        return row;
+      }),
+      RECEIPT_EXPORT_COLS,
+      'sales_receipts_export'
+    );
+    ElMessage.success(`已导出 ${allRows.length} 条收款记录`);
+  } catch (e: any) {
+    ElMessage.error(e?.message || '导出失败');
+  } finally {
+    exporting.value = false;
   }
-  exportToExcel(
-    receiptRows.value.map((r) => ({
-      receipt_date: r.receipt_date || '',
-      account_name: r.account_name || '',
-      customer_name: r.customer_name || '',
-      amount_usd: r.amount_usd ?? '',
-      amount_uzs: r.amount_uzs ?? '',
-      exchange_rate: r.exchange_rate ?? '',
-      sales_document_no: r.sales_document_no || '',
-      contract_no: r.contract_no || '',
-      note: r.note || '',
-    })),
-    [
-      { key: 'receipt_date', label: '日期' },
-      { key: 'account_name', label: '账户' },
-      { key: 'customer_name', label: '客户名称' },
-      { key: 'amount_usd', label: '美金金额$' },
-      { key: 'amount_uzs', label: '苏姆金额' },
-      { key: 'exchange_rate', label: '汇率' },
-      { key: 'sales_document_no', label: '单据编号' },
-      { key: 'contract_no', label: '合同编号' },
-      { key: 'note', label: '备注' },
-    ],
-    'sales_receipts_export'
-  );
-  ElMessage.success(`已导出 ${receiptRows.value.length} 条收款记录（当前页）`);
 }
 
 /* ==================== 导入逻辑 ==================== */
@@ -600,7 +641,7 @@ function pickFirst(row: Record<string, any>, keys: string[]): string {
 
 function normalizeImportRows(rows: Record<string, any>[], mode: ImportMode): Record<string, any>[] {
   const normalized = rows.map((r) => normalizeImportRowKeys(r || {}));
-  return normalized.map((row) => {
+  return normalized.map((row, idx) => {
     const out = { ...row };
     if (mode === 'sales') {
       const sourceType = 'excel';
@@ -610,7 +651,9 @@ function normalizeImportRows(rows: Record<string, any>[], mode: ImportMode): Rec
       const specModel = pickFirst(out, ['spec_model', '规格型号 спецификация']);
       const orderNo = pickFirst(out, ['order_no', '订单号 Номер заказа']);
       out.source_type = sourceType;
-      out.source_key = pickFirst(out, ['source_key']) || [documentNo, productName, colorCode, specModel, orderNo].join('|');
+      // 用行号做后缀保证每行 source_key 唯一，避免不同行因字段组合相同而被去重
+      const baseKey = [documentNo, productName, colorCode, specModel, orderNo].join('|');
+      out.source_key = pickFirst(out, ['source_key']) || `${baseKey}##${idx}`;
       const numericKeys = [
         'box_count', 'area_sqm', 'unit_price_usd', 'amount_usd', 'exchange_rate', 'amount_uzs', 'refund_uzs',
         '箱数 Количество  коробок', '平方数 Квадратные метры', '单价$ цена за единицу', '合计$ итог',
@@ -626,8 +669,9 @@ function normalizeImportRows(rows: Record<string, any>[], mode: ImportMode): Rec
       const amountUzs = normalizeNumericValue(pickFirst(out, ['amount_uzs', '苏姆金额 som Сумма в сумах']));
       const note = pickFirst(out, ['note', '备注']);
       out.source_type = sourceType;
-      out.source_key = pickFirst(out, ['source_key']) || [receiptDate, accountName, customerName, amountUsd, amountUzs, note].join('|');
-      const numericKeys = ['amount_usd', 'amount_uzs', 'exchange_rate', '美金金额 $ итог', '苏姆金额 som Сумма в сумах'];
+      const baseKey = [receiptDate, accountName, customerName, amountUsd, amountUzs, note].join('|');
+      out.source_key = pickFirst(out, ['source_key']) || `${baseKey}##${idx}`;
+      const numericKeys = ['amount_usd', 'amount_uzs', '美金金额 $ итог', '苏姆金额 som Сумма в сумах'];
       numericKeys.forEach((k) => { if (k in out) out[k] = normalizeNumericValue(out[k]); });
     }
     return out;
@@ -694,42 +738,26 @@ async function submitImport() {
     }
     payload = normalizeImportRows(payload, importMode.value);
 
-    // 文件内去重
-    const uniqueByKey = new Map<string, Record<string, any>>();
-    for (const row of payload) {
-      const key = String(row.source_key || '').trim();
-      if (!key) continue;
-      if (!uniqueByKey.has(key)) uniqueByKey.set(key, row);
-    }
-    const deduped = [...uniqueByKey.values()];
-    const duplicateInFile = payload.length - deduped.length;
-
-    if (!deduped.length) {
-      ElMessage.warning(`无需导入：原始 ${payload.length} 行，文件内重复 ${duplicateInFile} 行`);
-      importing.value = false;
-      return;
-    }
-
-    importProgress.value.total = deduped.length;
+    // 不做文件内去重——直接全部发给服务端，由 RPC 的 ON CONFLICT 处理
+    // 这样保证识别到多少行就存入多少行
+    importProgress.value.total = payload.length;
 
     const BATCH_SIZE = 500;
     let inserted = 0;
     let updated = 0;
-    for (let i = 0; i < deduped.length; i += BATCH_SIZE) {
-      const chunk = deduped.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < payload.length; i += BATCH_SIZE) {
+      const chunk = payload.slice(i, i + BATCH_SIZE);
       const result =
         importMode.value === 'sales'
           ? await importSalesRowsLegacy(chunk)
           : await importReceiptRowsLegacy(chunk);
       inserted += Number(result?.inserted || 0);
       updated += Number(result?.updated || 0);
-      importProgress.value.done = Math.min(i + BATCH_SIZE, deduped.length);
+      importProgress.value.done = Math.min(i + BATCH_SIZE, payload.length);
       importProgress.value.inserted = inserted;
       importProgress.value.updated = updated;
     }
-    ElMessage.success(
-      `导入完成：原始 ${payload.length} 行，文件内重复 ${duplicateInFile} 行，新增 ${inserted}，更新 ${updated}`
-    );
+    ElMessage.success(`导入完成：共 ${payload.length} 行，新增 ${inserted}，更新 ${updated}`);
     importVisible.value = false;
     await fetchActiveTabData(true);
   } catch (e: any) {
@@ -748,17 +776,29 @@ function openEdit(row: SalesRow) {
     id: row.id,
     document_date: row.document_date || null,
     document_no: row.document_no || '',
+    payment_method: row.payment_method || '',
     customer_name: row.customer_name || '',
     product_name: row.product_name || '',
+    color_code: row.color_code || '',
     spec_model: row.spec_model || '',
     category: row.category || '',
+    grade: row.grade || '',
     box_count: row.box_count,
     area_sqm: row.area_sqm,
+    unit_price_usd: row.unit_price_usd,
     amount_usd: row.amount_usd,
     exchange_rate: row.exchange_rate,
     amount_uzs: row.amount_uzs,
+    refund_uzs: row.refund_uzs,
     order_no: row.order_no || '',
     contract_no: row.contract_no || '',
+    vehicle_no: row.vehicle_no || '',
+    vehicle_type: row.vehicle_type || '',
+    export_country: row.export_country || '',
+    dealer_name: row.dealer_name || '',
+    shipper_name: row.shipper_name || '',
+    driver_tax_no: row.driver_tax_no || '',
+    logistics_tax_no: row.logistics_tax_no || '',
     note: row.note || '',
   };
   editVisible.value = true;
@@ -780,17 +820,29 @@ async function saveEdit() {
       payload: {
         document_date: f.document_date || null,
         document_no: String(f.document_no || '').trim(),
+        payment_method: f.payment_method?.trim() || null,
         customer_name: String(f.customer_name || '').trim(),
         product_name: String(f.product_name || '').trim(),
+        color_code: f.color_code?.trim() || null,
         spec_model: f.spec_model?.trim() || null,
         category: f.category?.trim() || null,
+        grade: f.grade?.trim() || null,
         box_count: f.box_count,
         area_sqm: f.area_sqm,
+        unit_price_usd: f.unit_price_usd,
         amount_usd: f.amount_usd,
         exchange_rate: f.exchange_rate,
         amount_uzs: f.amount_uzs,
+        refund_uzs: f.refund_uzs,
         order_no: f.order_no?.trim() || null,
         contract_no: f.contract_no?.trim() || null,
+        vehicle_no: f.vehicle_no?.trim() || null,
+        vehicle_type: f.vehicle_type?.trim() || null,
+        export_country: f.export_country?.trim() || null,
+        dealer_name: f.dealer_name?.trim() || null,
+        shipper_name: f.shipper_name?.trim() || null,
+        driver_tax_no: f.driver_tax_no?.trim() || null,
+        logistics_tax_no: f.logistics_tax_no?.trim() || null,
         note: f.note?.trim() || null,
       },
     });
