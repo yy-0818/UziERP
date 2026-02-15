@@ -133,7 +133,7 @@
       <div v-if="importProgress.total > 0" class="import-progress-wrap">
         <div class="import-progress-info">
           <span>进度：{{ importProgress.done }} / {{ importProgress.total }} 行</span>
-          <span style="margin-left: 12px">新增 {{ importProgress.inserted }}，更新 {{ importProgress.updated }}</span>
+          <span style="margin-left: 12px">已写入 {{ importProgress.written }}</span>
         </div>
         <el-progress
           :percentage="importProgressPercent"
@@ -371,7 +371,7 @@ const importing = ref(false);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const parsedImportRows = ref<Record<string, any>[] | null>(null);
 
-const importProgress = ref({ total: 0, done: 0, inserted: 0, updated: 0 });
+const importProgress = ref({ total: 0, done: 0, written: 0 });
 const importProgressPercent = computed(() => {
   if (importProgress.value.total <= 0) return 0;
   return Math.round((importProgress.value.done / importProgress.value.total) * 100);
@@ -629,51 +629,15 @@ function normalizeNumericValue(v: any): string {
   return s;
 }
 
-function pickFirst(row: Record<string, any>, keys: string[]): string {
-  for (const k of keys) {
-    const v = row[k];
-    if (v == null) continue;
-    const s = String(v).trim();
-    if (s) return s;
-  }
-  return '';
-}
-
 function normalizeImportRows(rows: Record<string, any>[], mode: ImportMode): Record<string, any>[] {
-  const normalized = rows.map((r) => normalizeImportRowKeys(r || {}));
-  return normalized.map((row, idx) => {
-    const out = { ...row };
-    if (mode === 'sales') {
-      const sourceType = 'excel';
-      const documentNo = pickFirst(out, ['document_no', '单据编号 Номер документа']);
-      const productName = pickFirst(out, ['product_name', '商品名称 Название товара']);
-      const colorCode = pickFirst(out, ['color_code', '色号 партия']);
-      const specModel = pickFirst(out, ['spec_model', '规格型号 спецификация']);
-      const orderNo = pickFirst(out, ['order_no', '订单号 Номер заказа']);
-      out.source_type = sourceType;
-      // 用行号做后缀保证每行 source_key 唯一，避免不同行因字段组合相同而被去重
-      const baseKey = [documentNo, productName, colorCode, specModel, orderNo].join('|');
-      out.source_key = pickFirst(out, ['source_key']) || `${baseKey}##${idx}`;
-      const numericKeys = [
-        'box_count', 'area_sqm', 'unit_price_usd', 'amount_usd', 'exchange_rate', 'amount_uzs', 'refund_uzs',
-        '箱数 Количество  коробок', '平方数 Квадратные метры', '单价$ цена за единицу', '合计$ итог',
-        '汇率 Курс валют', '苏姆合计 Сумма в сумах', '退货苏姆',
-      ];
-      numericKeys.forEach((k) => { if (k in out) out[k] = normalizeNumericValue(out[k]); });
-    } else {
-      const sourceType = 'excel_receipt';
-      const receiptDate = pickFirst(out, ['receipt_date', '日期 Дата документа']);
-      const accountName = pickFirst(out, ['account_name', '账户', 'account', '账户/Account']);
-      const customerName = pickFirst(out, ['customer_name', '客户名称 Название клиента']);
-      const amountUsd = normalizeNumericValue(pickFirst(out, ['amount_usd', '美金金额 $ итог']));
-      const amountUzs = normalizeNumericValue(pickFirst(out, ['amount_uzs', '苏姆金额 som Сумма в сумах']));
-      const note = pickFirst(out, ['note', '备注']);
-      out.source_type = sourceType;
-      const baseKey = [receiptDate, accountName, customerName, amountUsd, amountUzs, note].join('|');
-      out.source_key = pickFirst(out, ['source_key']) || `${baseKey}##${idx}`;
-      const numericKeys = ['amount_usd', 'amount_uzs', '美金金额 $ итог', '苏姆金额 som Сумма в сумах'];
-      numericKeys.forEach((k) => { if (k in out) out[k] = normalizeNumericValue(out[k]); });
-    }
+  return rows.map((r) => {
+    const out = normalizeImportRowKeys(r || {});
+    const numericKeys = mode === 'sales'
+      ? ['box_count', 'area_sqm', 'unit_price_usd', 'amount_usd', 'exchange_rate', 'amount_uzs', 'refund_uzs',
+         '箱数 Количество  коробок', '平方数 Квадратные метры', '单价$ цена за единицу', '合计$ итог',
+         '汇率 Курс валют', '苏姆合计 Сумма в сумах', '退货苏姆']
+      : ['amount_usd', 'amount_uzs', '美金金额 $ итог', '苏姆金额 som Сумма в сумах'];
+    numericKeys.forEach((k) => { if (k in out) out[k] = normalizeNumericValue(out[k]); });
     return out;
   });
 }
@@ -699,7 +663,7 @@ function openImportDialog(mode: ImportMode) {
   importMode.value = mode;
   importText.value = '';
   parsedImportRows.value = null;
-  importProgress.value = { total: 0, done: 0, inserted: 0, updated: 0 };
+  importProgress.value = { total: 0, done: 0, written: 0 };
   if (fileInputRef.value) fileInputRef.value.value = '';
   importVisible.value = true;
 }
@@ -726,7 +690,7 @@ async function submitImport() {
     return;
   }
   importing.value = true;
-  importProgress.value = { total: 0, done: 0, inserted: 0, updated: 0 };
+  importProgress.value = { total: 0, done: 0, written: 0 };
   try {
     let payload: Record<string, any>[];
     if (parsedImportRows.value && parsedImportRows.value.length > 0) {
@@ -737,27 +701,20 @@ async function submitImport() {
       payload = parsed;
     }
     payload = normalizeImportRows(payload, importMode.value);
-
-    // 不做文件内去重——直接全部发给服务端，由 RPC 的 ON CONFLICT 处理
-    // 这样保证识别到多少行就存入多少行
     importProgress.value.total = payload.length;
 
-    const BATCH_SIZE = 500;
-    let inserted = 0;
-    let updated = 0;
-    for (let i = 0; i < payload.length; i += BATCH_SIZE) {
-      const chunk = payload.slice(i, i + BATCH_SIZE);
-      const result =
-        importMode.value === 'sales'
-          ? await importSalesRowsLegacy(chunk)
-          : await importReceiptRowsLegacy(chunk);
-      inserted += Number(result?.inserted || 0);
-      updated += Number(result?.updated || 0);
-      importProgress.value.done = Math.min(i + BATCH_SIZE, payload.length);
-      importProgress.value.inserted = inserted;
-      importProgress.value.updated = updated;
+    const BATCH = 500;
+    let written = 0;
+    for (let i = 0; i < payload.length; i += BATCH) {
+      const chunk = payload.slice(i, i + BATCH);
+      const res = importMode.value === 'sales'
+        ? await importSalesRowsLegacy(chunk)
+        : await importReceiptRowsLegacy(chunk);
+      written += Number(res?.written ?? 0);
+      importProgress.value.done = Math.min(i + BATCH, payload.length);
+      importProgress.value.written = written;
     }
-    ElMessage.success(`导入完成：共 ${payload.length} 行，新增 ${inserted}，更新 ${updated}`);
+    ElMessage.success(`导入完成：共 ${payload.length} 行，已写入 ${written} 行`);
     importVisible.value = false;
     await fetchActiveTabData(true);
   } catch (e: any) {

@@ -49,17 +49,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onActivated } from 'vue';
 import { supabase } from '../../supabase';
-import { fetchRecentSales, fetchRecentReceipts } from '../sales/api';
+import { fetchRecentSales, fetchRecentReceipts, fetchDashboardTotals } from '../sales/api';
 import type { SalesRow, ReceiptRow } from '../sales/types';
 
-const customerCount = ref<number | null>(null);
-const productCount = ref<number | null>(null);
 const recentContractCount = ref<number | null>(null);
 const recentAttachmentCount = ref<number | null>(null);
-const salesRecordCount = ref<number | null>(null);
-const receiptRecordCount = ref<number | null>(null);
+const salesTotalUsd = ref<number | null>(null);
+const receiptTotalUsd = ref<number | null>(null);
+const receiptTotalUzs = ref<number | null>(null);
 
 const recentSales = ref<SalesRow[]>([]);
 const recentReceipts = ref<ReceiptRow[]>([]);
@@ -77,31 +76,25 @@ const rangeEnd = toLocalDateString(new Date());
 const rangeStart = toLocalDateString(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
 
 const cards = ref([
-  { title: '客户总数', value: '—', sub: '来自 customers 表', loading: true },
-  { title: '产品种类', value: '—', sub: '来自 products 表', loading: true },
+  { title: '销售总销售额', value: '—', sub: '美元合计 $', loading: true },
+  { title: '收款合计（美金）', value: '—', sub: '美金金额 $', loading: true },
+  { title: '收款合计（苏姆）', value: '—', sub: '苏姆金额', loading: true },
   {
     title: '近30天新增（合同/附件）',
     value: '—',
-    sub: `${rangeStart} ~ ${rangeEnd}（按创建日期）`,
-    loading: true,
-  },
-  {
-    title: '销售/收款总量',
-    value: '—',
-    sub: '销售记录 / 收款记录',
+    sub: `${rangeStart} ~ ${rangeEnd}`,
     loading: true,
   },
 ]);
 
-function fmtNumber(n: number): string {
-  return n.toLocaleString('zh-CN');
+function fmtMoney(n: number): string {
+  return n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 async function loadStats() {
   try {
-    const [custRes, prodRes, contractRes, attachmentRes, salesCountRes, receiptCountRes] = await Promise.all([
-      supabase.from('customers').select('*', { count: 'exact', head: true }),
-      supabase.from('products').select('*', { count: 'exact', head: true }),
+    const [totalsRes, contractRes, attachmentRes] = await Promise.all([
+      fetchDashboardTotals(),
       supabase
         .from('contract_versions')
         .select('id', { count: 'exact', head: true })
@@ -112,23 +105,20 @@ async function loadStats() {
         .select('id', { count: 'exact', head: true })
         .not('attachment_date', 'is', null)
         .gte('attachment_date', rangeStart),
-      supabase.from('sales_records').select('id', { count: 'exact', head: true }),
-      supabase.from('sales_receipts').select('id', { count: 'exact', head: true }),
     ]);
-    customerCount.value = custRes.count ?? 0;
-    productCount.value = prodRes.count ?? 0;
+    salesTotalUsd.value = totalsRes.sales_total_usd;
+    receiptTotalUsd.value = totalsRes.receipt_total_usd;
+    receiptTotalUzs.value = totalsRes.receipt_total_uzs;
     recentContractCount.value = contractRes.count ?? 0;
     recentAttachmentCount.value = attachmentRes.count ?? 0;
-    salesRecordCount.value = salesCountRes.count ?? 0;
-    receiptRecordCount.value = receiptCountRes.count ?? 0;
 
-    cards.value[0].value = fmtNumber(customerCount.value);
+    cards.value[0].value = fmtMoney(totalsRes.sales_total_usd);
     cards.value[0].loading = false;
-    cards.value[1].value = fmtNumber(productCount.value);
+    cards.value[1].value = fmtMoney(totalsRes.receipt_total_usd);
     cards.value[1].loading = false;
-    cards.value[2].value = `${fmtNumber(recentContractCount.value)} / ${fmtNumber(recentAttachmentCount.value)}`;
+    cards.value[2].value = fmtMoney(totalsRes.receipt_total_uzs);
     cards.value[2].loading = false;
-    cards.value[3].value = `${fmtNumber(salesRecordCount.value)} / ${fmtNumber(receiptRecordCount.value)}`;
+    cards.value[3].value = `${recentContractCount.value} / ${recentAttachmentCount.value}`;
     cards.value[3].loading = false;
   } catch (e) {
     console.error(e);
@@ -160,11 +150,14 @@ async function loadRecentReceipts() {
   }
 }
 
-onMounted(() => {
+function refreshDashboard() {
   loadStats();
   loadRecentSales();
   loadRecentReceipts();
-});
+}
+
+onMounted(refreshDashboard);
+onActivated(refreshDashboard);
 </script>
 
 <style scoped>

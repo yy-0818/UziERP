@@ -145,13 +145,15 @@ export async function fetchAllReceiptRows(params: {
 export async function importSalesRowsLegacy(rows: Record<string, any>[]) {
   const { data, error } = await supabase.rpc('rpc_sales_import_rows_legacy_headers', { p_rows: rows });
   if (error) throw error;
-  return data as { inserted?: number; updated?: number };
+  const d = data as { written?: number; total?: number };
+  return { written: Number(d?.written ?? 0) };
 }
 
 export async function importReceiptRowsLegacy(rows: Record<string, any>[]) {
   const { data, error } = await supabase.rpc('rpc_sales_receipts_import_rows_legacy_headers', { p_rows: rows });
   if (error) throw error;
-  return data as { inserted?: number; updated?: number };
+  const d = data as { written?: number; total?: number };
+  return { written: Number(d?.written ?? 0) };
 }
 
 export async function updateSalesRecord(params: {
@@ -202,4 +204,30 @@ export async function fetchRecentReceipts(limit = 10): Promise<ReceiptRow[]> {
     .limit(limit);
   if (error) throw error;
   return (data || []) as ReceiptRow[];
+}
+
+/** 仪表盘：销售总销售额(美元)、收款美金/苏姆合计，与 sales_records / sales_receipts 实时同步 */
+export async function fetchDashboardTotals(): Promise<{
+  sales_total_usd: number;
+  receipt_total_usd: number;
+  receipt_total_uzs: number;
+}> {
+  const { data, error } = await supabase.rpc('rpc_sales_dashboard_totals');
+  if (error) throw error;
+  let raw: Record<string, unknown> = {};
+  if (data != null && typeof data === 'object') {
+    if (Array.isArray(data) && data.length > 0) {
+      const row = data[0];
+      raw = (row && typeof row === 'object' && 'rpc_sales_dashboard_totals' in row
+        ? (row as { rpc_sales_dashboard_totals: Record<string, unknown> }).rpc_sales_dashboard_totals
+        : row) as Record<string, unknown>;
+    } else {
+      raw = data as Record<string, unknown>;
+    }
+  }
+  return {
+    sales_total_usd: Number(raw.sales_total_usd ?? 0),
+    receipt_total_usd: Number(raw.receipt_total_usd ?? 0),
+    receipt_total_uzs: Number(raw.receipt_total_uzs ?? 0),
+  };
 }
