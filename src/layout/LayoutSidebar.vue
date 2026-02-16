@@ -1,12 +1,12 @@
 <template>
   <el-aside :width="sidebarWidth" class="erp-aside">
     <div class="erp-logo">
-      <span v-show="!collapsed" class="erp-logo-text">ERP</span>
-      <span v-show="collapsed" class="erp-logo-text erp-logo-text--short">E</span>
+      <span v-show="!layout.sidebarCollapsed" class="erp-logo-text">ERP</span>
+      <span v-show="layout.sidebarCollapsed" class="erp-logo-text erp-logo-text--short">E</span>
     </div>
     <el-menu
       :default-active="active"
-      :collapse="collapsed"
+      :collapse="layout.sidebarCollapsed"
       :collapse-transition="false"
       router
       unique-opened
@@ -54,15 +54,13 @@ import type { Component } from 'vue';
 import { filterMenuByRole, rawMenuTree } from './config/menuConfig';
 import type { MenuNode } from './config/types';
 import { useAuthStore } from '../stores/auth';
-
-const props = defineProps<{
-  collapsed: boolean;
-}>();
+import { useLayoutStore } from '../stores/layout';
 
 const route = useRoute();
 const auth = useAuthStore();
+const layout = useLayoutStore();
 
-const sidebarWidth = computed(() => (props.collapsed ? '64px' : '220px'));
+const sidebarWidth = computed(() => (layout.sidebarCollapsed ? '64px' : '220px'));
 const active = computed(() => route.path);
 
 const menuTree = computed<MenuNode[]>(() =>
@@ -87,9 +85,13 @@ function iconComponent(name: string | undefined): Component | undefined {
 <style scoped>
 .erp-aside {
   background: var(--sidebar-bg);
-  transition: width 0.18s cubic-bezier(0.2, 0, 0, 1);
+  transition: width 0.15s cubic-bezier(0.25, 0, 0.2, 1);
   overflow: hidden;
   will-change: width;
+  /* 提升到独立合成层，动画由 GPU 处理，减少主线程卡顿 */
+  transform: translateZ(0);
+  /* 侧边栏独立布局层，避免影响主内容重排 */
+  contain: layout style;
 }
 
 .erp-logo {

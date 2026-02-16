@@ -206,6 +206,34 @@ export async function fetchRecentReceipts(limit = 10): Promise<ReceiptRow[]> {
   return (data || []) as ReceiptRow[];
 }
 
+/** 仪表盘图表：近 N 天每日销售与收款汇总 */
+export async function fetchDashboardChartData(days = 30): Promise<{
+  labels: string[];
+  sales: number[];
+  receipts_usd: number[];
+  receipts_uzs: number[];
+}> {
+  const { data, error } = await supabase.rpc('rpc_sales_dashboard_chart_data', { p_days: days });
+  if (error) throw error;
+  let raw: Record<string, unknown> = {};
+  if (data != null && typeof data === 'object') {
+    if (Array.isArray(data) && data.length > 0) {
+      const row = data[0];
+      raw = (row && typeof row === 'object' && 'rpc_sales_dashboard_chart_data' in row
+        ? (row as { rpc_sales_dashboard_chart_data: Record<string, unknown> }).rpc_sales_dashboard_chart_data
+        : row) as Record<string, unknown>;
+    } else {
+      raw = data as Record<string, unknown>;
+    }
+  }
+  return {
+    labels: (raw.labels as string[]) ?? [],
+    sales: (raw.sales as number[]) ?? [],
+    receipts_usd: (raw.receipts_usd as number[]) ?? [],
+    receipts_uzs: (raw.receipts_uzs as number[]) ?? [],
+  };
+}
+
 /** 仪表盘：销售总销售额(美元)、收款美金/苏姆合计，与 sales_records / sales_receipts 实时同步 */
 export async function fetchDashboardTotals(): Promise<{
   sales_total_usd: number;

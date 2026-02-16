@@ -314,7 +314,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, shallowRef, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import * as XLSX from 'xlsx';
 import { exportToExcel } from '../../composables/useExport';
@@ -339,10 +339,10 @@ const loading = ref(false);
 const exporting = ref(false);
 const STATE_KEY = 'sales.module.ui_state.v3';
 
-/* ==================== 服务端分页数据 ==================== */
-const salesRows = ref<SalesRow[]>([]);
+/* ==================== 服务端分页数据（shallowRef 降低大列表响应式开销） ==================== */
+const salesRows = shallowRef<SalesRow[]>([]);
 const salesTotalCount = ref(0);
-const receiptRows = ref<ReceiptRow[]>([]);
+const receiptRows = shallowRef<ReceiptRow[]>([]);
 const receiptTotalCount = ref(0);
 
 const salesFilters = ref({ keyword: '', dateRange: null as [string, string] | null });
@@ -846,9 +846,19 @@ function persistUiState() {
   } catch { /* ignore */ }
 }
 
+const PERSIST_DEBOUNCE_MS = 450;
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+function debouncedPersistUiState() {
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    persistUiState();
+  }, PERSIST_DEBOUNCE_MS);
+}
+
 watch(
   [activeTab, salesFilters, receiptFilters, salesPage, salesPageSize, receiptPage, receiptPageSize],
-  () => persistUiState(),
+  debouncedPersistUiState,
   { deep: true }
 );
 

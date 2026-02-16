@@ -270,7 +270,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, shallowRef, onMounted, computed } from 'vue';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { supabase } from '../../supabase';
@@ -281,7 +281,7 @@ import ContractUploadDialog from './components/ContractUploadDialog.vue';
 import { exportToExcel } from '../../composables/useExport';
 import { useAuthStore } from '../../stores/auth';
 
-const list = ref<ContractWithDetails[]>([]);
+const list = shallowRef<ContractWithDetails[]>([]);
 const loading = ref(false);
 const auth = useAuthStore();
 const canManage = computed(() => (auth.role || '') !== 'viewer');

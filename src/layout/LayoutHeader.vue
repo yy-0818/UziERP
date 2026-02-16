@@ -4,9 +4,9 @@
       class="erp-sidebar-toggle"
       text
       circle
-      @click="emit('toggle-sidebar')"
+      @click="layout.toggleSidebar()"
     >
-      <el-icon><Expand v-if="collapsed" /><Fold v-else /></el-icon>
+      <el-icon><Expand v-if="layout.sidebarCollapsed" /><Fold v-else /></el-icon>
     </el-button>
     <AppBreadcrumb />
     <div class="erp-header-right">
@@ -40,17 +40,11 @@ import { UserFilled, ArrowDown, Expand, Fold, Moon, Sunny, SwitchButton } from '
 import { useRouter } from 'vue-router';
 import AppBreadcrumb from '../components/common/AppBreadcrumb.vue';
 import { useAuthStore } from '../stores/auth';
+import { useLayoutStore } from '../stores/layout';
 import { useTheme } from '../composables/useTheme';
 
-defineProps<{
-  collapsed: boolean;
-}>();
-
-const emit = defineEmits<{
-  (e: 'toggle-sidebar'): void;
-}>();
-
 const router = useRouter();
+const layout = useLayoutStore();
 const auth = useAuthStore();
 const { isDark, toggleTheme } = useTheme();
 

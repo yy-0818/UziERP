@@ -4,7 +4,7 @@
       <Suspense>
         <template #default>
           <transition name="erp-page" mode="out-in" appear>
-            <keep-alive>
+            <keep-alive :max="8">
               <component :is="Component" :key="route.fullPath" />
             </keep-alive>
           </transition>
@@ -29,6 +29,8 @@
   overflow: auto;
   padding: var(--page-padding);
   background: var(--page-bg);
+  /* 主内容区独立渲染层，减少侧边栏折叠触发的重绘 */
+  contain: layout;
 }
 
 .erp-page-loading {
