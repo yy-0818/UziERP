@@ -7,13 +7,20 @@ const SALES_SELECT =
 const RECEIPT_SELECT =
   'id, account_name, customer_name, receipt_date, amount_usd, amount_uzs, note';
 
-/** 销售数据：服务端分页 + 日期筛选 + 关键词 */
+/** 销售列筛选：支持按列精确/多选，服务端查询 */
+const SALES_FILTER_COLUMNS = [
+  'document_date', 'document_no', 'payment_method', 'customer_name',
+  'category', 'grade', 'export_country', 'vehicle_no',
+] as const;
+
+/** 销售数据：服务端分页 + 日期 + 关键词 + 列筛选 */
 export async function fetchSalesPage(params: {
   page: number;
   pageSize: number;
   dateFrom?: string | null;
   dateTo?: string | null;
   keyword?: string;
+  columnFilters?: Record<string, string[]>;
 }): Promise<PageResult<SalesRow>> {
   const from = (params.page - 1) * params.pageSize;
   const to = from + params.pageSize - 1;
@@ -31,19 +38,29 @@ export async function fetchSalesPage(params: {
     const k = `%${params.keyword}%`;
     query = query.or(`document_no.ilike.${k},customer_name.ilike.${k},product_name.ilike.${k},contract_no.ilike.${k}`);
   }
+  if (params.columnFilters) {
+    for (const col of SALES_FILTER_COLUMNS) {
+      const vals = params.columnFilters[col];
+      if (vals?.length) query = query.in(col, vals);
+    }
+  }
 
   const { data, count, error } = await query;
   if (error) throw error;
   return { rows: (data || []) as SalesRow[], total: count ?? 0 };
 }
 
-/** 收款数据：服务端分页 + 日期筛选 + 关键词 */
+/** 收款列筛选：支持按列精确/多选，服务端查询 */
+const RECEIPT_FILTER_COLUMNS = ['receipt_date', 'account_name', 'customer_name'] as const;
+
+/** 收款数据：服务端分页 + 日期 + 关键词 + 列筛选 */
 export async function fetchReceiptPage(params: {
   page: number;
   pageSize: number;
   dateFrom?: string | null;
   dateTo?: string | null;
   keyword?: string;
+  columnFilters?: Record<string, string[]>;
 }): Promise<PageResult<ReceiptRow>> {
   const from = (params.page - 1) * params.pageSize;
   const to = from + params.pageSize - 1;
@@ -61,6 +78,12 @@ export async function fetchReceiptPage(params: {
     const k = `%${params.keyword}%`;
     query = query.or(`account_name.ilike.${k},customer_name.ilike.${k}`);
   }
+  if (params.columnFilters) {
+    for (const col of RECEIPT_FILTER_COLUMNS) {
+      const vals = params.columnFilters[col];
+      if (vals?.length) query = query.in(col, vals);
+    }
+  }
 
   const { data, count, error } = await query;
   if (error) throw error;
@@ -75,6 +98,7 @@ export async function fetchAllSalesRows(params: {
   dateFrom?: string | null;
   dateTo?: string | null;
   keyword?: string;
+  columnFilters?: Record<string, string[]>;
 }): Promise<SalesRow[]> {
   const PAGE = 1000;
   const all: SalesRow[] = [];
@@ -94,6 +118,12 @@ export async function fetchAllSalesRows(params: {
       const k = `%${params.keyword}%`;
       query = query.or(`document_no.ilike.${k},customer_name.ilike.${k},product_name.ilike.${k},contract_no.ilike.${k}`);
     }
+    if (params.columnFilters) {
+      for (const col of SALES_FILTER_COLUMNS) {
+        const vals = params.columnFilters[col];
+        if (vals?.length) query = query.in(col, vals);
+      }
+    }
 
     const { data, error } = await query;
     if (error) throw error;
@@ -112,6 +142,7 @@ export async function fetchAllReceiptRows(params: {
   dateFrom?: string | null;
   dateTo?: string | null;
   keyword?: string;
+  columnFilters?: Record<string, string[]>;
 }): Promise<ReceiptRow[]> {
   const PAGE = 1000;
   const all: ReceiptRow[] = [];
@@ -130,6 +161,12 @@ export async function fetchAllReceiptRows(params: {
     if (params.keyword) {
       const k = `%${params.keyword}%`;
       query = query.or(`account_name.ilike.${k},customer_name.ilike.${k}`);
+    }
+    if (params.columnFilters) {
+      for (const col of RECEIPT_FILTER_COLUMNS) {
+        const vals = params.columnFilters[col];
+        if (vals?.length) query = query.in(col, vals);
+      }
     }
 
     const { data, error } = await query;

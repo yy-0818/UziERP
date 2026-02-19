@@ -44,16 +44,16 @@
             </el-dropdown>
           </div>
 
-          <el-table :data="salesRows" v-loading="loading" stripe border row-key="id" style="width: 100%" height="62vh">
-            <el-table-column prop="document_date" label="单据日期" width="120" sortable :filters="salesDateFilters" :filter-method="elFilterMethod" column-key="document_date" />
-            <el-table-column prop="document_no" label="单据编号" min-width="170" show-overflow-tooltip sortable :filters="salesDocumentNoFilters" :filter-method="elFilterMethod" column-key="document_no" />
-            <el-table-column prop="payment_method" label="客户分类" min-width="120" show-overflow-tooltip sortable :filters="salesPaymentFilters" :filter-method="elFilterMethod" column-key="payment_method" />
-            <el-table-column prop="customer_name" label="客户名称" min-width="180" show-overflow-tooltip sortable />
+          <el-table :data="salesRows" v-loading="loading" stripe border row-key="id" style="width: 100%" height="62vh" @filter-change="onSalesFilterChange">
+            <el-table-column prop="document_date" label="单据日期" width="120" sortable :filters="salesDateFilters" :filtered-value="(salesColumnFilters.document_date || [])" column-key="document_date" />
+            <el-table-column prop="document_no" label="单据编号" min-width="170" show-overflow-tooltip sortable :filters="salesDocumentNoFilters" :filtered-value="(salesColumnFilters.document_no || [])" column-key="document_no" />
+            <el-table-column prop="payment_method" label="客户分类" min-width="120" show-overflow-tooltip sortable :filters="salesPaymentFilters" :filtered-value="(salesColumnFilters.payment_method || [])" column-key="payment_method" />
+            <el-table-column prop="customer_name" label="客户名称" min-width="180" show-overflow-tooltip sortable :filters="salesCustomerNameFilters" :filtered-value="(salesColumnFilters.customer_name || [])" column-key="customer_name" />
             <el-table-column prop="product_name" label="商品名称" min-width="120" show-overflow-tooltip sortable />
             <el-table-column prop="color_code" label="色号" width="60" show-overflow-tooltip />
             <el-table-column prop="spec_model" label="规格型号" min-width="120" show-overflow-tooltip />
-            <el-table-column prop="category" label="类别" width="100" show-overflow-tooltip sortable :filters="salesCategoryFilters" :filter-method="elFilterMethod" column-key="category" />
-            <el-table-column prop="grade" label="等级" width="80" show-overflow-tooltip :filters="salesGradeFilters" :filter-method="elFilterMethod" column-key="grade" />
+            <el-table-column prop="category" label="类别" width="100" show-overflow-tooltip sortable :filters="salesCategoryFilters" :filtered-value="(salesColumnFilters.category || [])" column-key="category" />
+            <el-table-column prop="grade" label="等级" width="80" show-overflow-tooltip :filters="salesGradeFilters" :filtered-value="(salesColumnFilters.grade || [])" column-key="grade" />
             <el-table-column prop="box_count" label="箱数" width="80" align="right" sortable />
             <el-table-column prop="area_sqm" label="平方数" width="100" align="right" sortable />
             <el-table-column prop="unit_price_usd" label="单价$" width="100" align="right" sortable />
@@ -62,8 +62,8 @@
             <el-table-column prop="amount_uzs" label="苏姆合计" width="110" align="right" sortable />
             <el-table-column prop="refund_uzs" label="退货苏姆" width="110" align="right" sortable />
             <el-table-column prop="order_no" label="订单号" min-width="140" show-overflow-tooltip sortable />
-            <el-table-column prop="vehicle_no" label="车号" width="100" show-overflow-tooltip :filters="salesLicensePlateFilter" :filter-method="elFilterMethod" column-key="vehicle_no" />
-            <el-table-column prop="export_country" label="出口国" width="100" show-overflow-tooltip sortable :filters="salesCountryFilters" :filter-method="elFilterMethod" column-key="export_country" />
+            <el-table-column prop="vehicle_no" label="车号" width="100" show-overflow-tooltip :filters="salesLicensePlateFilter" :filtered-value="(salesColumnFilters.vehicle_no || [])" column-key="vehicle_no" />
+            <el-table-column prop="export_country" label="出口国" width="100" show-overflow-tooltip sortable :filters="salesCountryFilters" :filtered-value="(salesColumnFilters.export_country || [])" column-key="export_country" />
             <el-table-column prop="dealer_name" label="经销商" min-width="100" show-overflow-tooltip />
             <el-table-column prop="shipper_name" label="发货人" width="100" show-overflow-tooltip />
             <el-table-column prop="driver_tax_no" label="司机税号" min-width="130" show-overflow-tooltip />
@@ -134,16 +134,16 @@
             </el-dropdown>
           </div>
 
-          <el-table :data="receiptRows" v-loading="loading" stripe border row-key="id" style="width: 100%" height="62vh">
+          <el-table :data="receiptRows" v-loading="loading" stripe border row-key="id" style="width: 100%" height="62vh" @filter-change="onReceiptFilterChange">
             <el-table-column type="expand">
               <template #default="{ row }">
                 <div v-if="row.note" class="receipt-expand-note">{{ row.note }}</div>
                 <div v-else class="receipt-expand-note receipt-expand-empty">无备注</div>
               </template>
             </el-table-column>
-            <el-table-column prop="receipt_date" label="日期" width="110" sortable :filters="receiptDateFilters" :filter-method="elFilterMethod" column-key="receipt_date" />
-            <el-table-column prop="account_name" label="账户" width="120" sortable :filters="receiptAccountFilters" :filter-method="elFilterMethod" column-key="account_name" />
-            <el-table-column prop="customer_name" label="客户名称" min-width="160" show-overflow-tooltip sortable :filters="receiptCustomerNameFilters" :filter-method="elFilterMethod" column-key="customer_name" />
+            <el-table-column prop="receipt_date" label="日期" width="110" sortable :filters="receiptDateFilters" :filtered-value="(receiptColumnFilters.receipt_date || [])" column-key="receipt_date" />
+            <el-table-column prop="account_name" label="账户" width="120" sortable :filters="receiptAccountFilters" :filtered-value="(receiptColumnFilters.account_name || [])" column-key="account_name" />
+            <el-table-column prop="customer_name" label="客户名称" min-width="160" show-overflow-tooltip sortable :filters="receiptCustomerNameFilters" :filtered-value="(receiptColumnFilters.customer_name || [])" column-key="customer_name" />
             <el-table-column prop="amount_usd" label="美金金额" width="120" align="right" sortable />
             <el-table-column prop="amount_uzs" label="苏姆金额" width="140" align="right" sortable />
             <el-table-column prop="note" label="备注" min-width="220" show-overflow-tooltip />
@@ -503,6 +503,10 @@ const receiptTotalCount = ref(0);
 
 const salesFilters = ref({ keyword: '', dateRange: null as [string, string] | null });
 const receiptFilters = ref({ keyword: '', dateRange: null as [string, string] | null });
+/** 销售列筛选（服务端）：columnKey -> 选中的值数组，空数组表示不过滤该列 */
+const salesColumnFilters = ref<Record<string, string[]>>({});
+/** 收款列筛选（服务端） */
+const receiptColumnFilters = ref<Record<string, string[]>>({});
 const salesPage = ref(1);
 const salesPageSize = ref(200);
 const receiptPage = ref(1);
@@ -520,7 +524,8 @@ const modifierEmail = computed(() => {
   return auth.email || '';
 });
 
-/* ==================== 列筛选（从当前页数据动态收集，el-table 用） ==================== */
+/* ==================== 列筛选选项（从当前页收集，限制条数防卡顿；筛选由服务端执行） ==================== */
+const FILTER_OPTIONS_MAX = 150;
 function collectFilterOptions(rows: any[], field: string): { text: string; value: string }[] {
   const seen = new Set<string>();
   const result: { text: string; value: string }[] = [];
@@ -529,21 +534,17 @@ function collectFilterOptions(rows: any[], field: string): { text: string; value
     if (val && !seen.has(val)) {
       seen.add(val);
       result.push({ text: val, value: val });
+      if (result.length >= FILTER_OPTIONS_MAX) break;
     }
   }
   return result.sort((a, b) => a.text.localeCompare(b.text));
-}
-
-function elFilterMethod(value: string, row: any, column: any): boolean {
-  const prop = column.property;
-  const cellVal = String(row[prop] ?? '').trim();
-  return cellVal === value;
 }
 
 /* ==================== 销售数据 列筛选（从当前页数据动态收集，el-table 用） ==================== */
 const salesDateFilters = computed(() => collectFilterOptions(salesRows.value, 'document_date'));
 const salesDocumentNoFilters = computed(() => collectFilterOptions(salesRows.value, 'document_no'));
 const salesPaymentFilters = computed(() => collectFilterOptions(salesRows.value, 'payment_method'));
+const salesCustomerNameFilters = computed(() => collectFilterOptions(salesRows.value, 'customer_name'));
 const salesCategoryFilters = computed(() => collectFilterOptions(salesRows.value, 'category'));
 const salesGradeFilters = computed(() => collectFilterOptions(salesRows.value, 'grade'));
 const salesCountryFilters = computed(() => collectFilterOptions(salesRows.value, 'export_country'));
@@ -807,12 +808,16 @@ async function saveReceiptBatch() {
 async function fetchSalesData() {
   loading.value = true;
   try {
+    const columnFilters = Object.keys(salesColumnFilters.value).length
+      ? { ...salesColumnFilters.value }
+      : undefined;
     const res = await fetchSalesPage({
       page: salesPage.value,
       pageSize: salesPageSize.value,
       dateFrom: salesFilters.value.dateRange?.[0] || null,
       dateTo: salesFilters.value.dateRange?.[1] || null,
       keyword: salesFilters.value.keyword || undefined,
+      columnFilters,
     });
     salesRows.value = res.rows;
     salesTotalCount.value = res.total;
@@ -828,12 +833,16 @@ async function fetchSalesData() {
 async function fetchReceiptData() {
   loading.value = true;
   try {
+    const columnFilters = Object.keys(receiptColumnFilters.value).length
+      ? { ...receiptColumnFilters.value }
+      : undefined;
     const res = await fetchReceiptPage({
       page: receiptPage.value,
       pageSize: receiptPageSize.value,
       dateFrom: receiptFilters.value.dateRange?.[0] || null,
       dateTo: receiptFilters.value.dateRange?.[1] || null,
       keyword: receiptFilters.value.keyword || undefined,
+      columnFilters,
     });
     receiptRows.value = res.rows;
     receiptTotalCount.value = res.total;
@@ -844,6 +853,20 @@ async function fetchReceiptData() {
   } finally {
     loading.value = false;
   }
+}
+
+/** 销售列筛选变更：服务端筛选，重置到第一页 */
+function onSalesFilterChange(filters: Record<string, string[]>) {
+  salesColumnFilters.value = { ...filters };
+  salesPage.value = 1;
+  fetchSalesData();
+}
+
+/** 收款列筛选变更：服务端筛选，重置到第一页 */
+function onReceiptFilterChange(filters: Record<string, string[]>) {
+  receiptColumnFilters.value = { ...filters };
+  receiptPage.value = 1;
+  fetchReceiptData();
 }
 
 function fetchActiveTabData(_force = false) {
@@ -867,11 +890,13 @@ function onReceiptPageSizeChange() {
 
 function resetSalesFilters() {
   salesFilters.value = { keyword: '', dateRange: null };
+  salesColumnFilters.value = {};
   salesPage.value = 1;
   fetchSalesData();
 }
 function resetReceiptFilters() {
   receiptFilters.value = { keyword: '', dateRange: null };
+  receiptColumnFilters.value = {};
   receiptPage.value = 1;
   fetchReceiptData();
 }
@@ -1181,6 +1206,7 @@ async function exportSales() {
       dateFrom: salesFilters.value.dateRange?.[0] || null,
       dateTo: salesFilters.value.dateRange?.[1] || null,
       keyword: salesFilters.value.keyword || undefined,
+      columnFilters: Object.keys(salesColumnFilters.value).length ? { ...salesColumnFilters.value } : undefined,
     });
     if (!allRows.length) {
       ElMessage.warning('暂无可导出销售数据');
@@ -1212,6 +1238,7 @@ async function exportReceipts() {
       dateFrom: receiptFilters.value.dateRange?.[0] || null,
       dateTo: receiptFilters.value.dateRange?.[1] || null,
       keyword: receiptFilters.value.keyword || undefined,
+      columnFilters: Object.keys(receiptColumnFilters.value).length ? { ...receiptColumnFilters.value } : undefined,
     });
     if (!allRows.length) {
       ElMessage.warning('暂无可导出收款数据');
