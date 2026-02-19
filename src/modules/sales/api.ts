@@ -156,6 +156,46 @@ export async function importReceiptRowsLegacy(rows: Record<string, any>[]) {
   return { written: Number(d?.written ?? 0) };
 }
 
+/** 新增单条销售记录 */
+export async function createSalesRecord(payload: Partial<Omit<SalesRow, 'id'>>) {
+  const { data, error } = await supabase
+    .from('sales_records')
+    .insert([payload])
+    .select('id')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/** 新增单条收款记录 */
+export async function createReceiptRecord(payload: Partial<Omit<ReceiptRow, 'id'>>) {
+  const { data, error } = await supabase
+    .from('sales_receipts')
+    .insert([payload])
+    .select('id')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/** 删除销售记录 */
+export async function deleteSalesRecord(id: string) {
+  const { error } = await supabase.from('sales_records').delete().eq('id', id);
+  if (error) throw error;
+}
+
+/** 删除收款记录 */
+export async function deleteReceiptRecord(id: string) {
+  const { error } = await supabase.from('sales_receipts').delete().eq('id', id);
+  if (error) throw error;
+}
+
+/** 更新单条收款记录 */
+export async function updateReceiptRecord(id: string, payload: Partial<Omit<ReceiptRow, 'id'>>) {
+  const { error } = await supabase.from('sales_receipts').update(payload).eq('id', id);
+  if (error) throw error;
+}
+
 export async function updateSalesRecord(params: {
   id: string;
   payload: Record<string, any>;

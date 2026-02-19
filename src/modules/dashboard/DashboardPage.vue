@@ -87,7 +87,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onActivated, onBeforeUnmount, watch } from 'vue';
+import { ref, nextTick, onMounted, onActivated, onBeforeUnmount, watch } from 'vue';
 import * as echarts from 'echarts';
 import type { ECharts } from 'echarts';
 import { supabase } from '../../supabase';
@@ -171,8 +171,12 @@ function getChartColors() {
   };
 }
 
+function canInitChart(el: HTMLElement | null): boolean {
+  return !!(el?.clientWidth && el?.clientHeight);
+}
+
 function initTrendChart(labels: string[], sales: number[], receipts: number[]) {
-  if (!trendChartRef.value) return;
+  if (!trendChartRef.value || !canInitChart(trendChartRef.value)) return;
   trendChart?.dispose();
   trendChart = echarts.init(trendChartRef.value, getChartTheme());
   const colors = getChartColors();
@@ -229,7 +233,7 @@ function initTrendChart(labels: string[], sales: number[], receipts: number[]) {
 }
 
 function initRatioChart(salesTotal: number, receiptTotal: number) {
-  if (!ratioChartRef.value) return;
+  if (!ratioChartRef.value || !canInitChart(ratioChartRef.value)) return;
   ratioChart?.dispose();
   ratioChart = echarts.init(ratioChartRef.value, getChartTheme());
   const colors = getChartColors();
@@ -277,7 +281,7 @@ function initRatioChart(salesTotal: number, receiptTotal: number) {
 }
 
 function initBarChart(labels: string[], sales: number[], receipts: number[]) {
-  if (!barChartRef.value) return;
+  if (!barChartRef.value || !canInitChart(barChartRef.value)) return;
   barChart?.dispose();
   barChart = echarts.init(barChartRef.value, getChartTheme());
   const colors = getChartColors();
@@ -331,18 +335,28 @@ async function loadChartData() {
       fetchDashboardTotals(),
     ]);
 
+    await nextTick();
     const { labels, sales, receipts_usd } = chartRes;
     if (labels.length > 0) {
       initTrendChart(labels, sales, receipts_usd);
       initBarChart(labels, sales, receipts_usd);
     }
-
     initRatioChart(totalsRes.sales_total_usd, totalsRes.receipt_total_usd);
+    chartLoading.value = false;
+    await nextTick();
+    if ((!trendChart && trendChartRef.value?.clientWidth) || (!ratioChart && ratioChartRef.value?.clientWidth) || (!barChart && barChartRef.value?.clientWidth)) {
+      if (labels.length > 0) {
+        initTrendChart(labels, sales, receipts_usd);
+        initBarChart(labels, sales, receipts_usd);
+      }
+      initRatioChart(totalsRes.sales_total_usd, totalsRes.receipt_total_usd);
+    }
     resizeCharts();
   } catch (e) {
     console.error(e);
   } finally {
     chartLoading.value = false;
+    requestAnimationFrame(() => resizeCharts());
   }
 }
 

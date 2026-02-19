@@ -21,22 +21,39 @@
               value-format="YYYY-MM-DD"
               style="width: 260px"
             />
-            <el-button type="primary" @click="fetchSalesData">查询</el-button>
-            <el-button @click="resetSalesFilters">清空</el-button>
-            <el-button v-if="canEdit" type="success" plain @click="openImportDialog('sales')">导入</el-button>
-            <el-button v-if="canExport" type="warning" plain :loading="exporting" @click="exportSales">导出</el-button>
+            <el-button type="primary" @click="fetchSalesData">
+              <el-icon><Search /></el-icon>
+              查询
+            </el-button>
+            <el-button @click="resetSalesFilters">
+              <el-icon><RefreshRight /></el-icon>
+              清空
+            </el-button>
+            <el-dropdown v-if="canEdit || canExport" trigger="click" @command="onSalesToolbarCommand">
+              <el-button>
+                更多
+                <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item v-if="canEdit" command="add"><el-icon><Plus /></el-icon>新增</el-dropdown-item>
+                  <el-dropdown-item v-if="canEdit" command="import"><el-icon><Upload /></el-icon>导入</el-dropdown-item>
+                  <el-dropdown-item v-if="canExport" command="export" :disabled="exporting"><el-icon><Download /></el-icon>导出</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </div>
 
           <el-table :data="salesRows" v-loading="loading" stripe border row-key="id" style="width: 100%" height="62vh">
-            <el-table-column prop="document_date" label="单据日期" width="110" sortable />
-            <el-table-column prop="document_no" label="单据编号" min-width="170" show-overflow-tooltip sortable />
-            <el-table-column prop="payment_method" label="客户分类" min-width="120" show-overflow-tooltip sortable />
+            <el-table-column prop="document_date" label="单据日期" width="120" sortable :filters="salesDateFilters" :filter-method="elFilterMethod" column-key="document_date" />
+            <el-table-column prop="document_no" label="单据编号" min-width="170" show-overflow-tooltip sortable :filters="salesDocumentNoFilters" :filter-method="elFilterMethod" column-key="document_no" />
+            <el-table-column prop="payment_method" label="客户分类" min-width="120" show-overflow-tooltip sortable :filters="salesPaymentFilters" :filter-method="elFilterMethod" column-key="payment_method" />
             <el-table-column prop="customer_name" label="客户名称" min-width="180" show-overflow-tooltip sortable />
             <el-table-column prop="product_name" label="商品名称" min-width="120" show-overflow-tooltip sortable />
             <el-table-column prop="color_code" label="色号" width="60" show-overflow-tooltip />
             <el-table-column prop="spec_model" label="规格型号" min-width="120" show-overflow-tooltip />
-            <el-table-column prop="category" label="类别" width="80" show-overflow-tooltip sortable />
-            <el-table-column prop="grade" label="等级" width="80" show-overflow-tooltip sortable />
+            <el-table-column prop="category" label="类别" width="100" show-overflow-tooltip sortable :filters="salesCategoryFilters" :filter-method="elFilterMethod" column-key="category" />
+            <el-table-column prop="grade" label="等级" width="80" show-overflow-tooltip :filters="salesGradeFilters" :filter-method="elFilterMethod" column-key="grade" />
             <el-table-column prop="box_count" label="箱数" width="80" align="right" sortable />
             <el-table-column prop="area_sqm" label="平方数" width="100" align="right" sortable />
             <el-table-column prop="unit_price_usd" label="单价$" width="100" align="right" sortable />
@@ -45,8 +62,8 @@
             <el-table-column prop="amount_uzs" label="苏姆合计" width="110" align="right" sortable />
             <el-table-column prop="refund_uzs" label="退货苏姆" width="110" align="right" sortable />
             <el-table-column prop="order_no" label="订单号" min-width="140" show-overflow-tooltip sortable />
-            <el-table-column prop="vehicle_no" label="车号" width="100" show-overflow-tooltip />
-            <el-table-column prop="export_country" label="出口国" width="100" show-overflow-tooltip sortable />
+            <el-table-column prop="vehicle_no" label="车号" width="100" show-overflow-tooltip :filters="salesLicensePlateFilter" :filter-method="elFilterMethod" column-key="vehicle_no" />
+            <el-table-column prop="export_country" label="出口国" width="100" show-overflow-tooltip sortable :filters="salesCountryFilters" :filter-method="elFilterMethod" column-key="export_country" />
             <el-table-column prop="dealer_name" label="经销商" min-width="100" show-overflow-tooltip />
             <el-table-column prop="shipper_name" label="发货人" width="100" show-overflow-tooltip />
             <el-table-column prop="driver_tax_no" label="司机税号" min-width="130" show-overflow-tooltip />
@@ -54,12 +71,14 @@
             <el-table-column prop="vehicle_type" label="车型" width="110" show-overflow-tooltip />
             <el-table-column prop="contract_no" label="合同编号" min-width="150" show-overflow-tooltip sortable />
             <el-table-column prop="note" label="备注" min-width="220" show-overflow-tooltip />
-            <el-table-column v-if="canEdit" label="操作" width="90" fixed="right" align="center">
+            <el-table-column v-if="canEdit" label="操作" width="120" fixed="right" align="center">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openEdit(row)">编辑</el-button>
+                <el-button type="primary" link size="small" @click="openEditSales(row)">编辑</el-button>
+                <el-button v-if="canDelete" type="danger" link size="small" @click="confirmDeleteSales(row)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
+
           <div class="pager-wrap">
             <el-pagination
               v-model:current-page="salesPage"
@@ -92,20 +111,50 @@
               value-format="YYYY-MM-DD"
               style="width: 260px"
             />
-            <el-button type="primary" @click="fetchReceiptData">查询</el-button>
-            <el-button @click="resetReceiptFilters">清空</el-button>
-            <el-button v-if="canEdit" type="success" plain @click="openImportDialog('receipt')">导入</el-button>
-            <el-button v-if="canExport" type="warning" plain :loading="exporting" @click="exportReceipts">导出</el-button>
+            <el-button type="primary" @click="fetchReceiptData">
+              <el-icon><Search /></el-icon>
+              查询
+            </el-button>
+            <el-button @click="resetReceiptFilters">
+              <el-icon><RefreshRight /></el-icon>
+              清空
+            </el-button>
+            <el-dropdown v-if="canEdit || canExport" trigger="click" @command="onReceiptToolbarCommand">
+              <el-button>
+                更多
+                <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item v-if="canEdit" command="add"><el-icon><Plus /></el-icon>新增</el-dropdown-item>
+                  <el-dropdown-item v-if="canEdit" command="import"><el-icon><Upload /></el-icon>导入</el-dropdown-item>
+                  <el-dropdown-item v-if="canExport" command="export" :disabled="exporting"><el-icon><Download /></el-icon>导出</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </div>
 
           <el-table :data="receiptRows" v-loading="loading" stripe border row-key="id" style="width: 100%" height="62vh">
-            <el-table-column prop="receipt_date" label="日期" width="110" sortable />
-            <el-table-column prop="account_name" label="账户" width="80" sortable />
-            <el-table-column prop="customer_name" label="客户名称" min-width="100" show-overflow-tooltip sortable />
-            <el-table-column prop="amount_usd" label="美金金额" width="110" align="right" sortable />
-            <el-table-column prop="amount_uzs" label="苏姆金额" width="130" align="right" sortable />
-            <el-table-column prop="note" label="备注" min-width="400" show-overflow-tooltip />
+            <el-table-column type="expand">
+              <template #default="{ row }">
+                <div v-if="row.note" class="receipt-expand-note">{{ row.note }}</div>
+                <div v-else class="receipt-expand-note receipt-expand-empty">无备注</div>
+              </template>
+            </el-table-column>
+            <el-table-column prop="receipt_date" label="日期" width="110" sortable :filters="receiptDateFilters" :filter-method="elFilterMethod" column-key="receipt_date" />
+            <el-table-column prop="account_name" label="账户" width="120" sortable :filters="receiptAccountFilters" :filter-method="elFilterMethod" column-key="account_name" />
+            <el-table-column prop="customer_name" label="客户名称" min-width="160" show-overflow-tooltip sortable :filters="receiptCustomerNameFilters" :filter-method="elFilterMethod" column-key="customer_name" />
+            <el-table-column prop="amount_usd" label="美金金额" width="120" align="right" sortable />
+            <el-table-column prop="amount_uzs" label="苏姆金额" width="140" align="right" sortable />
+            <el-table-column prop="note" label="备注" min-width="220" show-overflow-tooltip />
+            <el-table-column v-if="canEdit" label="操作" width="120" fixed="right" align="center">
+              <template #default="{ row }">
+                <el-button type="primary" link size="small" @click="openEditReceipt(row)">编辑</el-button>
+                <el-button v-if="canDelete" type="danger" link size="small" @click="confirmDeleteReceipt(row)">删除</el-button>
+              </template>
+            </el-table-column>
           </el-table>
+
           <div class="pager-wrap">
             <el-pagination
               v-model:current-page="receiptPage"
@@ -129,7 +178,6 @@
       </div>
       <el-input v-model="importText" type="textarea" :rows="12" placeholder="粘贴 JSON 数组，或选择 xlsx/csv/json 文件" />
 
-      <!-- 进度条 -->
       <div v-if="importProgress.total > 0" class="import-progress-wrap">
         <div class="import-progress-info">
           <span>进度：{{ importProgress.done }} / {{ importProgress.total }} 行</span>
@@ -151,172 +199,275 @@
       </template>
     </el-dialog>
 
-    <!-- ==================== 编辑弹窗（展示全部字段） ==================== -->
-    <el-dialog v-model="editVisible" title="编辑销售数据" width="960px" destroy-on-close append-to-body>
-      <el-form label-width="130px" label-position="left">
+    <!-- ==================== 销售数据 新增/编辑弹窗 ==================== -->
+    <el-dialog
+      v-model="salesDialogVisible"
+      :title="salesDialogIsCreate ? '新增销售数据' : '编辑销售数据'"
+      width="960px"
+      destroy-on-close
+      append-to-body
+    >
+      <el-radio-group v-if="salesDialogIsCreate" v-model="salesEntryMode" class="entry-mode-switch" size="small">
+        <el-radio-button value="single">单条录入</el-radio-button>
+        <el-radio-button value="batch">批量粘贴</el-radio-button>
+      </el-radio-group>
+      <div v-if="salesDialogIsCreate && salesEntryMode === 'batch'" class="batch-paste-wrap">
+        <el-alert type="info" :closable="false" show-icon style="margin-bottom: 10px">
+          <template #title>从 Excel 复制一行或多行数据，直接 Ctrl+V 粘贴到下方。列顺序需与导出一致</template>
+        </el-alert>
+        <el-input
+          v-model="salesBatchPasteText"
+          type="textarea"
+          :rows="10"
+          placeholder="粘贴 Excel 数据（Tab 分隔列，换行分隔行）..."
+        />
+        <div class="batch-paste-actions">
+          <span v-if="salesBatchParsedCount > 0" class="batch-paste-count">已识别 {{ salesBatchParsedCount }} 行</span>
+          <el-button type="primary" :loading="saving" :disabled="salesBatchParsedCount <= 0" @click.prevent="saveSalesBatch">批量添加</el-button>
+        </div>
+      </div>
+      <el-form v-show="!salesDialogIsCreate || salesEntryMode === 'single'" @submit.prevent ref="salesFormRef" :model="salesForm" label-width="130px" label-position="left">
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="单据日期">
-              <el-date-picker v-model="editForm.document_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+            <el-form-item label="单据日期" prop="document_date">
+              <el-date-picker v-model="salesForm.document_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="单据编号">
-              <el-input v-model="editForm.document_no" />
+            <el-form-item label="单据编号" prop="document_no" :rules="[{ required: true, message: '请输入单据编号' }]">
+              <el-input v-model="salesForm.document_no" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="客户分类">
-              <el-input v-model="editForm.payment_method" />
+              <el-input v-model="salesForm.payment_method" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="客户名称">
-              <el-input v-model="editForm.customer_name" />
+            <el-form-item label="客户名称" prop="customer_name" :rules="[{ required: true, message: '请输入客户名称' }]">
+              <el-input v-model="salesForm.customer_name" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="商品名称">
-              <el-input v-model="editForm.product_name" />
+            <el-form-item label="商品名称" prop="product_name" :rules="[{ required: true, message: '请输入商品名称' }]">
+              <el-input v-model="salesForm.product_name" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="色号">
-              <el-input v-model="editForm.color_code" />
+              <el-input v-model="salesForm.color_code" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="规格型号">
-              <el-input v-model="editForm.spec_model" />
+              <el-input v-model="salesForm.spec_model" />
             </el-form-item>
           </el-col>
           <el-col :span="6">
             <el-form-item label="类别">
-              <el-input v-model="editForm.category" />
+              <el-input v-model="salesForm.category" />
             </el-form-item>
           </el-col>
           <el-col :span="6">
             <el-form-item label="等级">
-              <el-input v-model="editForm.grade" />
+              <el-input v-model="salesForm.grade" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="8">
             <el-form-item label="箱数">
-              <el-input-number v-model="editForm.box_count" :min="0" :step="1" style="width: 100%" />
+              <el-input-number v-model="salesForm.box_count" :min="0" :step="1" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="平方数">
-              <el-input-number v-model="editForm.area_sqm" :min="0" :step="0.1" style="width: 100%" />
+              <el-input-number v-model="salesForm.area_sqm" :min="0" :step="0.1" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="单价$">
-              <el-input-number v-model="editForm.unit_price_usd" :min="0" :step="0.01" style="width: 100%" />
+              <el-input-number v-model="salesForm.unit_price_usd" :min="0" :step="0.01" style="width: 100%" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="8">
             <el-form-item label="合计$">
-              <el-input-number v-model="editForm.amount_usd" :min="0" :step="0.01" style="width: 100%" />
+              <el-input-number v-model="salesForm.amount_usd" :min="0" :step="0.01" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="汇率">
-              <el-input-number v-model="editForm.exchange_rate" :min="0" :step="1" style="width: 100%" />
+              <el-input-number v-model="salesForm.exchange_rate" :min="0" :step="1" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="苏姆合计">
-              <el-input-number v-model="editForm.amount_uzs" :min="0" :step="1" style="width: 100%" />
+              <el-input-number v-model="salesForm.amount_uzs" :min="0" :step="1" style="width: 100%" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="8">
             <el-form-item label="退货苏姆">
-              <el-input-number v-model="editForm.refund_uzs" :min="0" :step="1" style="width: 100%" />
+              <el-input-number v-model="salesForm.refund_uzs" :min="0" :step="1" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="订单号">
-              <el-input v-model="editForm.order_no" />
+              <el-input v-model="salesForm.order_no" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="合同编号">
-              <el-input v-model="editForm.contract_no" />
+              <el-input v-model="salesForm.contract_no" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="车号">
-              <el-input v-model="editForm.vehicle_no" />
+              <el-input v-model="salesForm.vehicle_no" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="车型">
-              <el-input v-model="editForm.vehicle_type" />
+              <el-input v-model="salesForm.vehicle_type" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="出口国">
-              <el-input v-model="editForm.export_country" />
+              <el-input v-model="salesForm.export_country" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="经销商">
-              <el-input v-model="editForm.dealer_name" />
+              <el-input v-model="salesForm.dealer_name" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="发货人">
-              <el-input v-model="editForm.shipper_name" />
+              <el-input v-model="salesForm.shipper_name" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="司机税号">
-              <el-input v-model="editForm.driver_tax_no" />
+              <el-input v-model="salesForm.driver_tax_no" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="物流税号">
-              <el-input v-model="editForm.logistics_tax_no" />
+              <el-input v-model="salesForm.logistics_tax_no" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-form-item label="备注">
-          <el-input v-model="editForm.note" type="textarea" :rows="2" />
+          <el-input v-model="salesForm.note" type="textarea" :rows="2" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="editVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="saveEdit">保存</el-button>
+        <el-button @click="salesDialogVisible = false">取消</el-button>
+        <template v-if="!salesDialogIsCreate || salesEntryMode === 'single'">
+          <el-button
+            v-if="salesDialogIsCreate"
+            type="success"
+            :loading="saving"
+            @click="saveSalesAndContinue"
+          >保存并继续新增</el-button>
+          <el-button type="primary" :loading="saving" @click="saveSales">保存</el-button>
+        </template>
+      </template>
+    </el-dialog>
+
+    <!-- ==================== 收款数据 新增/编辑弹窗 ==================== -->
+    <el-dialog
+      v-model="receiptDialogVisible"
+      :title="receiptDialogIsCreate ? '新增收款数据' : '编辑收款数据'"
+      width="640px"
+      destroy-on-close
+      append-to-body
+    >
+      <el-radio-group v-if="receiptDialogIsCreate" v-model="receiptEntryMode" class="entry-mode-switch" size="small">
+        <el-radio-button value="single">单条录入</el-radio-button>
+        <el-radio-button value="batch">批量粘贴</el-radio-button>
+      </el-radio-group>
+      <div v-if="receiptDialogIsCreate && receiptEntryMode === 'batch'" class="batch-paste-wrap">
+        <el-alert type="info" :closable="false" show-icon style="margin-bottom: 10px">
+          <template #title>从 Excel 复制一行或多行，列顺序：日期、账户、客户名称、美金金额、苏姆金额、备注</template>
+        </el-alert>
+        <el-input
+          v-model="receiptBatchPasteText"
+          type="textarea"
+          :rows="8"
+          placeholder="粘贴 Excel 数据（Tab 分隔列，换行分隔行）..."
+        />
+        <div class="batch-paste-actions">
+          <span v-if="receiptBatchParsedCount > 0" class="batch-paste-count">已识别 {{ receiptBatchParsedCount }} 行</span>
+          <el-button type="primary" :loading="saving" :disabled="receiptBatchParsedCount <= 0" @click.prevent="saveReceiptBatch">批量添加</el-button>
+        </div>
+      </div>
+      <el-form v-show="!receiptDialogIsCreate || receiptEntryMode === 'single'" ref="receiptFormRef" :model="receiptForm" label-width="100px" label-position="left" @submit.prevent>
+        <el-form-item label="日期" prop="receipt_date">
+          <el-date-picker v-model="receiptForm.receipt_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="账户" prop="account_name">
+          <el-input v-model="receiptForm.account_name" />
+        </el-form-item>
+        <el-form-item label="客户名称" prop="customer_name" :rules="[{ required: true, message: '请输入客户名称' }]">
+          <el-input v-model="receiptForm.customer_name" />
+        </el-form-item>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="美金金额">
+              <el-input-number v-model="receiptForm.amount_usd" :min="0" :step="0.01" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="苏姆金额">
+              <el-input-number v-model="receiptForm.amount_uzs" :min="0" :step="1" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="备注">
+          <el-input v-model="receiptForm.note" type="textarea" :rows="2" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="receiptDialogVisible = false">取消</el-button>
+        <template v-if="!receiptDialogIsCreate || receiptEntryMode === 'single'">
+          <el-button
+            v-if="receiptDialogIsCreate"
+            type="success"
+            :loading="saving"
+            @click="saveReceiptAndContinue"
+          >保存并继续新增</el-button>
+          <el-button type="primary" :loading="saving" @click="saveReceipt">保存</el-button>
+        </template>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
+import { Search, RefreshRight, ArrowDown, Plus, Upload, Download } from '@element-plus/icons-vue';
 import { computed, onMounted, ref, shallowRef, watch } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import type { FormInstance } from 'element-plus';
 import * as XLSX from 'xlsx';
+import dayjs from 'dayjs';
 import { exportToExcel } from '../../composables/useExport';
 import { useAuthStore } from '../../stores/auth';
 import {
@@ -327,6 +478,11 @@ import {
   importSalesRowsLegacy,
   importReceiptRowsLegacy,
   updateSalesRecord,
+  createSalesRecord,
+  createReceiptRecord,
+  deleteSalesRecord,
+  deleteReceiptRecord,
+  updateReceiptRecord,
 } from './api';
 import type { SalesRow, ReceiptRow } from './types';
 
@@ -339,7 +495,7 @@ const loading = ref(false);
 const exporting = ref(false);
 const STATE_KEY = 'sales.module.ui_state.v3';
 
-/* ==================== 服务端分页数据（shallowRef 降低大列表响应式开销） ==================== */
+/* ==================== 服务端分页数据 ==================== */
 const salesRows = shallowRef<SalesRow[]>([]);
 const salesTotalCount = ref(0);
 const receiptRows = shallowRef<ReceiptRow[]>([]);
@@ -354,6 +510,7 @@ const receiptPageSize = ref(200);
 
 const canEdit = computed(() => ['super_admin', 'manager', 'sales'].includes(auth.role || ''));
 const canExport = computed(() => (auth.role || '') !== 'viewer');
+const canDelete = computed(() => auth.role === 'super_admin');
 
 const modifierEmail = computed(() => {
   try {
@@ -362,6 +519,40 @@ const modifierEmail = computed(() => {
   } catch { /* ignore */ }
   return auth.email || '';
 });
+
+/* ==================== 列筛选（从当前页数据动态收集，el-table 用） ==================== */
+function collectFilterOptions(rows: any[], field: string): { text: string; value: string }[] {
+  const seen = new Set<string>();
+  const result: { text: string; value: string }[] = [];
+  for (const row of rows) {
+    const val = String((row as any)[field] ?? '').trim();
+    if (val && !seen.has(val)) {
+      seen.add(val);
+      result.push({ text: val, value: val });
+    }
+  }
+  return result.sort((a, b) => a.text.localeCompare(b.text));
+}
+
+function elFilterMethod(value: string, row: any, column: any): boolean {
+  const prop = column.property;
+  const cellVal = String(row[prop] ?? '').trim();
+  return cellVal === value;
+}
+
+/* ==================== 销售数据 列筛选（从当前页数据动态收集，el-table 用） ==================== */
+const salesDateFilters = computed(() => collectFilterOptions(salesRows.value, 'document_date'));
+const salesDocumentNoFilters = computed(() => collectFilterOptions(salesRows.value, 'document_no'));
+const salesPaymentFilters = computed(() => collectFilterOptions(salesRows.value, 'payment_method'));
+const salesCategoryFilters = computed(() => collectFilterOptions(salesRows.value, 'category'));
+const salesGradeFilters = computed(() => collectFilterOptions(salesRows.value, 'grade'));
+const salesCountryFilters = computed(() => collectFilterOptions(salesRows.value, 'export_country'));
+const salesLicensePlateFilter = computed(() => collectFilterOptions(salesRows.value, 'vehicle_no'));
+
+/* ==================== 收款数据 列筛选（从当前页数据动态收集，el-table 用） ==================== */
+const receiptDateFilters = computed(() => collectFilterOptions(receiptRows.value, 'receipt_date'));
+const receiptAccountFilters = computed(() => collectFilterOptions(receiptRows.value, 'account_name'));
+const receiptCustomerNameFilters = computed(() => collectFilterOptions(receiptRows.value, 'customer_name'));
 
 /* ==================== 导入相关 ==================== */
 const importVisible = ref(false);
@@ -378,10 +569,239 @@ const importProgressPercent = computed(() => {
 });
 const importTitle = computed(() => (importMode.value === 'sales' ? '导入销售数据(xlsx/csv/json)' : '导入收款数据(xlsx/csv/json)'));
 
-/* ==================== 编辑相关 ==================== */
-const editVisible = ref(false);
+/* ==================== 销售数据 新增/编辑 ==================== */
+const salesDialogVisible = ref(false);
+const salesDialogIsCreate = ref(false);
+const salesEntryMode = ref<'single' | 'batch'>('batch');
+const salesBatchPasteText = ref('');
 const saving = ref(false);
-const editForm = ref<any>({});
+const salesFormRef = ref<FormInstance>();
+const salesForm = ref<any>({});
+
+const salesBatchParsedCount = computed(() => parseExcelPasteRows(salesBatchPasteText.value, 'sales').length);
+
+function getEmptySalesForm() {
+  return {
+    id: null,
+    document_date: dayjs().format('YYYY-MM-DD'),
+    document_no: '',
+    payment_method: '',
+    customer_name: '',
+    product_name: '',
+    color_code: '',
+    spec_model: '',
+    category: '',
+    grade: '',
+    box_count: null,
+    area_sqm: null,
+    unit_price_usd: null,
+    amount_usd: null,
+    exchange_rate: null,
+    amount_uzs: null,
+    refund_uzs: null,
+    order_no: '',
+    contract_no: '',
+    vehicle_no: '',
+    vehicle_type: '',
+    export_country: '',
+    dealer_name: '',
+    shipper_name: '',
+    driver_tax_no: '',
+    logistics_tax_no: '',
+    note: '',
+  };
+}
+
+/* ==================== 收款数据 新增/编辑 ==================== */
+const receiptDialogVisible = ref(false);
+const receiptDialogIsCreate = ref(false);
+const receiptEntryMode = ref<'single' | 'batch'>('batch');
+const receiptBatchPasteText = ref('');
+const receiptFormRef = ref<FormInstance>();
+const receiptForm = ref<any>({});
+
+const receiptBatchParsedCount = computed(() => parseExcelPasteRows(receiptBatchPasteText.value, 'receipt').length);
+
+function getEmptyReceiptForm() {
+  return {
+    id: null,
+    receipt_date: dayjs().format('YYYY-MM-DD'),
+    account_name: '',
+    customer_name: '',
+    amount_usd: null,
+    amount_uzs: null,
+    note: '',
+  };
+}
+
+/* ==================== Excel 粘贴解析（Tab 分隔列，换行分隔行，列顺序与导出一致） ==================== */
+const SALES_PASTE_KEYS = ['document_date', 'document_no', 'payment_method', 'customer_name', 'product_name', 'color_code', 'spec_model', 'category', 'grade', 'box_count', 'area_sqm', 'unit_price_usd', 'amount_usd', 'exchange_rate', 'amount_uzs', 'refund_uzs', 'order_no', 'vehicle_no', 'export_country', 'dealer_name', 'shipper_name', 'driver_tax_no', 'logistics_tax_no', 'vehicle_type', 'contract_no', 'note'];
+const RECEIPT_PASTE_KEYS = ['receipt_date', 'account_name', 'customer_name', 'amount_usd', 'amount_uzs', 'note'];
+const HEADER_HINTS = ['日期', '单据', '客户', '账户', '商品', '美金', '苏姆', '备注', 'document', 'receipt', 'customer', 'account'];
+
+function toNum(v: string): number | null {
+  if (v == null || v === '') return null;
+  const s = String(v).trim().replace(/\s/g, '').replace(/,/g, '');
+  const n = parseFloat(s);
+  return Number.isNaN(n) ? null : n;
+}
+
+/** Excel 日期格式转 YYYY-MM-DD（支持 2026年2月16日、2026/2/16、2026-2-16 等） */
+function normalizeDateForDb(v: string | null | undefined): string | null {
+  if (v == null) return null;
+  let s = String(v).trim();
+  if (!s) return null;
+  const cnMatch = s.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日?/);
+  if (cnMatch) {
+    const [, y, m, d] = cnMatch;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  const parsed = dayjs(s, ['YYYY-MM-DD', 'YYYY/M/D', 'YYYY-M-D', 'M/D/YYYY', 'DD.MM.YYYY', 'YYYY.MM.DD', 'MM/DD/YYYY'], true);
+  if (parsed.isValid()) return parsed.format('YYYY-MM-DD');
+  return null;
+}
+
+/** 解析 TSV 行（支持引号内换行，Excel 复制含多行备注时会用引号包裹） */
+function parseTsvLine(line: string): string[] {
+  const cells: string[] = [];
+  let cell = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        cell += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (inQuotes) {
+      cell += c;
+    } else if (c === '\t') {
+      cells.push(cell);
+      cell = '';
+    } else {
+      cell += c;
+    }
+  }
+  cells.push(cell);
+  return cells;
+}
+
+/** 按行解析 TSV（每行可能因引号内的 \n 跨多行） */
+function parseTsvRows(txt: string): string[][] {
+  const rows: string[][] = [];
+  let line = '';
+  let inQuotes = false;
+  for (let i = 0; i < txt.length; i++) {
+    const c = txt[i];
+    if (c === '"') {
+      if (inQuotes && txt[i + 1] === '"') {
+        line += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+        line += c;
+      }
+    } else if (!inQuotes && (c === '\n' || c === '\r')) {
+      if (c === '\r' && txt[i + 1] === '\n') i++;
+      rows.push(parseTsvLine(line));
+      line = '';
+    } else {
+      line += c;
+    }
+  }
+  if (line) rows.push(parseTsvLine(line));
+  return rows;
+}
+
+function parseExcelPasteRows(text: string, mode: 'sales' | 'receipt'): Record<string, any>[] {
+  const txt = String(text || '').trim();
+  if (!txt) return [];
+  const keys = mode === 'sales' ? SALES_PASTE_KEYS : RECEIPT_PASTE_KEYS;
+  const lines = parseTsvRows(txt);
+  const rows: Record<string, any>[] = [];
+  let startIdx = 0;
+  if (lines.length > 0 && lines[0].length > 0) {
+    const firstCell = String(lines[0][0] || '').trim().replace(/^"|"$/g, '');
+    if (HEADER_HINTS.some((h) => firstCell.includes(h))) startIdx = 1;
+  }
+  for (let i = startIdx; i < lines.length; i++) {
+    const cells = lines[i];
+    const row: Record<string, any> = {};
+    for (let j = 0; j < keys.length; j++) {
+      let val = cells[j] != null ? String(cells[j]).trim() : '';
+      val = val.replace(/^"|"$/g, '').replace(/""/g, '"');
+      const k = keys[j];
+      if (['box_count', 'area_sqm', 'unit_price_usd', 'amount_usd', 'exchange_rate', 'amount_uzs', 'refund_uzs'].includes(k)) {
+        row[k] = toNum(val);
+      } else {
+        row[k] = val || null;
+      }
+    }
+    if (mode === 'sales' && (row.document_no || row.customer_name || row.product_name)) rows.push(row);
+    else if (mode === 'receipt' && row.customer_name) rows.push(row);
+  }
+  return rows;
+}
+
+async function saveSalesBatch() {
+  if (!canEdit.value) return;
+  const rows = parseExcelPasteRows(salesBatchPasteText.value, 'sales');
+  if (!rows.length) { ElMessage.warning('未识别到有效数据'); return; }
+  saving.value = true;
+  try {
+    const payload = rows.map((r) => ({
+      ...r,
+      document_date: normalizeDateForDb(r.document_date) || dayjs().format('YYYY-MM-DD'),
+    }));
+    const norm = normalizeImportRows(payload, 'sales');
+    const BATCH = 500;
+    let written = 0;
+    for (let i = 0; i < norm.length; i += BATCH) {
+      const chunk = norm.slice(i, i + BATCH);
+      const res = await importSalesRowsLegacy(chunk);
+      written += Number(res?.written ?? 0);
+    }
+    ElMessage.success(`批量添加成功：${written} 条`);
+    salesBatchPasteText.value = '';
+    salesDialogVisible.value = false;
+    await fetchSalesData();
+  } catch (e: any) {
+    ElMessage.error(e?.message || '批量添加失败');
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function saveReceiptBatch() {
+  if (!canEdit.value) return;
+  const rows = parseExcelPasteRows(receiptBatchPasteText.value, 'receipt');
+  if (!rows.length) { ElMessage.warning('未识别到有效数据'); return; }
+  saving.value = true;
+  try {
+    const payload = rows.map((r) => ({
+      ...r,
+      receipt_date: normalizeDateForDb(r.receipt_date) || dayjs().format('YYYY-MM-DD'),
+    }));
+    const norm = normalizeImportRows(payload, 'receipt');
+    const BATCH = 500;
+    let written = 0;
+    for (let i = 0; i < norm.length; i += BATCH) {
+      const chunk = norm.slice(i, i + BATCH);
+      const res = await importReceiptRowsLegacy(chunk);
+      written += Number(res?.written ?? 0);
+    }
+    ElMessage.success(`批量添加成功：${written} 条`);
+    receiptBatchPasteText.value = '';
+    receiptDialogVisible.value = false;
+    await fetchReceiptData();
+  } catch (e: any) {
+    ElMessage.error(e?.message || '批量添加失败');
+  } finally {
+    saving.value = false;
+  }
+}
 
 /* ==================== 数据获取 (服务端分页) ==================== */
 async function fetchSalesData() {
@@ -439,6 +859,7 @@ function onSalesPageSizeChange() {
   salesPage.value = 1;
   fetchSalesData();
 }
+
 function onReceiptPageSizeChange() {
   receiptPage.value = 1;
   fetchReceiptData();
@@ -453,6 +874,265 @@ function resetReceiptFilters() {
   receiptFilters.value = { keyword: '', dateRange: null };
   receiptPage.value = 1;
   fetchReceiptData();
+}
+
+function onSalesToolbarCommand(cmd: string) {
+  if (cmd === 'add') openCreateSales();
+  else if (cmd === 'import') openImportDialog('sales');
+  else if (cmd === 'export') exportSales();
+}
+
+function onReceiptToolbarCommand(cmd: string) {
+  if (cmd === 'add') openCreateReceipt();
+  else if (cmd === 'import') openImportDialog('receipt');
+  else if (cmd === 'export') exportReceipts();
+}
+
+/* ==================== 新增/编辑 销售数据 ==================== */
+function openCreateSales() {
+  if (!canEdit.value) return;
+  salesDialogIsCreate.value = true;
+  salesEntryMode.value = 'batch';
+  salesBatchPasteText.value = '';
+  salesForm.value = getEmptySalesForm();
+  salesDialogVisible.value = true;
+}
+
+function openEditSales(row: SalesRow) {
+  if (!canEdit.value) return;
+  salesDialogIsCreate.value = false;
+  salesForm.value = {
+    id: row.id,
+    document_date: row.document_date || null,
+    document_no: row.document_no || '',
+    payment_method: row.payment_method || '',
+    customer_name: row.customer_name || '',
+    product_name: row.product_name || '',
+    color_code: row.color_code || '',
+    spec_model: row.spec_model || '',
+    category: row.category || '',
+    grade: row.grade || '',
+    box_count: row.box_count,
+    area_sqm: row.area_sqm,
+    unit_price_usd: row.unit_price_usd,
+    amount_usd: row.amount_usd,
+    exchange_rate: row.exchange_rate,
+    amount_uzs: row.amount_uzs,
+    refund_uzs: row.refund_uzs,
+    order_no: row.order_no || '',
+    contract_no: row.contract_no || '',
+    vehicle_no: row.vehicle_no || '',
+    vehicle_type: row.vehicle_type || '',
+    export_country: row.export_country || '',
+    dealer_name: row.dealer_name || '',
+    shipper_name: row.shipper_name || '',
+    driver_tax_no: row.driver_tax_no || '',
+    logistics_tax_no: row.logistics_tax_no || '',
+    note: row.note || '',
+  };
+  salesDialogVisible.value = true;
+}
+
+function buildSalesPayload() {
+  const f = salesForm.value;
+  return {
+    document_date: f.document_date || null,
+    document_no: String(f.document_no || '').trim(),
+    payment_method: f.payment_method?.trim() || null,
+    customer_name: String(f.customer_name || '').trim(),
+    product_name: String(f.product_name || '').trim(),
+    color_code: f.color_code?.trim() || null,
+    spec_model: f.spec_model?.trim() || null,
+    category: f.category?.trim() || null,
+    grade: f.grade?.trim() || null,
+    box_count: f.box_count,
+    area_sqm: f.area_sqm,
+    unit_price_usd: f.unit_price_usd,
+    amount_usd: f.amount_usd,
+    exchange_rate: f.exchange_rate,
+    amount_uzs: f.amount_uzs,
+    refund_uzs: f.refund_uzs,
+    order_no: f.order_no?.trim() || null,
+    contract_no: f.contract_no?.trim() || null,
+    vehicle_no: f.vehicle_no?.trim() || null,
+    vehicle_type: f.vehicle_type?.trim() || null,
+    export_country: f.export_country?.trim() || null,
+    dealer_name: f.dealer_name?.trim() || null,
+    shipper_name: f.shipper_name?.trim() || null,
+    driver_tax_no: f.driver_tax_no?.trim() || null,
+    logistics_tax_no: f.logistics_tax_no?.trim() || null,
+    note: f.note?.trim() || null,
+  };
+}
+
+async function validateSalesForm(): Promise<boolean> {
+  const f = salesForm.value;
+  if (!String(f.document_no || '').trim()) { ElMessage.error('单据编号不能为空'); return false; }
+  if (!String(f.customer_name || '').trim()) { ElMessage.error('客户名称不能为空'); return false; }
+  if (!String(f.product_name || '').trim()) { ElMessage.error('商品名称不能为空'); return false; }
+  return true;
+}
+
+async function saveSales() {
+  if (!canEdit.value) return;
+  if (!(await validateSalesForm())) return;
+  saving.value = true;
+  try {
+    const payload = buildSalesPayload();
+    if (salesDialogIsCreate.value) {
+      await createSalesRecord(payload);
+      ElMessage.success('新增成功');
+    } else {
+      await updateSalesRecord({
+        id: salesForm.value.id,
+        modifierEmail: modifierEmail.value || undefined,
+        modifierUserId: auth.user?.id || undefined,
+        payload,
+      });
+      ElMessage.success('保存成功');
+    }
+    salesDialogVisible.value = false;
+    await fetchSalesData();
+  } catch (e: any) {
+    ElMessage.error(e?.message || '操作失败');
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function saveSalesAndContinue() {
+  if (!canEdit.value) return;
+  if (!(await validateSalesForm())) return;
+  saving.value = true;
+  try {
+    const payload = buildSalesPayload();
+    await createSalesRecord(payload);
+    ElMessage.success('新增成功，可继续添加');
+    const prev = salesForm.value;
+    salesForm.value = {
+      ...getEmptySalesForm(),
+      payment_method: prev.payment_method,
+      export_country: prev.export_country,
+      dealer_name: prev.dealer_name,
+      shipper_name: prev.shipper_name,
+      exchange_rate: prev.exchange_rate,
+    };
+    await fetchSalesData();
+  } catch (e: any) {
+    ElMessage.error(e?.message || '新增失败');
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function confirmDeleteSales(row: SalesRow) {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除该销售记录？（单据号：${row.document_no || '-'}）`,
+      '删除确认',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+    );
+    await deleteSalesRecord(row.id);
+    ElMessage.success('已删除');
+    await fetchSalesData();
+  } catch { /* cancelled */ }
+}
+
+/* ==================== 新增/编辑 收款数据 ==================== */
+function openCreateReceipt() {
+  if (!canEdit.value) return;
+  receiptDialogIsCreate.value = true;
+  receiptEntryMode.value = 'batch';
+  receiptBatchPasteText.value = '';
+  receiptForm.value = getEmptyReceiptForm();
+  receiptDialogVisible.value = true;
+}
+
+function openEditReceipt(row: ReceiptRow) {
+  if (!canEdit.value) return;
+  receiptDialogIsCreate.value = false;
+  receiptForm.value = {
+    id: row.id,
+    receipt_date: row.receipt_date || null,
+    account_name: row.account_name || '',
+    customer_name: row.customer_name || '',
+    amount_usd: row.amount_usd,
+    amount_uzs: row.amount_uzs,
+    note: row.note || '',
+  };
+  receiptDialogVisible.value = true;
+}
+
+async function saveReceipt() {
+  if (!canEdit.value) return;
+  const f = receiptForm.value;
+  if (!String(f.customer_name || '').trim()) { ElMessage.error('客户名称不能为空'); return; }
+  saving.value = true;
+  try {
+    const payload = {
+      receipt_date: f.receipt_date || null,
+      account_name: f.account_name?.trim() || null,
+      customer_name: String(f.customer_name || '').trim(),
+      amount_usd: f.amount_usd,
+      amount_uzs: f.amount_uzs,
+      note: f.note?.trim() || null,
+    };
+    if (receiptDialogIsCreate.value) {
+      await createReceiptRecord(payload);
+      ElMessage.success('新增成功');
+    } else {
+      await updateReceiptRecord(f.id, payload);
+      ElMessage.success('保存成功');
+    }
+    receiptDialogVisible.value = false;
+    await fetchReceiptData();
+  } catch (e: any) {
+    ElMessage.error(e?.message || '操作失败');
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function saveReceiptAndContinue() {
+  if (!canEdit.value) return;
+  const f = receiptForm.value;
+  if (!String(f.customer_name || '').trim()) { ElMessage.error('客户名称不能为空'); return; }
+  saving.value = true;
+  try {
+    const payload = {
+      receipt_date: f.receipt_date || null,
+      account_name: f.account_name?.trim() || null,
+      customer_name: String(f.customer_name || '').trim(),
+      amount_usd: f.amount_usd,
+      amount_uzs: f.amount_uzs,
+      note: f.note?.trim() || null,
+    };
+    await createReceiptRecord(payload);
+    ElMessage.success('新增成功，可继续添加');
+    const prev = receiptForm.value;
+    receiptForm.value = {
+      ...getEmptyReceiptForm(),
+      account_name: prev.account_name,
+    };
+    await fetchReceiptData();
+  } catch (e: any) {
+    ElMessage.error(e?.message || '新增失败');
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function confirmDeleteReceipt(row: ReceiptRow) {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除该收款记录？（客户：${row.customer_name || '-'}）`,
+      '删除确认',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+    );
+    await deleteReceiptRecord(row.id);
+    ElMessage.success('已删除');
+    await fetchReceiptData();
+  } catch { /* cancelled */ }
 }
 
 /* ==================== 导出（拉取全部数据） ==================== */
@@ -726,93 +1406,6 @@ async function submitImport() {
   }
 }
 
-/* ==================== 编辑 ==================== */
-function openEdit(row: SalesRow) {
-  if (!canEdit.value) return;
-  editForm.value = {
-    id: row.id,
-    document_date: row.document_date || null,
-    document_no: row.document_no || '',
-    payment_method: row.payment_method || '',
-    customer_name: row.customer_name || '',
-    product_name: row.product_name || '',
-    color_code: row.color_code || '',
-    spec_model: row.spec_model || '',
-    category: row.category || '',
-    grade: row.grade || '',
-    box_count: row.box_count,
-    area_sqm: row.area_sqm,
-    unit_price_usd: row.unit_price_usd,
-    amount_usd: row.amount_usd,
-    exchange_rate: row.exchange_rate,
-    amount_uzs: row.amount_uzs,
-    refund_uzs: row.refund_uzs,
-    order_no: row.order_no || '',
-    contract_no: row.contract_no || '',
-    vehicle_no: row.vehicle_no || '',
-    vehicle_type: row.vehicle_type || '',
-    export_country: row.export_country || '',
-    dealer_name: row.dealer_name || '',
-    shipper_name: row.shipper_name || '',
-    driver_tax_no: row.driver_tax_no || '',
-    logistics_tax_no: row.logistics_tax_no || '',
-    note: row.note || '',
-  };
-  editVisible.value = true;
-}
-
-async function saveEdit() {
-  if (!canEdit.value) return;
-  const f = editForm.value;
-  if (!f.id) return;
-  if (!String(f.document_no || '').trim()) { ElMessage.error('单据编号不能为空'); return; }
-  if (!String(f.customer_name || '').trim()) { ElMessage.error('客户名称不能为空'); return; }
-  if (!String(f.product_name || '').trim()) { ElMessage.error('商品名称不能为空'); return; }
-  saving.value = true;
-  try {
-    await updateSalesRecord({
-      id: f.id,
-      modifierEmail: modifierEmail.value || undefined,
-      modifierUserId: auth.user?.id || undefined,
-      payload: {
-        document_date: f.document_date || null,
-        document_no: String(f.document_no || '').trim(),
-        payment_method: f.payment_method?.trim() || null,
-        customer_name: String(f.customer_name || '').trim(),
-        product_name: String(f.product_name || '').trim(),
-        color_code: f.color_code?.trim() || null,
-        spec_model: f.spec_model?.trim() || null,
-        category: f.category?.trim() || null,
-        grade: f.grade?.trim() || null,
-        box_count: f.box_count,
-        area_sqm: f.area_sqm,
-        unit_price_usd: f.unit_price_usd,
-        amount_usd: f.amount_usd,
-        exchange_rate: f.exchange_rate,
-        amount_uzs: f.amount_uzs,
-        refund_uzs: f.refund_uzs,
-        order_no: f.order_no?.trim() || null,
-        contract_no: f.contract_no?.trim() || null,
-        vehicle_no: f.vehicle_no?.trim() || null,
-        vehicle_type: f.vehicle_type?.trim() || null,
-        export_country: f.export_country?.trim() || null,
-        dealer_name: f.dealer_name?.trim() || null,
-        shipper_name: f.shipper_name?.trim() || null,
-        driver_tax_no: f.driver_tax_no?.trim() || null,
-        logistics_tax_no: f.logistics_tax_no?.trim() || null,
-        note: f.note?.trim() || null,
-      },
-    });
-    ElMessage.success('保存成功');
-    editVisible.value = false;
-    await fetchSalesData();
-  } catch (e: any) {
-    ElMessage.error(e?.message || '保存失败');
-  } finally {
-    saving.value = false;
-  }
-}
-
 /* ==================== UI 持久化 ==================== */
 function restoreUiState() {
   try {
@@ -869,27 +1462,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.sales-page .erp-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-}
-.sales-page .title {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-.sales-page .subtitle {
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin-top: 4px;
-}
-.sales-page .header-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
 .sales-page .erp-toolbar {
   display: flex;
   align-items: center;
@@ -912,5 +1484,32 @@ onMounted(() => {
   font-size: 13px;
   color: #606266;
   margin-bottom: 6px;
+}
+.entry-mode-switch {
+  margin-bottom: 16px;
+}
+.batch-paste-wrap {
+  min-height: 200px;
+}
+.batch-paste-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+.batch-paste-count {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+}
+.receipt-expand-note {
+  padding: 12px 20px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--el-text-color-regular);
+}
+.receipt-expand-empty {
+  color: var(--el-text-color-placeholder);
 }
 </style>
