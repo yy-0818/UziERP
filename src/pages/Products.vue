@@ -27,7 +27,7 @@
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="editVisible" :title="editTitle" width="500px">
+    <el-dialog v-model="editVisible" :title="editTitle" width="500px" append-to-body>
       <el-form :model="editForm" label-width="80px">
         <el-form-item label="名称">
           <el-input v-model="editForm.name" />

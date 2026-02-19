@@ -43,7 +43,7 @@
     </el-card>
 
     <!-- 历史价格 -->
-    <el-dialog v-model="historyVisible" :title="historyTitle" width="600px">
+    <el-dialog v-model="historyVisible" :title="historyTitle" width="600px" append-to-body>
       <el-timeline>
         <el-timeline-item
           v-for="h in history"
@@ -59,7 +59,7 @@
     </el-dialog>
 
     <!-- 新增 / 修改价格 -->
-    <el-dialog v-model="editVisible" :title="editTitle" width="500px">
+    <el-dialog v-model="editVisible" :title="editTitle" width="500px" append-to-body>
       <el-form :model="editForm" label-width="80px">
         <el-form-item label="客户">
           <el-select

@@ -159,7 +159,7 @@
     />
 
     <!-- 编辑合同信息：用于修正上传时填错的字段（不修改合同号与业务类型） -->
-    <el-dialog v-model="editVisible" title="编辑合同信息" :max-width=" '80%' " destroy-on-close>
+    <el-dialog v-model="editVisible" title="编辑合同信息" :max-width=" '80%' " destroy-on-close append-to-body>
       <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="120px" label-position="left">
         <el-alert
           type="info"

@@ -90,6 +90,29 @@ a:hover {
   color: var(--erp-primary-hover);
 }
 
+/* 弹窗遮罩全屏：挂载到 body 后仍保证遮罩覆盖整个视口，避免在 tabs/卡片内被裁剪 */
+.el-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+}
+/* 弹窗进入/离开动画：在 Element 默认 fade 基础上增加轻微缩放 */
+.dialog-fade-enter-active .el-overlay-dialog {
+  animation: dialog-fade-in var(--el-transition-duration) ease-out;
+}
+.dialog-fade-leave-active .el-overlay-dialog {
+  animation: dialog-fade-out var(--el-transition-duration) ease-in;
+}
+@keyframes dialog-fade-in {
+  0% { opacity: 0; transform: translate3d(0, -12px, 0) scale(0.98); }
+  100% { opacity: 1; transform: translateZ(0) scale(1); }
+}
+@keyframes dialog-fade-out {
+  0% { opacity: 1; transform: translateZ(0) scale(1); }
+  100% { opacity: 0; transform: translate3d(0, -12px, 0) scale(0.98); }
+}
+
 /* 页面级容器 */
 .page-container {
   padding: var(--page-padding);

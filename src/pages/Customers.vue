@@ -31,7 +31,7 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="editVisible" :title="editTitle" width="500px">
+    <el-dialog v-model="editVisible" :title="editTitle" width="500px" append-to-body>
       <el-form :model="editForm" label-width="90px">
         <el-form-item label="公司名称">
           <el-input v-model="editForm.name" />

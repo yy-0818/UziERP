@@ -122,7 +122,7 @@
     </el-card>
 
     <!-- ==================== 导入弹窗 ==================== -->
-    <el-dialog v-model="importVisible" :title="importTitle" width="760px" destroy-on-close>
+    <el-dialog v-model="importVisible" :title="importTitle" width="760px" destroy-on-close append-to-body>
       <el-alert type="info" :closable="false" show-icon title="支持 xlsx/csv/json；大文件自动分批写入，全部行直接提交给服务器" style="margin-bottom: 12px" />
       <div class="import-actions">
         <input ref="fileInputRef" type="file" accept=".json,.csv,.xlsx,.xls,application/json,text/csv" @change="onPickImportFile" />
@@ -152,7 +152,7 @@
     </el-dialog>
 
     <!-- ==================== 编辑弹窗（展示全部字段） ==================== -->
-    <el-dialog v-model="editVisible" title="编辑销售数据" width="960px" destroy-on-close>
+    <el-dialog v-model="editVisible" title="编辑销售数据" width="960px" destroy-on-close append-to-body>
       <el-form label-width="130px" label-position="left">
         <el-row :gutter="16">
           <el-col :span="12">

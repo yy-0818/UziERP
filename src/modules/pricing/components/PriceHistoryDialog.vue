@@ -1,5 +1,5 @@
 <template>
-  <el-dialog v-model="visible" :title="title" width="680px" class="price-history-dialog">
+  <el-dialog v-model="visible" :title="title" width="680px" class="price-history-dialog" append-to-body>
     <div class="history-body">
       <el-timeline>
         <el-timeline-item

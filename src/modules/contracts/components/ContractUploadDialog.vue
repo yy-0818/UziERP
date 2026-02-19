@@ -6,6 +6,7 @@
     top="8vh"
     :class="['contract-upload-dialog', uploadMode === 'contract' ? 'dialog--contract' : 'dialog--attachment']"
     destroy-on-close
+    append-to-body
     @closed="reset"
   >
     <div class="upload-mode-tabs">

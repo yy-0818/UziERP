@@ -5,6 +5,7 @@
     :width="isEditCell ? '520px' : '780px'"
     class="price-edit-dialog"
     destroy-on-close
+    append-to-body
     @closed="formRef?.resetFields()"
   >
     <el-form

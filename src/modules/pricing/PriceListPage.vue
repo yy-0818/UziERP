@@ -176,6 +176,7 @@
       title="保存筛选预设"
       width="400px"
       center
+      append-to-body
     >
       <el-form :model="newPresetForm" label-width="80px">
         <el-form-item label="预设名称" required>
