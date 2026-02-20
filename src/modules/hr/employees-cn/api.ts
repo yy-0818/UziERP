@@ -620,18 +620,22 @@ export async function fetchTodoList(): Promise<TodoItem[]> {
       .eq('status', 'pending'),
   ]);
   const employees = await fetchEmployees();
-  const empMap = new Map(employees.map((e) => [e.id, e.name]));
+  const empMap = new Map(employees.map((e) => [e.id, { name: e.name, employeeNo: e.employee_no }]));
   const toTodo = (
     type: TodoItem['type'],
     rows: { id: string; employee_id: string; submitted_at?: string; application_date?: string | null; created_at?: string }[]
   ): TodoItem[] =>
-    (rows || []).map((r) => ({
-      type,
-      applicationId: r.id,
-      employeeId: r.employee_id,
-      employeeName: empMap.get(r.employee_id) ?? '—',
-      submittedAt: r.submitted_at ?? r.application_date ?? r.created_at ?? '',
-    }));
+    (rows || []).map((r) => {
+      const emp = empMap.get(r.employee_id);
+      return {
+        type,
+        applicationId: r.id,
+        employeeId: r.employee_id,
+        employeeName: emp?.name ?? '—',
+        employeeNo: emp?.employeeNo ?? '—',
+        submittedAt: r.submitted_at ?? r.application_date ?? r.created_at ?? '',
+      };
+    });
   const list: TodoItem[] = [];
   if (invitations.data) list.push(...toTodo('invitation', invitations.data as any));
   if (visas.data) list.push(...toTodo('visa', visas.data as any));

@@ -18,6 +18,7 @@
           <template #default="{ row }">{{ todoTypeLabel(row.type) }}</template>
         </el-table-column>
         <el-table-column prop="employeeName" label="员工" min-width="100" />
+        <el-table-column prop="employeeNo" label="工号" min-width="100" />
         <el-table-column prop="submittedAt" label="申请时间" width="170">
           <template #default="{ row }">{{ formatDate(row.submittedAt) }}</template>
         </el-table-column>
@@ -41,12 +42,14 @@
       @close="currentTask = null; invLetterPreview = ''"
     >
       <template v-if="currentTask">
-        <p class="dialog-task-info">员工：{{ currentTask.employeeName }}</p>
         <!-- 邀请函办理 -->
         <template v-if="currentTask.type === 'invitation'">
           <el-form ref="invHandleFormRef" :model="invHandleForm" label-width="100px">
-            <el-form-item label="操作人">
-              <el-input :model-value="currentOperator ?? '—'" disabled />
+            <el-form-item label="员工">
+              <el-input :model-value="currentTask.employeeName" disabled />
+            </el-form-item>
+            <el-form-item label="工号">
+              <el-input :model-value="currentTask.employeeNo" disabled />
             </el-form-item>
             <el-form-item label="出函时间">
               <el-date-picker v-model="invHandleForm.letter_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
@@ -66,6 +69,9 @@
                 </el-upload>
                 <el-button v-if="invHandleForm.letter_image_url" type="danger" link size="small" @click="clearInvLetter">清除</el-button>
               </div>
+            </el-form-item>
+            <el-form-item label="操作人">
+              <el-input :model-value="currentOperator ?? '—'" disabled />
             </el-form-item>
           </el-form>
         </template>

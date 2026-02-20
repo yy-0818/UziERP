@@ -190,6 +190,7 @@ export interface TodoItem {
   applicationId: string;
   employeeId: string;
   employeeName: string;
+  employeeNo: string;
   submittedAt: string;
   extra?: Record<string, unknown>;
 }

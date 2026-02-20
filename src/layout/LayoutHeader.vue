@@ -10,7 +10,7 @@
     </el-button>
     <AppBreadcrumb />
     <div class="erp-header-right">
-      <el-badge v-if="canSeeTodo" :hidden="todoCount === 0" is-dot>
+      <el-badge v-if="canSeeTodo" :hidden="todoCount === 0" :value="todoCount" :max="99">
         <el-button link type="primary" @click="router.push('/hr/employees-cn/todos')">
           待办
         </el-button>
@@ -54,7 +54,7 @@ const router = useRouter();
 const layout = useLayoutStore();
 const auth = useAuthStore();
 const { isDark, toggleTheme } = useTheme();
-const todoCount = ref(0);
+const todoCount = ref<number | undefined>(undefined);
 const canSeeTodo = computed(() => auth.role === 'super_admin');
 
 onMounted(async () => {
@@ -83,7 +83,7 @@ function onCommand(cmd: string) {
   height: var(--header-height);
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
   padding: 0 24px;
   background: var(--header-bg);
   border-bottom: 1px solid var(--header-border);
@@ -108,11 +108,24 @@ function onCommand(cmd: string) {
 }
 
 .erp-user-email {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-secondary);
 }
 
 .erp-theme-toggle {
   color: var(--text-secondary);
+}
+
+.erp-theme-toggle:hover {
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
 }
 </style>

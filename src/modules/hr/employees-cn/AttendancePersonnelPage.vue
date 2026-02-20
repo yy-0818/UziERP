@@ -18,12 +18,13 @@
       <el-tabs v-model="activeTab" @tab-change="onTabChange">
         <el-tab-pane label="请假管理" name="leave">
           <div class="hr-toolbar">
-            <el-input v-model="leaveFilters.keyword" placeholder="员工姓名" clearable style="width: 160px" />
+            <el-input v-model="leaveFilters.keyword" placeholder="工号/姓名" clearable style="width: 160px" />
             <el-button type="primary" @click="loadLeave">查询</el-button>
           </div>
           <div class="hr-table-wrap">
           <el-table v-loading="leaveLoading" :data="filteredLeaveList" stripe border row-key="id">
             <el-table-column prop="employee_name" label="员工" min-width="100" />
+            <el-table-column prop="employee_no" label="工号" min-width="100" />
             <el-table-column prop="reason" label="事由" min-width="140" show-overflow-tooltip />
             <el-table-column prop="start_at" label="开始时间" width="160">
               <template #default="{ row }">{{ formatDate(row.start_at) }}</template>
@@ -49,12 +50,13 @@
               <el-option label="奖励" value="reward" />
               <el-option label="违纪" value="discipline" />
             </el-select>
-            <el-input v-model="rewardFilters.keyword" placeholder="员工姓名" clearable style="width: 160px" />
+            <el-input v-model="rewardFilters.keyword" placeholder="工号/姓名" clearable style="width: 160px" />
             <el-button type="primary" @click="loadReward">查询</el-button>
           </div>
           <div class="hr-table-wrap">
           <el-table v-loading="rewardLoading" :data="filteredRewardList" stripe border row-key="id">
             <el-table-column prop="employee_name" label="员工" min-width="100" />
+            <el-table-column prop="employee_no" label="工号" min-width="100" />
             <el-table-column prop="record_type" label="类型" width="90">
               <template #default="{ row }">{{ row.record_type === 'reward' ? '奖励' : '违纪' }}</template>
             </el-table-column>
@@ -160,8 +162,8 @@ watch(
 
 const activeTab = ref<'leave' | 'reward'>('leave');
 const employees = ref<CnEmployee[]>([]);
-const leaveList = ref<(LeaveRecord & { employee_name?: string })[]>([]);
-const rewardList = ref<(RewardDisciplineRecord & { employee_name?: string })[]>([]);
+const leaveList = ref<(LeaveRecord & { employee_name?: string; employee_no?: string })[]>([]);
+const rewardList = ref<(RewardDisciplineRecord & { employee_name?: string; employee_no?: string })[]>([]);
 const leaveLoading = ref(false);
 const rewardLoading = ref(false);
 const leaveFilters = ref({ keyword: '' });
@@ -200,7 +202,7 @@ const filteredLeaveList = computed(() => {
   let rows = leaveList.value;
   if (leaveFilters.value.keyword.trim()) {
     const k = leaveFilters.value.keyword.trim().toLowerCase();
-    rows = rows.filter((r) => (r.employee_name || '').toLowerCase().includes(k));
+    rows = rows.filter((r) => (r.employee_name || '').toLowerCase().includes(k) || (r.employee_no || '').toLowerCase().includes(k));
   }
   return rows;
 });
@@ -210,7 +212,7 @@ const filteredRewardList = computed(() => {
   if (rewardFilters.value.record_type) rows = rows.filter((r) => r.record_type === rewardFilters.value.record_type);
   if (rewardFilters.value.keyword.trim()) {
     const k = rewardFilters.value.keyword.trim().toLowerCase();
-    rows = rows.filter((r) => (r.employee_name || '').toLowerCase().includes(k));
+    rows = rows.filter((r) => (r.employee_name || '').toLowerCase().includes(k) || (r.employee_no || '').toLowerCase().includes(k));
   }
   return rows;
 });
@@ -236,8 +238,11 @@ async function loadLeave() {
   try {
     const [records, emps] = await Promise.all([fetchLeaveRecords(), fetchEmployees()]);
     employees.value = emps;
-    const map = new Map(emps.map((e) => [e.id, e.name]));
-    leaveList.value = records.map((r) => ({ ...r, employee_name: map.get(r.employee_id) ?? '—' }));
+    const empInfoMap = new Map(emps.map((e) => [e.id, { name: e.name, employee_no: e.employee_no }]));
+    leaveList.value = records.map((r) => {
+      const info = empInfoMap.get(r.employee_id);
+      return { ...r, employee_name: info?.name ?? '—', employee_no: info?.employee_no ?? '—' };
+    });
   } catch (e: any) {
     ElMessage.error(e?.message || '加载失败');
   } finally {
@@ -250,8 +255,11 @@ async function loadReward() {
   try {
     const [records, emps] = await Promise.all([fetchRewardDisciplineRecords(), fetchEmployees()]);
     employees.value = emps;
-    const map = new Map(emps.map((e) => [e.id, e.name]));
-    rewardList.value = records.map((r) => ({ ...r, employee_name: map.get(r.employee_id) ?? '—' }));
+    const empInfoMap = new Map(emps.map((e) => [e.id, { name: e.name, employee_no: e.employee_no }]));
+    rewardList.value = records.map((r) => {
+      const info = empInfoMap.get(r.employee_id);
+      return { ...r, employee_name: info?.name ?? '—', employee_no: info?.employee_no ?? '—' };
+    });
   } catch (e: any) {
     ElMessage.error(e?.message || '加载失败');
   } finally {

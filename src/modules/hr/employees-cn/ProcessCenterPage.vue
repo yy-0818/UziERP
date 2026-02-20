@@ -21,12 +21,13 @@
               <el-option label="待办理" value="pending" />
               <el-option label="已办理" value="done" />
             </el-select>
-            <el-input v-model="filters.keyword" placeholder="员工姓名" clearable style="width: 160px" />
+            <el-input v-model="filters.keyword" placeholder="工号/姓名" clearable style="width: 160px" />
             <el-button type="primary" @click="loadCurrentTab">查询</el-button>
           </div>
           <div class="hr-table-wrap">
           <el-table v-loading="loading" :data="filteredInvitationList" stripe border row-key="id">
             <el-table-column prop="employee_name" label="员工" min-width="100" />
+            <el-table-column prop="employee_no" label="工号" min-width="100" />
             <el-table-column prop="submitted_at" label="提交时间" width="170">
               <template #default="{ row }">{{ formatDate(row.submitted_at) }}</template>
             </el-table-column>
@@ -49,12 +50,13 @@
               <el-option label="待办理" value="pending" />
               <el-option label="已办理" value="done" />
             </el-select>
-            <el-input v-model="filters.keyword" placeholder="员工姓名" clearable style="width: 160px" />
+            <el-input v-model="filters.keyword" placeholder="工号/姓名" clearable style="width: 160px" />
             <el-button type="primary" @click="loadCurrentTab">查询</el-button>
           </div>
           <div class="hr-table-wrap">
           <el-table v-loading="loading" :data="filteredVisaList" stripe border row-key="id">
             <el-table-column prop="employee_name" label="员工" min-width="100" />
+            <el-table-column prop="employee_no" label="工号" min-width="100" />
             <el-table-column prop="application_type" label="类型" width="100" />
             <el-table-column prop="expected_departure_at" label="预计出发" width="110">
               <template #default="{ row }">{{ formatDate(row.expected_departure_at) }}</template>
@@ -78,12 +80,13 @@
               <el-option label="待办理" value="pending" />
               <el-option label="已办理" value="done" />
             </el-select>
-            <el-input v-model="filters.keyword" placeholder="员工姓名" clearable style="width: 160px" />
+            <el-input v-model="filters.keyword" placeholder="工号/姓名" clearable style="width: 160px" />
             <el-button type="primary" @click="loadCurrentTab">查询</el-button>
           </div>
           <div class="hr-table-wrap">
           <el-table v-loading="loading" :data="filteredFlightList" stripe border row-key="id">
             <el-table-column prop="employee_name" label="员工" min-width="100" />
+            <el-table-column prop="employee_no" label="工号" min-width="100" />
             <el-table-column prop="depart_city" label="出发" width="90" />
             <el-table-column prop="arrive_city" label="到达" width="90" />
             <el-table-column prop="expected_departure_at" label="预计出发" width="110">
@@ -108,12 +111,13 @@
               <el-option label="待办理" value="pending" />
               <el-option label="已办理" value="done" />
             </el-select>
-            <el-input v-model="filters.keyword" placeholder="员工姓名" clearable style="width: 160px" />
+            <el-input v-model="filters.keyword" placeholder="工号/姓名" clearable style="width: 160px" />
             <el-button type="primary" @click="loadCurrentTab">查询</el-button>
           </div>
           <div class="hr-table-wrap">
           <el-table v-loading="loading" :data="filteredLaborList" stripe border row-key="id">
             <el-table-column prop="employee_name" label="员工" min-width="100" />
+            <el-table-column prop="employee_no" label="工号" min-width="100" />
             <el-table-column prop="application_date" label="申请日期" width="110">
               <template #default="{ row }">{{ formatDate(row.application_date) }}</template>
             </el-table-column>
@@ -154,9 +158,6 @@
         <p class="dialog-task-info">员工：{{ currentHandleRow.employee_name ?? '—' }}</p>
         <template v-if="handleType === 'invitation'">
           <el-form ref="invHandleFormRef" :model="invHandleForm" label-width="100px">
-            <el-form-item label="操作人">
-              <el-input :model-value="currentOperator ?? '—'" disabled />
-            </el-form-item>
             <el-form-item label="出函时间">
               <el-date-picker v-model="invHandleForm.letter_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
             </el-form-item>
@@ -176,13 +177,13 @@
                 <el-button v-if="invHandleForm.letter_image_url" type="danger" link size="small" @click="clearInvLetter">清除</el-button>
               </div>
             </el-form-item>
+            <el-form-item label="操作人">
+              <el-input :model-value="currentOperator ?? '—'" disabled />
+            </el-form-item>
           </el-form>
         </template>
         <template v-else-if="handleType === 'visa'">
           <el-form ref="visaHandleFormRef" :model="visaHandleForm" label-width="100px">
-            <el-form-item label="操作人">
-              <el-input :model-value="currentOperator ?? '—'" disabled />
-            </el-form-item>
             <el-form-item label="生效日期">
               <el-date-picker v-model="visaHandleForm.effective_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
             </el-form-item>
@@ -201,6 +202,9 @@
             <el-form-item label="出证公司">
               <el-input v-model="visaHandleForm.issuer_company" />
             </el-form-item>
+            <el-form-item label="操作人">
+              <el-input :model-value="currentOperator ?? '—'" disabled />
+            </el-form-item>
           </el-form>
         </template>
         <template v-else-if="handleType === 'flight'">
@@ -208,9 +212,6 @@
             该员工暂无有效签证，请先在档案详情中办理签证后再办理机票。
           </el-alert>
           <el-form ref="flightHandleFormRef" :model="flightHandleForm" label-width="100px">
-            <el-form-item label="操作人">
-              <el-input :model-value="currentOperator ?? '—'" disabled />
-            </el-form-item>
             <el-form-item label="使用签证">
               <el-select v-model="flightHandleForm.visa_handle_id" placeholder="必选" style="width: 100%">
                 <el-option
@@ -236,13 +237,13 @@
             <el-form-item label="出票公司">
               <el-input v-model="flightHandleForm.issuer_company" />
             </el-form-item>
+            <el-form-item label="操作人">
+              <el-input :model-value="currentOperator ?? '—'" disabled />
+            </el-form-item>
           </el-form>
         </template>
         <template v-else-if="handleType === 'labor'">
           <el-form ref="laborHandleFormRef" :model="laborHandleForm" label-width="100px">
-            <el-form-item label="操作人">
-              <el-input :model-value="currentOperator ?? '—'" disabled />
-            </el-form-item>
             <el-form-item label="许可日期">
               <el-date-picker v-model="laborHandleForm.permit_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
             </el-form-item>
@@ -254,6 +255,9 @@
             </el-form-item>
             <el-form-item label="费用">
               <el-input-number v-model="laborHandleForm.fee_amount" :min="0" :precision="2" style="width: 100%" />
+            </el-form-item>
+            <el-form-item label="操作人">
+              <el-input :model-value="currentOperator ?? '—'" disabled />
             </el-form-item>
           </el-form>
         </template>
@@ -337,10 +341,10 @@ const laborHandleForm = ref({
   fee_amount: null as number | null,
 });
 
-const invitationList = ref<(InvitationApplication & { employee_name?: string })[]>([]);
-const visaList = ref<(VisaApplication & { employee_name?: string })[]>([]);
-const flightList = ref<(FlightApplication & { employee_name?: string })[]>([]);
-const laborList = ref<(LaborPermitApplication & { employee_name?: string })[]>([]);
+const invitationList = ref<(InvitationApplication & { employee_name?: string; employee_no?: string })[]>([]);
+const visaList = ref<(VisaApplication & { employee_name?: string; employee_no?: string })[]>([]);
+const flightList = ref<(FlightApplication & { employee_name?: string; employee_no?: string })[]>([]);
+const laborList = ref<(LaborPermitApplication & { employee_name?: string; employee_no?: string })[]>([]);
 
 const handleTypeLabels: Record<string, string> = {
   invitation: '邀请函办理',
@@ -357,12 +361,12 @@ function formatDate(v: string | null | undefined) {
   return v ? new Date(v).toLocaleString('zh-CN') : '—';
 }
 
-function filterByKeyword<T extends { employee_name?: string }>(rows: T[]): T[] {
+function filterByKeyword<T extends { employee_name?: string; employee_no?: string }>(rows: T[]): T[] {
   let list = rows;
   if (filters.value.status) list = list.filter((r: any) => r.status === filters.value.status);
   if (filters.value.keyword.trim()) {
     const k = filters.value.keyword.trim().toLowerCase();
-    list = list.filter((r) => (r.employee_name || '').toLowerCase().includes(k));
+    list = list.filter((r) => (r.employee_name || '').toLowerCase().includes(k) || (r.employee_no || '').toLowerCase().includes(k));
   }
   return list;
 }
@@ -383,11 +387,15 @@ async function loadAll() {
       fetchLaborPermitApplications(),
     ]);
     employees.value = emps;
-    const map = new Map(emps.map((e) => [e.id, e.name]));
-    invitationList.value = (inv as any[]).map((a) => ({ ...a, employee_name: map.get(a.employee_id) ?? '—' }));
-    visaList.value = (vis as any[]).map((a) => ({ ...a, employee_name: map.get(a.employee_id) ?? '—' }));
-    flightList.value = (fli as any[]).map((a) => ({ ...a, employee_name: map.get(a.employee_id) ?? '—' }));
-    laborList.value = (lab as any[]).map((a) => ({ ...a, employee_name: map.get(a.employee_id) ?? '—' }));
+    const empInfoMap = new Map(emps.map((e) => [e.id, { name: e.name, employee_no: e.employee_no }]));
+    const enrich = (a: any) => {
+      const info = empInfoMap.get(a.employee_id);
+      return { ...a, employee_name: info?.name ?? '—', employee_no: info?.employee_no ?? '—' };
+    };
+    invitationList.value = (inv as any[]).map(enrich);
+    visaList.value = (vis as any[]).map(enrich);
+    flightList.value = (fli as any[]).map(enrich);
+    laborList.value = (lab as any[]).map(enrich);
   } catch (e: any) {
     ElMessage.error(e?.message || '加载失败');
   } finally {
