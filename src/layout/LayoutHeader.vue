@@ -10,6 +10,11 @@
     </el-button>
     <AppBreadcrumb />
     <div class="erp-header-right">
+      <el-badge v-if="canSeeTodo" :hidden="todoCount === 0" is-dot>
+        <el-button link type="primary" @click="router.push('/hr/employees-cn/todos')">
+          待办
+        </el-button>
+      </el-badge>
       <el-tooltip :content="isDark ? '切换浅色模式' : '切换深色模式'" placement="bottom">
         <el-button class="erp-theme-toggle" text circle @click="toggleTheme">
           <el-icon><Sunny v-if="isDark" /><Moon v-else /></el-icon>
@@ -35,6 +40,7 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed, onMounted } from 'vue';
 import { ElMessageBox } from 'element-plus';
 import { UserFilled, ArrowDown, Expand, Fold, Moon, Sunny, SwitchButton } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
@@ -42,11 +48,23 @@ import AppBreadcrumb from '../components/common/AppBreadcrumb.vue';
 import { useAuthStore } from '../stores/auth';
 import { useLayoutStore } from '../stores/layout';
 import { useTheme } from '../composables/useTheme';
+import { fetchTodoCount } from '../modules/hr/employees-cn/api';
 
 const router = useRouter();
 const layout = useLayoutStore();
 const auth = useAuthStore();
 const { isDark, toggleTheme } = useTheme();
+const todoCount = ref(0);
+const canSeeTodo = computed(() => auth.role === 'super_admin');
+
+onMounted(async () => {
+  if (!canSeeTodo.value) return;
+  try {
+    todoCount.value = await fetchTodoCount();
+  } catch {
+    todoCount.value = 0;
+  }
+});
 
 function onCommand(cmd: string) {
   if (cmd === 'logout') {

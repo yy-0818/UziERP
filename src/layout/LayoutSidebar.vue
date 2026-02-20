@@ -15,31 +15,18 @@
       text-color="var(--sidebar-text)"
       active-text-color="var(--sidebar-text-active)"
     >
-      <template v-for="node in menuTree" :key="node.index">
-        <el-menu-item v-if="node.type === 'item'" :index="node.index">
-          <el-icon v-if="node.icon"><component :is="iconComponent(node.icon)" /></el-icon>
-          <template #title>{{ node.title }}</template>
-        </el-menu-item>
-        <el-sub-menu v-else :index="node.index">
-          <template #title>
-            <el-icon v-if="node.icon"><component :is="iconComponent(node.icon)" /></el-icon>
-            <span>{{ node.title }}</span>
-          </template>
-          <el-menu-item
-            v-for="child in node.children"
-            :key="child.index"
-            :index="child.index"
-          >
-            {{ child.title }}
-          </el-menu-item>
-        </el-sub-menu>
-      </template>
+      <sidebar-menu-node
+        v-for="node in menuTreeWithBadge"
+        :key="node.index"
+        :node="node"
+        :icon-component="iconComponent"
+      />
     </el-menu>
   </el-aside>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import {
   Odometer,
@@ -55,10 +42,13 @@ import { filterMenuByRole, rawMenuTree } from './config/menuConfig';
 import type { MenuNode } from './config/types';
 import { useAuthStore } from '../stores/auth';
 import { useLayoutStore } from '../stores/layout';
+import SidebarMenuNode from './SidebarMenuNode.vue';
+import { fetchTodoCount } from '../modules/hr/employees-cn/api';
 
 const route = useRoute();
 const auth = useAuthStore();
 const layout = useLayoutStore();
+const todoCount = ref(0);
 
 const sidebarWidth = computed(() => (layout.sidebarCollapsed ? '64px' : '220px'));
 const active = computed(() => route.path);
@@ -66,6 +56,26 @@ const active = computed(() => route.path);
 const menuTree = computed<MenuNode[]>(() =>
   filterMenuByRole(rawMenuTree, auth.role)
 );
+
+function injectBadge(nodes: MenuNode[]): MenuNode[] {
+  return nodes.map((node) => {
+    if (node.type === 'item') {
+      const badge = node.badgeKey === 'todoCount' ? todoCount.value : undefined;
+      return { ...node, badge: badge ?? node.badge };
+    }
+    return { ...node, children: injectBadge(node.children) };
+  });
+}
+const menuTreeWithBadge = computed<MenuNode[]>(() => injectBadge(menuTree.value));
+
+onMounted(async () => {
+  if (auth.role !== 'super_admin') return;
+  try {
+    todoCount.value = await fetchTodoCount();
+  } catch {
+    todoCount.value = 0;
+  }
+});
 
 const iconMap: Record<string, Component> = {
   Odometer,

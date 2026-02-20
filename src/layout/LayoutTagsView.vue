@@ -135,9 +135,13 @@ function getRouteTitle(to: RouteLocationNormalizedLoaded): string {
   return to.path || '未命名页面';
 }
 
+/** 仅用 path 作为 tab 标识的路由（query 不参与，避免待办跳转等产生重复 tab） */
+const PATH_ONLY_TAB_PATHS = ['/hr/employees-cn/archives'];
+
 function addView(to: RouteLocationNormalizedLoaded) {
   if (!to.path || to.path === '/login') return;
-  const fullPath = to.fullPath || to.path;
+  const usePathOnly = PATH_ONLY_TAB_PATHS.includes(to.path);
+  const fullPath = usePathOnly ? to.path : (to.fullPath || to.path);
   if (visitedViews.value.some((view) => view.fullPath === fullPath)) return;
 
   visitedViews.value.push({

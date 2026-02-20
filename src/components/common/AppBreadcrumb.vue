@@ -11,56 +11,44 @@
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { rawMenuTree } from '../../layout/config/menuConfig';
+import type { MenuNode } from '../../layout/config/types';
 
 const route = useRoute();
 
 type Crumb = { path: string; title: string };
 
-function resolveFromMenu(path: string): { parent: Crumb | null; leaf: Crumb | null } {
-  for (const node of rawMenuTree) {
-    if (node.type === 'item' && node.index === path) {
-      return {
-        parent: null,
-        leaf: { path: node.index, title: node.title },
-      };
-    }
-
-    if (node.type === 'group') {
-      const child = node.children.find((item) => item.index === path);
-      if (child) {
-        return {
-          parent: { path: '#', title: node.title },
-          leaf: { path: child.index, title: child.title },
-        };
+/** 在菜单树中递归查找 path，返回从根到当前项的层级面包屑（含嵌套：员工管理 → 中国员工 → 档案管理） */
+function resolveCrumbsFromMenu(nodes: MenuNode[], path: string, parents: Crumb[]): Crumb[] | null {
+  for (const node of nodes) {
+    if (node.type === 'item') {
+      if (node.index === path) {
+        return [...parents, { path: node.index, title: node.title }];
       }
+      continue;
     }
+    const found = resolveCrumbsFromMenu(node.children, path, [...parents, { path: '#', title: node.title }]);
+    if (found) return found;
   }
-
-  return { parent: null, leaf: null };
+  return null;
 }
 
 const items = computed(() => {
-  const list: Crumb[] = [];
   const meta = route.meta as { title?: string; parentTitle?: string; parentPath?: string };
-  const menuResolved = resolveFromMenu(route.path);
+  const crumbs = resolveCrumbsFromMenu(rawMenuTree, route.path, []);
 
   if (meta?.parentTitle) {
-    list.push({ path: meta.parentPath || '#', title: meta.parentTitle });
-  } else if (menuResolved.parent) {
-    list.push(menuResolved.parent);
+    return [
+      { path: meta.parentPath || '#', title: meta.parentTitle },
+      { path: route.path, title: meta.title || '' },
+    ].filter((c) => c.title);
   }
-
+  if (crumbs && crumbs.length > 0) {
+    return crumbs.map((c) => ({ ...c, path: c.path === '#' ? c.path : c.path }));
+  }
   if (meta?.title) {
-    list.push({ path: route.path, title: meta.title });
-  } else if (menuResolved.leaf) {
-    list.push(menuResolved.leaf);
+    return [{ path: route.path, title: meta.title }];
   }
-
-  if (list.length === 0) {
-    list.push({ path: '/dashboard', title: '总览首页' });
-  }
-
-  return list;
+  return [{ path: '/dashboard', title: '总览首页' }];
 });
 </script>
 

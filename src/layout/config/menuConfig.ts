@@ -39,7 +39,19 @@ export const rawMenuTree: MenuNode[] = [
     icon: 'User',
     children: [
       { type: 'item', index: '/hr/employees-uz', title: '乌兹员工' },
-      { type: 'item', index: '/hr/employees-cn', title: '中国员工' },
+      {
+        type: 'group',
+        index: 'hr-employees-cn',
+        title: '中国员工',
+        requiresRole: ['super_admin'],
+        children: [
+          { type: 'item', index: '/hr/employees-cn/archives', title: '档案管理' },
+          { type: 'item', index: '/hr/employees-cn/process', title: '流程中心' },
+          { type: 'item', index: '/hr/employees-cn/attendance', title: '考勤与人事' },
+          { type: 'item', index: '/hr/employees-cn/todos', title: '待办中心' },
+          // { type: 'item', index: '/hr/employees-cn/todos', title: '待办中心', badgeKey: 'todoCount' },
+        ],
+      },
     ],
   },
   {
@@ -64,7 +76,7 @@ function hasRole(requiredRoles: string[] | undefined, userRole: string | null): 
 }
 
 /**
- * 按用户角色过滤菜单树（用于侧栏渲染）
+ * 按用户角色过滤菜单树（支持三级嵌套）
  */
 export function filterMenuByRole(menuTree: MenuNode[], userRole: string | null): MenuNode[] {
   const result: MenuNode[] = [];
@@ -75,9 +87,7 @@ export function filterMenuByRole(menuTree: MenuNode[], userRole: string | null):
       continue;
     }
 
-    const filteredChildren = node.children.filter((child) =>
-      hasRole(child.requiresRole, userRole)
-    );
+    const filteredChildren = filterMenuByRole(node.children, userRole);
     const groupVisible =
       hasRole(node.requiresRole, userRole) && filteredChildren.length > 0;
     if (groupVisible) {

@@ -17,7 +17,12 @@ const Products = () => import('../pages/Products.vue'); // 产品主数据
 const Contracts = () => import('../modules/contracts/ContractsPage.vue'); // 合同与附件管理
 const Sales = () => import('../pages/Sales.vue'); // 销售数据管理
 const EmployeesUz = () => import('../pages/EmployeesUz.vue'); // 乌兹员工
-const EmployeesCn = () => import('../pages/EmployeesCn.vue'); // 中国员工
+const EmployeesCn = () => import('../pages/EmployeesCn.vue'); // 中国员工布局（含 router-view）
+// 中国员工子页面：合并为 4 个（档案、流程中心、考勤与人事、待办）
+import EmployeesCnArchives from '../modules/hr/employees-cn/ArchivesPage.vue';
+import EmployeesCnProcess from '../modules/hr/employees-cn/ProcessCenterPage.vue';
+import EmployeesCnAttendance from '../modules/hr/employees-cn/AttendancePersonnelPage.vue';
+import EmployeesCnTodos from '../modules/hr/employees-cn/TodosPage.vue';
 const AdminUsers = () => import('../pages/AdminUsers.vue'); // 系统用户与角色
 
 const routes: RouteRecordRaw[] = [
@@ -91,9 +96,41 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'hr/employees-cn',
-        name: 'hr-employees-cn',
         component: EmployeesCn,
-        meta: { module: 'hr', title: '中国员工' },
+        meta: { module: 'hr', title: '中国员工', requiresRole: ['super_admin'] },
+        redirect: { name: 'hr-employees-cn-archives' },
+        children: [
+          {
+            path: 'archives',
+            name: 'hr-employees-cn-archives',
+            component: EmployeesCnArchives,
+            meta: { module: 'hr', title: '档案管理', requiresRole: ['super_admin'] },
+          },
+          {
+            path: 'process',
+            name: 'hr-employees-cn-process',
+            component: EmployeesCnProcess,
+            meta: { module: 'hr', title: '流程中心', requiresRole: ['super_admin'] },
+          },
+          {
+            path: 'attendance',
+            name: 'hr-employees-cn-attendance',
+            component: EmployeesCnAttendance,
+            meta: { module: 'hr', title: '考勤与人事', requiresRole: ['super_admin'] },
+          },
+          {
+            path: 'todos',
+            name: 'hr-employees-cn-todos',
+            component: EmployeesCnTodos,
+            meta: { module: 'hr', title: '待办中心', requiresRole: ['super_admin'] },
+          },
+          // 旧路径重定向到合并页（兼容书签/外链）
+          { path: 'invitations', redirect: { name: 'hr-employees-cn-process', query: { tab: 'invitation' } } },
+          { path: 'visas', redirect: { name: 'hr-employees-cn-process', query: { tab: 'visa' } } },
+          { path: 'flights', redirect: { name: 'hr-employees-cn-process', query: { tab: 'flight' } } },
+          { path: 'labor-permits', redirect: { name: 'hr-employees-cn-process', query: { tab: 'labor' } } },
+          { path: 'personnel', redirect: { name: 'hr-employees-cn-attendance', query: { tab: 'reward' } } },
+        ],
       },
 
       // 6. 系统管理

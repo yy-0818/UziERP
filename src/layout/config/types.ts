@@ -10,9 +10,13 @@ export interface MenuItemLeaf {
   icon?: string;
   /** 需要具备的角色之一才显示，不传则所有人可见 */
   requiresRole?: string[];
+  /** 用于注入红点/数字的 key，如 'todoCount' */
+  badgeKey?: string;
+  /** 红点或数字（由布局注入） */
+  badge?: number;
 }
 
-/** 菜单分组（有 children） */
+/** 菜单分组（有 children，支持嵌套：员工管理 → 中国员工 → 各项） */
 export interface MenuItemGroup {
   type: 'group';
   index: string;
@@ -20,7 +24,7 @@ export interface MenuItemGroup {
   icon?: string;
   /** 分组本身可见性；不传则按子项权限聚合 */
   requiresRole?: string[];
-  children: MenuItemLeaf[];
+  children: MenuNode[];
 }
 
 export type MenuNode = MenuItemLeaf | MenuItemGroup;
