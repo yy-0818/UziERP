@@ -240,156 +240,171 @@
       </template>
     </el-drawer>
 
-    <!-- 入职/编辑 弹窗：分组布局 + 头像上传美化 -->
+    <!-- 入职/编辑 弹窗：横向两栏布局 + 头像上传美化，宽度由 CSS 自适应 -->
     <el-dialog
       v-model="formVisible"
       :title="formMode === 'onboard' ? '入职登记' : '编辑档案'"
-      width="640px"
+      width="1200px"
       destroy-on-close
       append-to-body
-      class="hr-form-dialog"
+      class="hr-form-dialog hr-form-dialog--horizontal"
     >
-      <el-form ref="formRef" :model="form" :rules="formRules" label-width="92px" label-position="right">
-        <div class="hr-form-section hr-form-section--avatar">
-          <el-form-item label="头像">
-            <div class="form-avatar-wrap">
-              <el-upload
-                class="form-avatar-upload"
-                :show-file-list="false"
-                accept="image/*"
-                :http-request="handlePhotoUpload"
-              >
-                <div class="form-avatar-box">
-                  <el-image v-if="formPhotoPreview" class="form-avatar-img" :src="formPhotoPreview" fit="cover" />
-                  <div v-else class="form-avatar-placeholder">
-                    <el-icon :size="32"><Avatar /></el-icon>
-                    <span>上传照片</span>
-                  </div>
-                  <div class="form-avatar-mask">
-                    <span>{{ form.photo_url ? '更换' : '上传' }}</span>
-                  </div>
+      <el-form ref="formRef" :model="form" :rules="formRules" label-width="auto" label-position="right">
+        <div class="hr-form-dialog__layout">
+          <!-- 左栏：头像 + 基本信息 + 部门与入职 -->
+          <div class="hr-form-dialog__col">
+            <div class="hr-form-section__title">身份照片</div>
+            <div class="hr-form-section hr-form-section--avatar">
+              <el-form-item>
+                <div class="form-avatar-wrap">
+                  <el-upload
+                    class="form-avatar-upload"
+                    :show-file-list="false"
+                    accept="image/*"
+                    :http-request="handlePhotoUpload"
+                  >
+                    <div class="form-avatar-box">
+                      <el-image v-if="formPhotoPreview" class="form-avatar-img" :src="formPhotoPreview" fit="cover" />
+                      <div v-else class="form-avatar-placeholder">
+                        <el-icon :size="32"><Avatar /></el-icon>
+                        <span>上传照片</span>
+                      </div>
+                      <div class="form-avatar-mask">
+                        <span>{{ form.photo_url ? '更换' : '上传' }}</span>
+                      </div>
+                    </div>
+                  </el-upload>
+                  <el-button v-if="form.photo_url" type="danger" link size="small" class="form-avatar-clear" @click="clearFormPhoto">清除</el-button>
                 </div>
-              </el-upload>
-              <el-button v-if="form.photo_url" type="danger" link size="small" class="form-avatar-clear" @click="clearFormPhoto">清除</el-button>
+              </el-form-item>
             </div>
-          </el-form-item>
-        </div>
-        <div class="hr-form-section">
-          <div class="hr-form-section__title">基本信息</div>
-          <el-row :gutter="16">
-            <el-col :span="12">
-              <el-form-item label="工号" prop="employee_no">
-                <el-input v-model="form.employee_no" placeholder="必填" :disabled="formMode === 'edit'" />
+            <div class="hr-form-section">
+              <div class="hr-form-section__title">基本信息</div>
+              <div class="hr-form-row">
+                <div class="hr-form-cell">
+                  <el-form-item label="工号" prop="employee_no">
+                    <el-input v-model="form.employee_no" placeholder="必填" :disabled="formMode === 'edit'" />
+                  </el-form-item>
+                </div>
+                <div class="hr-form-cell">
+                  <el-form-item label="姓名" prop="name">
+                    <el-input v-model="form.name" placeholder="必填" />
+                  </el-form-item>
+                </div>
+              </div>
+              <div class="hr-form-row">
+                <div class="hr-form-cell">
+                  <el-form-item label="护照号">
+                    <el-input v-model="form.passport_no" placeholder="选填" />
+                  </el-form-item>
+                </div>
+                <div class="hr-form-cell">
+                  <el-form-item label="出生日期">
+                    <el-date-picker v-model="form.birth_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" placeholder="选填" />
+                  </el-form-item>
+                </div>
+              </div>
+              <div class="hr-form-row">
+                <div class="hr-form-cell">
+                  <el-form-item label="性别">
+                    <el-select v-model="form.gender" placeholder="请选择" clearable style="width: 100%">
+                      <el-option label="男" value="男" />
+                      <el-option label="女" value="女" />
+                    </el-select>
+                  </el-form-item>
+                </div>
+                <div class="hr-form-cell">
+                  <el-form-item label="身份证号">
+                    <el-input v-model="form.id_card_no" placeholder="选填" />
+                  </el-form-item>
+                </div>
+              </div>
+            </div>
+            <div class="hr-form-section">
+              <div class="hr-form-section__title">部门与入职</div>
+              <div class="hr-form-row">
+                <div class="hr-form-cell">
+                  <el-form-item label="部门">
+                    <el-input v-model="form.department" placeholder="选填" />
+                  </el-form-item>
+                </div>
+                <div class="hr-form-cell">
+                  <el-form-item label="岗位">
+                    <el-input v-model="form.position" placeholder="选填" />
+                  </el-form-item>
+                </div>
+              </div>
+              <el-form-item v-if="formMode === 'edit'" label="入职时间">
+                <el-date-picker v-model="form.hire_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" placeholder="暂未入职时为空" />
               </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="姓名" prop="name">
-                <el-input v-model="form.name" placeholder="必填" />
+            </div>
+
+          </div>
+          <!-- 右栏：联系与紧急 + 银行与薪酬 -->
+          <div class="hr-form-dialog__col">
+            <div class="hr-form-section">
+              <div class="hr-form-section__title">联系与紧急</div>
+              <div class="hr-form-row">
+                <div class="hr-form-cell">
+                  <el-form-item label="联系方式">
+                    <el-input v-model="form.contact_phone" placeholder="选填" />
+                  </el-form-item>
+                </div>
+                <div class="hr-form-cell">
+                  <el-form-item label="婚姻状况">
+                    <el-input v-model="form.marital_status" placeholder="选填" />
+                  </el-form-item>
+                </div>
+              </div>
+              <el-form-item label="家庭地址">
+                <el-input v-model="form.home_address" type="textarea" :rows="2" placeholder="选填" />
               </el-form-item>
-            </el-col>
-          </el-row>
-          <el-row :gutter="16">
-            <el-col :span="12">
-              <el-form-item label="护照号">
-                <el-input v-model="form.passport_no" placeholder="选填" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="出生日期">
-                <el-date-picker v-model="form.birth_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" placeholder="选填" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-          <el-row :gutter="16">
-            <el-col :span="12">
-              <el-form-item label="性别">
-                <el-select v-model="form.gender" placeholder="请选择" clearable style="width: 100%">
-                  <el-option label="男" value="男" />
-                  <el-option label="女" value="女" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="身份证号">
-                <el-input v-model="form.id_card_no" placeholder="选填" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-        </div>
-        <div class="hr-form-section">
-          <div class="hr-form-section__title">部门与入职</div>
-          <el-row :gutter="16">
-            <el-col :span="12">
-              <el-form-item label="部门">
-                <el-input v-model="form.department" placeholder="选填" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="岗位">
-                <el-input v-model="form.position" placeholder="选填" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-          <el-form-item v-if="formMode === 'edit'" label="入职时间">
-            <el-date-picker v-model="form.hire_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" placeholder="暂未入职时为空" />
-          </el-form-item>
-        </div>
-        <div class="hr-form-section">
-          <div class="hr-form-section__title">联系与紧急</div>
-          <el-row :gutter="16">
-            <el-col :span="12">
-              <el-form-item label="联系方式">
-                <el-input v-model="form.contact_phone" placeholder="选填" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="婚姻状况">
-                <el-input v-model="form.marital_status" placeholder="选填" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-          <el-form-item label="家庭地址">
-            <el-input v-model="form.home_address" type="textarea" :rows="2" placeholder="选填" />
-          </el-form-item>
-          <el-row :gutter="16">
-            <el-col :span="12">
-              <el-form-item label="紧急联系人">
-                <el-input v-model="form.emergency_contact" placeholder="选填" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="紧急联系方式">
-                <el-input v-model="form.emergency_phone" placeholder="选填" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-        </div>
-        <div class="hr-form-section">
-          <div class="hr-form-section__title">银行与薪酬</div>
-          <el-row :gutter="16">
-            <el-col :span="12">
-              <el-form-item label="银行卡号">
-                <el-input v-model="form.bank_account" placeholder="选填" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="开户行">
-                <el-input v-model="form.bank_name" placeholder="选填" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-          <el-row :gutter="16">
-            <el-col :span="12">
-              <el-form-item label="工资标准">
-                <el-input-number v-model="form.salary_standard" :min="0" :precision="2" style="width: 100%" placeholder="选填" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="操作人">
-                <el-input :model-value="currentOperator ?? '—'" disabled />
-              </el-form-item>
-            </el-col>
-          </el-row>
+              <div class="hr-form-row">
+                <div class="hr-form-cell">
+                  <el-form-item label="紧急联系人">
+                    <el-input v-model="form.emergency_contact" placeholder="选填" />
+                  </el-form-item>
+                </div>
+                <div class="hr-form-cell">
+                  <el-form-item label="紧急电话">
+                    <el-input v-model="form.emergency_phone" placeholder="选填" />
+                  </el-form-item>
+                </div>
+              </div>
+            </div>
+            <div class="hr-form-section">
+              <div class="hr-form-section__title">银行与薪酬</div>
+              <div class="hr-form-row">
+                <div class="hr-form-cell">
+                  <el-form-item label="银行卡号">
+                    <el-input v-model="form.bank_account" placeholder="选填" />
+                  </el-form-item>
+                </div>
+                <div class="hr-form-cell">
+                  <el-form-item label="开户行">
+                    <el-input v-model="form.bank_name" placeholder="选填" />
+                  </el-form-item>
+                </div>
+              </div>
+              <div class="hr-form-row">
+                <div class="hr-form-cell hr-form-cell--full">
+                  <el-form-item label="工资标准">
+                    <el-input-number v-model="form.salary_standard" :min="0" :precision="2" style="width: 100%" placeholder="选填" />
+                  </el-form-item>
+                </div>
+              </div>
+            </div>
+            <div class="hr-form-section">
+              <div class="hr-form-section__title">操作人</div>
+              <div class="hr-form-row">
+                <div class="hr-form-cell hr-form-cell--full">
+                  <el-form-item label="操作人">
+                    <el-input :model-value="currentOperator ?? '—'" disabled />
+                  </el-form-item>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </el-form>
       <template #footer>
@@ -494,8 +509,8 @@
         <el-form-item label="结束时间" prop="end_at">
           <el-date-picker v-model="leaveForm.end_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="请假时长(小时)">
-          <el-input-number v-model="leaveForm.leave_hours" :min="0" :precision="2" style="width: 100%" />
+        <el-form-item label="请假时长">
+          <el-input-number v-model="leaveForm.leave_hours" :min="0" :precision="2" style="width: 80%" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -1219,6 +1234,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* ========== 卡片头部（原有，保留） ========== */
 .erp-card-header {
   display: flex;
   justify-content: space-between;
@@ -1226,59 +1242,319 @@ onMounted(async () => {
   flex-wrap: wrap;
   gap: 12px;
 }
-.title { font-size: 16px; font-weight: 600; }
-.subtitle { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
-.header-actions { display: flex; gap: 8px; flex-shrink: 0; }
-.detail-tabs { margin-top: 8px; }
-.ml-2 { margin-left: 8px; }
-
-/* 入职/编辑弹窗：分组与头像 */
-.hr-form-dialog :deep(.el-dialog__body) { padding-top: 12px; max-height: 70vh; overflow-y: auto; }
-.hr-form-section { margin-bottom: 20px; }
-.hr-form-section--avatar { margin-bottom: 16px; }
-.hr-form-section__title {
-  font-size: 12px; font-weight: 600; color: var(--el-text-color-secondary);
-  margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--el-border-color-lighter);
+.title {
+  font-size: 16px;
+  font-weight: 600;
 }
-.form-avatar-wrap { display: flex; align-items: center; gap: 12px; }
-.form-avatar-upload :deep(.el-upload) { display: block; }
+.subtitle {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+.header-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.detail-tabs {
+  margin-top: 8px;
+}
+.ml-2 {
+  margin-left: 8px;
+}
+
+/* ========== 入职/编辑弹窗：整体容器 ========== */
+.hr-form-dialog {
+  --el-dialog-border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+  backdrop-filter: blur(2px);
+}
+/* 弹窗宽度增大且自适应：大屏最大 1200px，随视口收缩 */
+.hr-form-dialog--horizontal :deep(.el-dialog) {
+  width: min(1200px, 96vw) !important;
+  max-width: 96vw;
+}
+
+.hr-form-dialog :deep(.el-dialog__header) {
+  padding: 20px 24px 12px;
+  border-bottom: 1px solid var(--el-border-color-light);
+  position: relative;
+}
+.hr-form-dialog :deep(.el-dialog__title) {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  background: linear-gradient(135deg, var(--el-color-primary), #6366f1);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hr-form-dialog :deep(.el-dialog__body) {
+  padding-top: 12px;
+  max-height: 70vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--el-color-primary-light-5) transparent;
+}
+.hr-form-dialog :deep(.el-dialog__body::-webkit-scrollbar) {
+  width: 6px;
+}
+.hr-form-dialog :deep(.el-dialog__body::-webkit-scrollbar-thumb) {
+  background: var(--el-color-primary-light-5);
+  border-radius: 12px;
+  transition: background 0.2s;
+}
+.hr-form-dialog :deep(.el-dialog__body::-webkit-scrollbar-thumb:hover) {
+  background: var(--el-color-primary-light-3);
+}
+
+.hr-form-dialog :deep(.el-dialog__footer) {
+  padding: 16px 24px 24px;
+  border-top: 1px solid var(--el-border-color-light);
+}
+
+/* ========== 横向两栏布局 ========== */
+.hr-form-dialog--horizontal .hr-form-dialog__layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+.hr-form-dialog--horizontal .hr-form-dialog__col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+/* 右栏略宽，银行卡号/开户行等输入框更长 */
+.hr-form-dialog--horizontal .hr-form-dialog__col:first-child {
+  flex: 0.92;
+}
+.hr-form-dialog--horizontal .hr-form-dialog__col + .hr-form-dialog__col {
+  border-left: 1px solid var(--el-border-color-lighter);
+  padding-left: 20px;
+  flex: 1.08;
+  min-width: 0;
+}
+/* 右侧栏略宽，便于银行卡号、开户行等较长内容显示 */
+.hr-form-dialog--horizontal :deep(.el-dialog__body) {
+  max-height: 75vh;
+  padding: 16px 24px 20px;
+}
+
+/* ========== 表单手动排版（替代 el-row/el-col） ========== */
+.hr-form-dialog .hr-form-row {
+  display: flex;
+  margin-bottom: 18px;
+}
+.hr-form-dialog .hr-form-row:last-child {
+  margin-bottom: 0;
+}
+.hr-form-dialog .hr-form-cell {
+  flex: 1;
+  min-width: 0;
+}
+/* 单列 item 时限制最大宽度，不占满整行 */
+.hr-form-dialog .hr-form-cell--full {
+  flex: 0 1 auto;
+  max-width: 360px;
+}
+.hr-form-dialog .hr-form-cell .el-form-item,
+.hr-form-dialog .hr-form-cell--full .el-form-item {
+  margin-bottom: 0;
+}
+.hr-form-dialog .hr-form-section .el-form-item:last-child {
+  margin-bottom: 0;
+}
+/* 表单项内容区与 input 占满可用宽度，输入框更宽 */
+.hr-form-dialog :deep(.el-form-item__content) {
+  flex: 1;
+  min-width: 0;
+}
+.hr-form-dialog :deep(.el-input),
+.hr-form-dialog :deep(.el-select),
+.hr-form-dialog :deep(.el-date-editor),
+.hr-form-dialog :deep(.el-input-number) {
+  width: 100%;
+}
+.hr-form-dialog .hr-form-cell {
+  min-width: 200px;
+}
+
+/* ========== 表单分组 ========== */
+.hr-form-section {
+  margin-bottom: 28px;
+  padding: 16px 20px;
+  background: var(--el-fill-color-blank);
+  border-radius: 12px;
+  transition: background 0.2s;
+}
+.hr-form-dialog--horizontal .hr-form-section {
+  margin-bottom: 18px;
+  padding: 14px 16px;
+}
+.hr-form-dialog--horizontal .hr-form-section:last-child {
+  margin-bottom: 0;
+}
+.hr-form-section:hover {
+  background: var(--el-fill-color-light);
+}
+.hr-form-section--avatar {
+  margin-bottom: 16px;
+}
+
+.hr-form-dialog--horizontal .hr-form-section--avatar {
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.hr-form-dialog--horizontal .hr-form-section--avatar .hr-form-section__title {
+  justify-content: center;
+}
+.hr-form-section__title {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--el-border-color-extra-light);
+  position: relative;
+}
+.hr-form-dialog--horizontal .hr-form-section__title {
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  font-size: 13px;
+}
+.hr-form-section__title::before {
+  content: '';
+  width: 4px;
+  height: 18px;
+  background: linear-gradient(to bottom, var(--el-color-primary), var(--el-color-primary-light-5));
+  border-radius: 4px;
+  margin-right: 8px;
+}
+
+/* ========== 头像上传区域（身份照片垂直水平居中） ========== */
+.form-avatar-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.hr-form-dialog--horizontal .hr-form-section--avatar .form-avatar-wrap {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.form-avatar-upload :deep(.el-upload) {
+  display: block;
+}
 .form-avatar-box {
   position: relative;
-  width: 88px; height: 88px;
+  width: 108px;
+  height: 108px;
   border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow: 0 8px 16px -4px rgba(0, 0, 0, 0.1);
   overflow: hidden;
-  border: 2px dashed var(--el-border-color);
   background: var(--el-fill-color-light);
   cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
 }
-.form-avatar-box:hover { border-color: var(--el-color-primary); background: var(--el-color-primary-light-9); }
-.form-avatar-box:hover .form-avatar-mask { opacity: 1; }
-.form-avatar-img { width: 100%; height: 100%; display: block; }
+.form-avatar-box:hover {
+  transform: scale(1.02);
+  box-shadow: 0 12px 24px -8px var(--el-color-primary-light-3);
+  border-color: var(--el-color-primary);
+}
+.form-avatar-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
 .form-avatar-placeholder {
-  width: 100%; height: 100%;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  color: var(--el-text-color-placeholder); font-size: 12px; gap: 4px;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--el-text-color-placeholder);
+  font-size: 12px;
+  gap: 4px;
 }
 .form-avatar-mask {
-  position: absolute; inset: 0;
-  background: rgba(0,0,0,0.5);
-  color: #fff; font-size: 12px;
-  display: flex; align-items: center; justify-content: center;
-  opacity: 0; transition: opacity 0.2s;
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  color: #fff;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+  border-radius: 50%;
+  font-weight: 500;
+  letter-spacing: 0.5px;
 }
-.form-avatar-clear { margin-left: 4px; }
-.hr-timeline-wrap { padding: 8px 0; }
-.hr-timeline-title { font-weight: 600; }
-.hr-timeline-meta { margin-top: 4px; }
-.hr-timeline-desc { font-size: 12px; color: var(--el-text-color-secondary); margin-top: 4px; }
-.hr-timeline-operator { font-size: 12px; color: var(--el-text-color-secondary); margin-top: 2px; }
-.dialog-operator { font-size: 12px; color: var(--el-text-color-secondary); margin-top: 8px; }
-.table-photo { width: 40px; height: 40px; border-radius: 6px; display: block; margin: 0 auto; }
-.table-photo-placeholder { font-size: 12px; color: var(--el-text-color-placeholder); }
-/* 操作列图标统一放大、无 tooltip，与容器对齐 */
-.hr-table-op-btn { padding: 4px 6px; }
-.hr-table-op-btn .el-icon { font-size: 18px; }
+.form-avatar-box:hover .form-avatar-mask {
+  opacity: 1;
+}
+.form-avatar-clear {
+  margin-left: 4px;
+}
+
+
+/* ========== 原有时光轴、表格相关样式（保留，未改动） ========== */
+.hr-timeline-wrap {
+  padding: 8px 0;
+}
+.hr-timeline-title {
+  font-weight: 600;
+}
+.hr-timeline-meta {
+  margin-top: 4px;
+}
+.hr-timeline-desc {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-top: 4px;
+}
+.hr-timeline-operator {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-top: 2px;
+}
+.dialog-operator {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-top: 8px;
+}
+.table-photo {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  display: block;
+  margin: 0 auto;
+}
+.table-photo-placeholder {
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
+}
+.hr-table-op-btn {
+  padding: 4px 6px;
+}
+.hr-table-op-btn .el-icon {
+  font-size: 18px;
+}
 .hr-table-op-trigger {
   display: inline-flex;
   align-items: center;
@@ -1287,5 +1563,45 @@ onMounted(async () => {
   color: var(--el-color-primary);
   transition: opacity 0.2s;
 }
-.hr-table-op-trigger:hover { opacity: 0.8; }
+.hr-table-op-trigger:hover {
+  opacity: 0.8;
+}
+
+/* ========== 响应式微调（与弹窗宽度自适应同步） ========== */
+@media (max-width: 1240px) {
+  .hr-form-dialog--horizontal :deep(.el-dialog) {
+    width: min(1200px, 94vw) !important;
+  }
+}
+@media (max-width: 1000px) {
+  .hr-form-dialog--horizontal .hr-form-dialog__layout {
+    flex-direction: column;
+  }
+  .hr-form-dialog--horizontal .hr-form-dialog__col + .hr-form-dialog__col {
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid var(--el-border-color-lighter);
+    padding-top: 18px;
+  }
+  .hr-form-dialog .hr-form-cell {
+    min-width: 0;
+  }
+}
+@media (max-width: 640px) {
+  .hr-form-dialog :deep(.el-dialog) {
+    width: 90% !important;
+    max-width: 90vw !important;
+    margin: 20px auto !important;
+  }
+  .hr-form-dialog .hr-form-cell {
+    min-width: 0;
+  }
+  .hr-form-section {
+    padding: 12px;
+  }
+  .form-avatar-box {
+    width: 72px;
+    height: 72px;
+  }
+}
 </style>

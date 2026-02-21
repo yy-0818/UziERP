@@ -90,7 +90,7 @@
         <el-form-item label="结束时间" prop="end_at">
           <el-date-picker v-model="leaveForm.end_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="请假时长(小时)">
+        <el-form-item label="请假时长">
           <el-input-number v-model="leaveForm.leave_hours" :min="0" :precision="2" style="width: 100%" />
         </el-form-item>
       </el-form>
@@ -375,10 +375,7 @@ async function submitReward() {
   }
 }
 
-watch([activeTab, leaveFilters, rewardFilters], debouncedPersistUiState, { deep: true });
-
 onMounted(async () => {
-  restoreUiState();
   await loadEmployees();
   await loadLeave();
   await loadReward();

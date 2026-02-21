@@ -12,7 +12,7 @@
     <div class="erp-header-right">
       <el-badge v-if="canSeeTodo" :hidden="todoCount === 0" :value="todoCount" :max="99">
         <el-button link type="primary" @click="router.push('/hr/employees-cn/todos')">
-          待办
+          <el-icon><BellFilled /></el-icon>
         </el-button>
       </el-badge>
       <el-tooltip :content="isDark ? '切换浅色模式' : '切换深色模式'" placement="bottom">
@@ -42,7 +42,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { ElMessageBox } from 'element-plus';
-import { UserFilled, ArrowDown, Expand, Fold, Moon, Sunny, SwitchButton } from '@element-plus/icons-vue';
+import { UserFilled, ArrowDown, Expand, Fold, Moon, Sunny, SwitchButton, BellFilled } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import AppBreadcrumb from '../components/common/AppBreadcrumb.vue';
 import { useAuthStore } from '../stores/auth';
