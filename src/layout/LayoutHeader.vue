@@ -94,6 +94,10 @@ function onCommand(cmd: string) {
   flex-shrink: 0;
 }
 
+.erp-header :deep(.el-icon) {
+  font-size: 20px;
+}
+
 .erp-header :deep(.erp-breadcrumb) {
   flex: 1;
   min-width: 0;
