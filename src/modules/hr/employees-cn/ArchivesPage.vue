@@ -577,46 +577,61 @@ const canManage = computed(() => auth.role === 'super_admin');
 /** 当前操作人（调岗/调薪/离职/请假/奖励违纪 必写，便于审计） */
 const currentOperator = computed(() => auth.user?.email ?? auth.email ?? null);
 
-const PERSIST_KEY = 'employees-cn-archives-state';
+const STATE_KEY = 'hr.employees-cn.archives.ui_state.v1';
 
 const list = ref<CnEmployeeWithStatus[]>([]);
 const leaveRecords = ref<Awaited<ReturnType<typeof fetchLeaveRecords>>>([]);
 const loading = ref(false);
-const filters = ref(restoreFilters());
-function restoreFilters(): { keyword: string; statusFilter: '' | 'active' | 'resigned' | 'pending' | 'onLeave' } {
-  try {
-    const raw = localStorage.getItem(PERSIST_KEY);
-    if (!raw) return { keyword: '', statusFilter: '' };
-    const data = JSON.parse(raw);
-    const statusFilter = data?.statusFilter;
-    const validStatus = ['', 'active', 'resigned', 'pending', 'onLeave'].includes(statusFilter)
-      ? statusFilter
-      : '';
-    return {
-      keyword: typeof data?.keyword === 'string' ? data.keyword : '',
-      statusFilter: validStatus,
-    };
-  } catch {
-    return { keyword: '', statusFilter: '' };
-  }
-}
-function persistState() {
-  try {
-    localStorage.setItem(
-      PERSIST_KEY,
-      JSON.stringify({
-        keyword: filters.value.keyword,
-        statusFilter: filters.value.statusFilter,
-        detailTab: detailTab.value,
-      })
-    );
-  } catch {
-    /* ignore */
-  }
-}
+const filters = ref<{ keyword: string; statusFilter: '' | 'active' | 'resigned' | 'pending' | 'onLeave' }>({ keyword: '', statusFilter: '' });
 const photoUrlMap = ref<Record<string, string>>({});
 const tableFilters = ref<Record<string, string[]>>({});
 const tableSort = ref<{ prop: string; order: 'ascending' | 'descending' | null }>({ prop: '', order: null });
+
+function restoreUiState() {
+  try {
+    const raw = localStorage.getItem(STATE_KEY);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (s?.filters && typeof s.filters === 'object') {
+      if (typeof s.filters.keyword === 'string') filters.value.keyword = s.filters.keyword;
+      if (['', 'active', 'resigned', 'pending', 'onLeave'].includes(s.filters.statusFilter)) {
+        filters.value.statusFilter = s.filters.statusFilter;
+      }
+    }
+    if (s?.detailTab && typeof s.detailTab === 'string') detailTab.value = s.detailTab;
+    if (s?.tableFilters && typeof s.tableFilters === 'object') tableFilters.value = { ...s.tableFilters };
+    if (s?.tableSort && typeof s.tableSort === 'object' && s.tableSort.prop != null) {
+      tableSort.value = {
+        prop: typeof s.tableSort.prop === 'string' ? s.tableSort.prop : '',
+        order: s.tableSort.order === 'ascending' || s.tableSort.order === 'descending' ? s.tableSort.order : null,
+      };
+    }
+  } catch { /* ignore */ }
+}
+
+function persistUiState() {
+  try {
+    localStorage.setItem(
+      STATE_KEY,
+      JSON.stringify({
+        filters: filters.value,
+        detailTab: detailTab.value,
+        tableFilters: tableFilters.value,
+        tableSort: tableSort.value,
+      })
+    );
+  } catch { /* ignore */ }
+}
+
+const PERSIST_DEBOUNCE_MS = 450;
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+function debouncedPersistUiState() {
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    persistUiState();
+  }, PERSIST_DEBOUNCE_MS);
+}
 
 const filteredList = computed(() => {
   let rows = list.value;
@@ -756,18 +771,7 @@ function applyFilters() {}
 // 详情（详情 tab 参与持久化，再次打开详情时恢复上次选中的 tab）
 const detailVisible = ref(false);
 const detailEmployeeId = ref<string | null>(null);
-const detailTab = ref(restoreDetailTab());
-function restoreDetailTab(): string {
-  try {
-    const raw = localStorage.getItem(PERSIST_KEY);
-    if (!raw) return 'invitation';
-    const data = JSON.parse(raw);
-    const tab = data?.detailTab;
-    return typeof tab === 'string' && tab ? tab : 'invitation';
-  } catch {
-    return 'invitation';
-  }
-}
+const detailTab = ref('invitation');
 const detailPhotoUrl = ref('');
 const timelineItems = ref<EmployeeTimelineItem[]>([]);
 const detailEmployee = computed(() => {
@@ -1202,9 +1206,14 @@ watch(
   { immediate: true }
 );
 
-watch([() => filters.value.keyword, () => filters.value.statusFilter, detailTab], persistState, { deep: true });
+watch(
+  [filters, detailTab, tableFilters, tableSort],
+  debouncedPersistUiState,
+  { deep: true }
+);
 
 onMounted(async () => {
+  restoreUiState();
   await fetchData();
 });
 </script>

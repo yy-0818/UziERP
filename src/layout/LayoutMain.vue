@@ -5,7 +5,7 @@
         <template #default>
           <transition name="erp-page" mode="out-in" appear>
             <keep-alive :max="8">
-              <component :is="Component" :key="route.fullPath" />
+              <component :is="Component" :key="mainViewKey(route)" />
             </keep-alive>
           </transition>
         </template>
@@ -21,6 +21,14 @@
 </template>
 
 <script setup lang="ts">
+import type { RouteLocationNormalizedLoaded } from 'vue-router';
+
+/** 中国员工子路由（档案/流程/考勤/待办）共用一个父实例，避免切换时父组件重建导致子页重复请求 */
+function mainViewKey(route: RouteLocationNormalizedLoaded): string {
+  const path = route.path || route.fullPath;
+  if (path.startsWith('/hr/employees-cn')) return '/hr/employees-cn';
+  return route.fullPath;
+}
 </script>
 
 <style scoped>

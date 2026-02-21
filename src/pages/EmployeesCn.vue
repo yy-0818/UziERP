@@ -1,6 +1,10 @@
 <template>
   <div class="employees-cn-wrap">
-    <router-view />
+    <router-view v-slot="{ Component, route }">
+      <keep-alive :max="8">
+        <component :is="Component" :key="route.fullPath" />
+      </keep-alive>
+    </router-view>
   </div>
 </template>
 

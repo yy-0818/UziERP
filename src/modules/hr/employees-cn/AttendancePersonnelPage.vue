@@ -152,13 +152,7 @@ const auth = useAuthStore();
 const canManage = computed(() => auth.role === 'super_admin');
 const currentOperator = computed(() => auth.user?.email ?? auth.email ?? null);
 
-watch(
-  () => route.query.tab as string,
-  (tab) => {
-    if (tab === 'leave' || tab === 'reward') activeTab.value = tab;
-  },
-  { immediate: true }
-);
+const STATE_KEY = 'hr.employees-cn.attendance.ui_state.v1';
 
 const activeTab = ref<'leave' | 'reward'>('leave');
 const employees = ref<CnEmployee[]>([]);
@@ -168,6 +162,56 @@ const leaveLoading = ref(false);
 const rewardLoading = ref(false);
 const leaveFilters = ref({ keyword: '' });
 const rewardFilters = ref({ record_type: '' as string, keyword: '' });
+
+function restoreUiState() {
+  try {
+    const raw = localStorage.getItem(STATE_KEY);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    const fromQuery = route.query.tab as string;
+    if (!fromQuery && s?.activeTab && (s.activeTab === 'leave' || s.activeTab === 'reward')) {
+      activeTab.value = s.activeTab;
+    }
+    if (s?.leaveFilters && typeof s.leaveFilters === 'object' && typeof s.leaveFilters.keyword === 'string') {
+      leaveFilters.value.keyword = s.leaveFilters.keyword;
+    }
+    if (s?.rewardFilters && typeof s.rewardFilters === 'object') {
+      if (typeof s.rewardFilters.record_type === 'string') rewardFilters.value.record_type = s.rewardFilters.record_type;
+      if (typeof s.rewardFilters.keyword === 'string') rewardFilters.value.keyword = s.rewardFilters.keyword;
+    }
+  } catch { /* ignore */ }
+}
+
+function persistUiState() {
+  try {
+    localStorage.setItem(
+      STATE_KEY,
+      JSON.stringify({
+        activeTab: activeTab.value,
+        leaveFilters: leaveFilters.value,
+        rewardFilters: rewardFilters.value,
+      })
+    );
+  } catch { /* ignore */ }
+}
+
+const PERSIST_DEBOUNCE_MS = 450;
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+function debouncedPersistUiState() {
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    persistUiState();
+  }, PERSIST_DEBOUNCE_MS);
+}
+
+watch(
+  () => route.query.tab as string,
+  (tab) => {
+    if (tab === 'leave' || tab === 'reward') activeTab.value = tab;
+  },
+  { immediate: true }
+);
 const leaveVisible = ref(false);
 const rewardVisible = ref(false);
 const leaveFormRef = ref<FormInstance>();
@@ -331,7 +375,10 @@ async function submitReward() {
   }
 }
 
+watch([activeTab, leaveFilters, rewardFilters], debouncedPersistUiState, { deep: true });
+
 onMounted(async () => {
+  restoreUiState();
   await loadEmployees();
   await loadLeave();
   await loadReward();

@@ -200,31 +200,38 @@ const auth = useAuthStore();
 const canManage = computed(() => auth.role === 'super_admin');
 const currentOperator = computed(() => auth.user?.email ?? auth.email ?? null);
 
-const PERSIST_KEY = 'employees-cn-todos-state';
-
-function restoreTypeFilter(): string {
-  try {
-    const raw = localStorage.getItem(PERSIST_KEY);
-    if (!raw) return '';
-    const data = JSON.parse(raw);
-    const v = data?.typeFilter;
-    return typeof v === 'string' && ['', 'invitation', 'visa', 'flight', 'labor_permit'].includes(v) ? v : '';
-  } catch {
-    return '';
-  }
-}
-
-function persistState() {
-  try {
-    localStorage.setItem(PERSIST_KEY, JSON.stringify({ typeFilter: typeFilter.value }));
-  } catch {
-    /* ignore */
-  }
-}
+const STATE_KEY = 'hr.employees-cn.todos.ui_state.v1';
 
 const list = ref<TodoItem[]>([]);
-const typeFilter = ref(restoreTypeFilter());
+const typeFilter = ref('');
 const loading = ref(false);
+
+function restoreUiState() {
+  try {
+    const raw = localStorage.getItem(STATE_KEY);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (s?.typeFilter != null && ['', 'invitation', 'visa', 'flight', 'labor_permit'].includes(s.typeFilter)) {
+      typeFilter.value = s.typeFilter;
+    }
+  } catch { /* ignore */ }
+}
+
+function persistUiState() {
+  try {
+    localStorage.setItem(STATE_KEY, JSON.stringify({ typeFilter: typeFilter.value }));
+  } catch { /* ignore */ }
+}
+
+const PERSIST_DEBOUNCE_MS = 450;
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+function debouncedPersistUiState() {
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    persistUiState();
+  }, PERSIST_DEBOUNCE_MS);
+}
 
 const displayList = computed(() => {
   const f = typeFilter.value;
@@ -420,9 +427,12 @@ async function submitHandle() {
   }
 }
 
-watch(typeFilter, persistState);
+watch(typeFilter, debouncedPersistUiState);
 
-onMounted(() => load());
+onMounted(() => {
+  restoreUiState();
+  load();
+});
 </script>
 
 <style scoped>

@@ -303,10 +303,50 @@ const auth = useAuthStore();
 const canManage = computed(() => auth.role === 'super_admin');
 const currentOperator = computed(() => auth.user?.email ?? (auth as any).email ?? null);
 
+const STATE_KEY = 'hr.employees-cn.process.ui_state.v1';
+
 const activeTab = ref<'invitation' | 'visa' | 'flight' | 'labor'>('invitation');
 const employees = ref<CnEmployee[]>([]);
 const loading = ref(false);
 const filters = ref({ status: '' as string, keyword: '' });
+
+function restoreUiState() {
+  try {
+    const raw = localStorage.getItem(STATE_KEY);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    const fromQuery = route.query.tab as string;
+    if (!fromQuery && s?.activeTab && ['invitation', 'visa', 'flight', 'labor'].includes(s.activeTab)) {
+      activeTab.value = s.activeTab;
+    }
+    if (s?.filters && typeof s.filters === 'object') {
+      if (typeof s.filters.status === 'string') filters.value.status = s.filters.status;
+      if (typeof s.filters.keyword === 'string') filters.value.keyword = s.filters.keyword;
+    }
+  } catch { /* ignore */ }
+}
+
+function persistUiState() {
+  try {
+    localStorage.setItem(
+      STATE_KEY,
+      JSON.stringify({
+        activeTab: activeTab.value,
+        filters: filters.value,
+      })
+    );
+  } catch { /* ignore */ }
+}
+
+const PERSIST_DEBOUNCE_MS = 450;
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+function debouncedPersistUiState() {
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    persistUiState();
+  }, PERSIST_DEBOUNCE_MS);
+}
 const applyVisible = ref(false);
 const saving = ref(false);
 
@@ -408,7 +448,7 @@ function loadCurrentTab() {
 }
 
 function onTabChange() {
-  filters.value = { status: '', keyword: '' };
+  // 切换 tab 时可选清空筛选，此处保留持久化由用户自行切换
 }
 
 function openApply() {
@@ -552,7 +592,7 @@ async function submitHandle() {
   }
 }
 
-// 支持 URL ?tab=xxx 打开指定 Tab
+// 支持 URL ?tab=xxx 打开指定 Tab（仅在 URL 有值时覆盖，否则用持久化状态）
 watch(
   () => route.query.tab as string,
   (tab) => {
@@ -563,7 +603,12 @@ watch(
   { immediate: true }
 );
 
-onMounted(() => loadAll());
+watch([activeTab, filters], debouncedPersistUiState, { deep: true });
+
+onMounted(() => {
+  restoreUiState();
+  loadAll();
+});
 </script>
 
 <style scoped>
