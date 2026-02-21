@@ -60,16 +60,16 @@
             <el-table-column prop="amount_usd" label="合计$" width="100" align="right" sortable />
             <el-table-column prop="exchange_rate" label="汇率" width="100" align="right" sortable />
             <el-table-column prop="amount_uzs" label="苏姆合计" width="110" align="right" sortable />
-            <el-table-column prop="refund_uzs" label="退货苏姆" width="110" align="right" sortable />
-            <el-table-column prop="order_no" label="订单号" min-width="140" show-overflow-tooltip sortable />
+            <el-table-column prop="refund_uzs" label="退货苏姆" width="110" align="right" />
+            <el-table-column prop="order_no" label="订单号" min-width="140" show-overflow-tooltip />
             <el-table-column prop="vehicle_no" label="车号" width="100" show-overflow-tooltip :filters="salesLicensePlateFilter" :filtered-value="(salesColumnFilters.vehicle_no || [])" column-key="vehicle_no" />
-            <el-table-column prop="export_country" label="出口国" width="100" show-overflow-tooltip sortable :filters="salesCountryFilters" :filtered-value="(salesColumnFilters.export_country || [])" column-key="export_country" />
+            <el-table-column prop="export_country" label="出口国" width="100" show-overflow-tooltip :filters="salesCountryFilters" :filtered-value="(salesColumnFilters.export_country || [])" column-key="export_country" />
             <el-table-column prop="dealer_name" label="经销商" min-width="100" show-overflow-tooltip />
             <el-table-column prop="shipper_name" label="发货人" width="100" show-overflow-tooltip />
             <el-table-column prop="driver_tax_no" label="司机税号" min-width="130" show-overflow-tooltip />
             <el-table-column prop="logistics_tax_no" label="物流税号" min-width="130" show-overflow-tooltip />
             <el-table-column prop="vehicle_type" label="车型" width="110" show-overflow-tooltip />
-            <el-table-column prop="contract_no" label="合同编号" min-width="150" show-overflow-tooltip sortable />
+            <el-table-column prop="contract_no" label="合同编号" min-width="150" show-overflow-tooltip sortable :filters="salesContractNoFilters" :filtered-value="(salesColumnFilters.contract_no || [])" column-key="contract_no" />
             <el-table-column prop="note" label="备注" min-width="220" show-overflow-tooltip />
             <el-table-column v-if="canEdit" label="操作" width="120" fixed="right" align="center">
               <template #default="{ row }">
@@ -549,7 +549,7 @@ const salesCategoryFilters = computed(() => collectFilterOptions(salesRows.value
 const salesGradeFilters = computed(() => collectFilterOptions(salesRows.value, 'grade'));
 const salesCountryFilters = computed(() => collectFilterOptions(salesRows.value, 'export_country'));
 const salesLicensePlateFilter = computed(() => collectFilterOptions(salesRows.value, 'vehicle_no'));
-
+const salesContractNoFilters = computed(() => collectFilterOptions(salesRows.value, 'contract_no'));
 /* ==================== 收款数据 列筛选（从当前页数据动态收集，el-table 用） ==================== */
 const receiptDateFilters = computed(() => collectFilterOptions(receiptRows.value, 'receipt_date'));
 const receiptAccountFilters = computed(() => collectFilterOptions(receiptRows.value, 'account_name'));
@@ -635,8 +635,8 @@ function getEmptyReceiptForm() {
   };
 }
 
-/* ==================== Excel 粘贴解析（Tab 分隔列，换行分隔行，列顺序与导出一致） ==================== */
-const SALES_PASTE_KEYS = ['document_date', 'document_no', 'payment_method', 'customer_name', 'product_name', 'color_code', 'spec_model', 'category', 'grade', 'box_count', 'area_sqm', 'unit_price_usd', 'amount_usd', 'exchange_rate', 'amount_uzs', 'refund_uzs', 'order_no', 'vehicle_no', 'export_country', 'dealer_name', 'shipper_name', 'driver_tax_no', 'logistics_tax_no', 'vehicle_type', 'contract_no', 'note'];
+/* ==================== Excel 粘贴解析（Tab 分隔；发货人后顺序：订单号→备注→司机税号→物流税号→车型→合同编号） ==================== */
+const SALES_PASTE_KEYS = ['document_date', 'document_no', 'payment_method', 'customer_name', 'product_name', 'color_code', 'spec_model', 'category', 'grade', 'box_count', 'area_sqm', 'unit_price_usd', 'amount_usd', 'exchange_rate', 'amount_uzs', 'refund_uzs', 'vehicle_no', 'export_country', 'dealer_name', 'shipper_name', 'order_no', 'note', 'driver_tax_no', 'logistics_tax_no', 'vehicle_type', 'contract_no'];
 const RECEIPT_PASTE_KEYS = ['receipt_date', 'account_name', 'customer_name', 'amount_usd', 'amount_uzs', 'note'];
 const HEADER_HINTS = ['日期', '单据', '客户', '账户', '商品', '美金', '苏姆', '备注', 'document', 'receipt', 'customer', 'account'];
 
@@ -662,7 +662,8 @@ function normalizeDateForDb(v: string | null | undefined): string | null {
   return null;
 }
 
-/** 解析 TSV 行（支持引号内换行，Excel 复制含多行备注时会用引号包裹） */
+/** 解析 TSV 行：仅按 Tab 分列，保留空列（\t\t 产生空单元格）；支持引号内换行。
+ * 不做“多空格当分隔符”，避免“2账户 E2客户  CORONA”等单元格内空格被误拆。 */
 function parseTsvLine(line: string): string[] {
   const cells: string[] = [];
   let cell = '';
@@ -755,6 +756,7 @@ async function saveSalesBatch() {
     const payload = rows.map((r) => ({
       ...r,
       document_date: normalizeDateForDb(r.document_date) || dayjs().format('YYYY-MM-DD'),
+      source_type: 'paste',
     }));
     const norm = normalizeImportRows(payload, 'sales');
     const BATCH = 500;
@@ -784,6 +786,7 @@ async function saveReceiptBatch() {
     const payload = rows.map((r) => ({
       ...r,
       receipt_date: normalizeDateForDb(r.receipt_date) || dayjs().format('YYYY-MM-DD'),
+      source_type: 'paste',
     }));
     const norm = normalizeImportRows(payload, 'receipt');
     const BATCH = 500;
@@ -1409,11 +1412,12 @@ async function submitImport() {
     }
     payload = normalizeImportRows(payload, importMode.value);
     importProgress.value.total = payload.length;
+    const payloadWithSource = payload.map((r) => ({ ...r, source_type: 'excel' }));
 
     const BATCH = 500;
     let written = 0;
-    for (let i = 0; i < payload.length; i += BATCH) {
-      const chunk = payload.slice(i, i + BATCH);
+    for (let i = 0; i < payloadWithSource.length; i += BATCH) {
+      const chunk = payloadWithSource.slice(i, i + BATCH);
       const res = importMode.value === 'sales'
         ? await importSalesRowsLegacy(chunk)
         : await importReceiptRowsLegacy(chunk);
