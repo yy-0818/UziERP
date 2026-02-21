@@ -12,8 +12,17 @@
           </div>
         </div>
       </template>
+      <div class="hr-toolbar">
+        <el-select v-model="typeFilter" placeholder="任务类型" clearable style="width: 140px">
+          <el-option label="全部" value="" />
+          <el-option label="邀请函办理" value="invitation" />
+          <el-option label="签证办理" value="visa" />
+          <el-option label="机票办理" value="flight" />
+          <el-option label="劳动许可办理" value="labor_permit" />
+        </el-select>
+      </div>
       <div class="hr-table-wrap">
-      <el-table v-loading="loading" :data="list" stripe border row-key="applicationId">
+      <el-table v-loading="loading" :data="displayList" stripe border row-key="applicationId">
         <el-table-column prop="type" label="任务类型" width="120">
           <template #default="{ row }">{{ todoTypeLabel(row.type) }}</template>
         </el-table-column>
@@ -29,7 +38,7 @@
         </el-table-column>
       </el-table>
       </div>
-      <div v-if="!loading && !list.length" class="hr-empty"><el-empty description="暂无待办任务" /></div>
+      <div v-if="!loading && !displayList.length" class="hr-empty"><el-empty description="暂无待办任务" /></div>
     </el-card>
 
     <!-- 当前页办理弹窗（不跳转详情） -->
@@ -191,8 +200,37 @@ const auth = useAuthStore();
 const canManage = computed(() => auth.role === 'super_admin');
 const currentOperator = computed(() => auth.user?.email ?? auth.email ?? null);
 
+const PERSIST_KEY = 'employees-cn-todos-state';
+
+function restoreTypeFilter(): string {
+  try {
+    const raw = localStorage.getItem(PERSIST_KEY);
+    if (!raw) return '';
+    const data = JSON.parse(raw);
+    const v = data?.typeFilter;
+    return typeof v === 'string' && ['', 'invitation', 'visa', 'flight', 'labor_permit'].includes(v) ? v : '';
+  } catch {
+    return '';
+  }
+}
+
+function persistState() {
+  try {
+    localStorage.setItem(PERSIST_KEY, JSON.stringify({ typeFilter: typeFilter.value }));
+  } catch {
+    /* ignore */
+  }
+}
+
 const list = ref<TodoItem[]>([]);
+const typeFilter = ref(restoreTypeFilter());
 const loading = ref(false);
+
+const displayList = computed(() => {
+  const f = typeFilter.value;
+  if (!f) return list.value;
+  return list.value.filter((row) => row.type === f);
+});
 const currentTask = ref<TodoItem | null>(null);
 const handleDialogVisible = ref(false);
 const handleSaving = ref(false);
@@ -381,6 +419,8 @@ async function submitHandle() {
     handleSaving.value = false;
   }
 }
+
+watch(typeFilter, persistState);
 
 onMounted(() => load());
 </script>

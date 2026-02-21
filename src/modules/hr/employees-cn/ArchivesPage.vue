@@ -398,10 +398,22 @@
       </template>
     </el-dialog>
 
-    <!-- 离职确认 -->
-    <el-dialog v-model="resignVisible" title="办理离职" width="400px" append-to-body>
+    <!-- 离职确认（必须填写备注理由） -->
+    <el-dialog v-model="resignVisible" title="办理离职" width="440px" append-to-body>
       <p>确认为 <strong>{{ resignEmployee?.name }}</strong>（{{ resignEmployee?.employee_no }}）办理离职？</p>
       <p class="dialog-operator">操作人：{{ currentOperator ?? '—' }}</p>
+      <el-form ref="resignFormRef" :model="resignForm" :rules="resignRules" label-width="0">
+        <el-form-item prop="resign_remark">
+          <el-input
+            v-model="resignForm.resign_remark"
+            type="textarea"
+            :rows="3"
+            placeholder="请填写离职备注理由（必填）"
+            maxlength="500"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
       <template #footer>
         <el-button @click="resignVisible = false">取消</el-button>
         <el-button type="danger" :loading="saving" @click="confirmResign">确认离职</el-button>
@@ -565,10 +577,43 @@ const canManage = computed(() => auth.role === 'super_admin');
 /** 当前操作人（调岗/调薪/离职/请假/奖励违纪 必写，便于审计） */
 const currentOperator = computed(() => auth.user?.email ?? auth.email ?? null);
 
+const PERSIST_KEY = 'employees-cn-archives-state';
+
 const list = ref<CnEmployeeWithStatus[]>([]);
 const leaveRecords = ref<Awaited<ReturnType<typeof fetchLeaveRecords>>>([]);
 const loading = ref(false);
-const filters = ref({ keyword: '', statusFilter: '' as '' | 'active' | 'resigned' | 'pending' | 'onLeave' });
+const filters = ref(restoreFilters());
+function restoreFilters(): { keyword: string; statusFilter: '' | 'active' | 'resigned' | 'pending' | 'onLeave' } {
+  try {
+    const raw = localStorage.getItem(PERSIST_KEY);
+    if (!raw) return { keyword: '', statusFilter: '' };
+    const data = JSON.parse(raw);
+    const statusFilter = data?.statusFilter;
+    const validStatus = ['', 'active', 'resigned', 'pending', 'onLeave'].includes(statusFilter)
+      ? statusFilter
+      : '';
+    return {
+      keyword: typeof data?.keyword === 'string' ? data.keyword : '',
+      statusFilter: validStatus,
+    };
+  } catch {
+    return { keyword: '', statusFilter: '' };
+  }
+}
+function persistState() {
+  try {
+    localStorage.setItem(
+      PERSIST_KEY,
+      JSON.stringify({
+        keyword: filters.value.keyword,
+        statusFilter: filters.value.statusFilter,
+        detailTab: detailTab.value,
+      })
+    );
+  } catch {
+    /* ignore */
+  }
+}
 const photoUrlMap = ref<Record<string, string>>({});
 const tableFilters = ref<Record<string, string[]>>({});
 const tableSort = ref<{ prop: string; order: 'ascending' | 'descending' | null }>({ prop: '', order: null });
@@ -708,10 +753,21 @@ async function loadListPhotoUrls() {
 
 function applyFilters() {}
 
-// 详情
+// 详情（详情 tab 参与持久化，再次打开详情时恢复上次选中的 tab）
 const detailVisible = ref(false);
 const detailEmployeeId = ref<string | null>(null);
-const detailTab = ref('invitation');
+const detailTab = ref(restoreDetailTab());
+function restoreDetailTab(): string {
+  try {
+    const raw = localStorage.getItem(PERSIST_KEY);
+    if (!raw) return 'invitation';
+    const data = JSON.parse(raw);
+    const tab = data?.detailTab;
+    return typeof tab === 'string' && tab ? tab : 'invitation';
+  } catch {
+    return 'invitation';
+  }
+}
 const detailPhotoUrl = ref('');
 const timelineItems = ref<EmployeeTimelineItem[]>([]);
 const detailEmployee = computed(() => {
@@ -773,7 +829,6 @@ async function loadDetailPhoto() {
 function openDetail(row: CnEmployeeWithStatus) {
   detailEmployeeId.value = row.id;
   detailVisible.value = true;
-  detailTab.value = 'invitation';
   loadDetailPhoto();
 }
 
@@ -917,20 +972,31 @@ async function submitForm() {
   }
 }
 
-// 离职
+// 离职（必填备注理由）
 const resignVisible = ref(false);
 const resignEmployee = ref<CnEmployeeWithStatus | null>(null);
+const resignFormRef = ref<FormInstance>();
+const resignForm = ref({ resign_remark: '' });
+const resignRules: FormRules = {
+  resign_remark: [{ required: true, message: '请填写离职备注理由', trigger: 'blur' }],
+};
 
 function openResign(row: CnEmployeeWithStatus) {
   resignEmployee.value = row;
+  resignForm.value = { resign_remark: '' };
   resignVisible.value = true;
 }
 
 async function confirmResign() {
-  if (!resignEmployee.value) return;
+  await resignFormRef.value?.validate().catch(() => {});
+  if (!resignEmployee.value || !resignForm.value.resign_remark?.trim()) return;
   saving.value = true;
   try {
-    await setEmployeeResigned(resignEmployee.value.id, currentOperator.value);
+    await setEmployeeResigned(
+      resignEmployee.value.id,
+      currentOperator.value,
+      resignForm.value.resign_remark.trim()
+    );
     ElMessage.success('已办理离职');
     resignVisible.value = false;
     resignEmployee.value = null;
@@ -1135,6 +1201,8 @@ watch(
   },
   { immediate: true }
 );
+
+watch([() => filters.value.keyword, () => filters.value.statusFilter, detailTab], persistState, { deep: true });
 
 onMounted(async () => {
   await fetchData();

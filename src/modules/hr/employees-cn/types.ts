@@ -17,6 +17,8 @@ export interface CnEmployee {
   hire_date: string | null;
   resigned_at: string | null;
   resigned_by: string | null;
+  /** 离职备注理由（办理离职时必填）。若表 cn_employees 无此字段请执行：ALTER TABLE cn_employees ADD COLUMN resign_remark text; */
+  resign_remark: string | null;
   bank_account: string | null;
   bank_name: string | null;
   salary_standard: number | null;

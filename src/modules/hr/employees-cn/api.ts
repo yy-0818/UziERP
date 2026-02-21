@@ -104,11 +104,16 @@ export async function updateEmployee(id: string, params: Partial<CnEmployee>): P
   return data as CnEmployee;
 }
 
-/** 离职：设置 resigned_at，可选记录操作人 resigned_by */
-export async function setEmployeeResigned(id: string, operator?: string | null): Promise<CnEmployee> {
+/** 离职：设置 resigned_at，可选记录操作人 resigned_by，必填备注 resign_remark */
+export async function setEmployeeResigned(
+  id: string,
+  operator?: string | null,
+  resignRemark?: string | null
+): Promise<CnEmployee> {
   return updateEmployee(id, {
     resigned_at: getLocalIsoString(),
     ...(operator != null && { resigned_by: operator }),
+    ...(resignRemark != null && { resign_remark: resignRemark }),
   });
 }
 
@@ -551,13 +556,13 @@ export async function fetchLeaveRecords(employeeId?: string): Promise<LeaveRecor
   return (data || []) as LeaveRecord[];
 }
 
-/** 判断员工今天是否在休假 */
+/** 判断员工当前是否在休假（以本机时间为准，结束时间已过则自动结束休假状态） */
 export function isOnLeaveToday(records: LeaveRecord[]): boolean {
-  const today = new Date().toISOString().slice(0, 10);
+  const now = Date.now();
   return records.some((r) => {
-    const start = r.start_at?.slice(0, 10) ?? '';
-    const end = r.end_at?.slice(0, 10) ?? '';
-    return start <= today && today <= end;
+    const start = r.start_at ? new Date(r.start_at).getTime() : 0;
+    const end = r.end_at ? new Date(r.end_at).getTime() : Infinity;
+    return start <= now && now <= end;
   });
 }
 
