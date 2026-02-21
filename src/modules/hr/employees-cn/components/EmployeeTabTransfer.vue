@@ -1,12 +1,11 @@
 <template>
   <div class="tab-wrap">
-    <el-button size="small" @click="load">刷新</el-button>
     <div class="section-title">调岗记录</div>
     <el-table :data="transferList" size="small" stripe border style="margin-top: 8px">
-      <el-table-column prop="from_department" label="原部门" width="100" />
-      <el-table-column prop="from_position" label="原岗位" width="100" />
-      <el-table-column prop="to_department" label="新部门" width="100" />
-      <el-table-column prop="to_position" label="新岗位" width="100" />
+      <el-table-column prop="from_department" label="原部门" min-width="100" />
+      <el-table-column prop="from_position" label="原岗位" min-width="100" />
+      <el-table-column prop="to_department" label="新部门" min-width="100" />
+      <el-table-column prop="to_position" label="新岗位" min-width="100" />
       <el-table-column prop="transfer_date" label="调岗日期" width="110">
         <template #default="{ row }">{{ formatDate(row.transfer_date) }}</template>
       </el-table-column>
@@ -18,8 +17,8 @@
       <el-table-column prop="change_date" label="调整日期" width="110">
         <template #default="{ row }">{{ formatDate(row.change_date) }}</template>
       </el-table-column>
-      <el-table-column prop="salary_before" label="原工资" width="100" align="right" />
-      <el-table-column prop="salary_after" label="现工资" width="100" align="right" />
+      <el-table-column prop="salary_before" label="原工资" min-width="100" align="right" />
+      <el-table-column prop="salary_after" label="现工资" min-width="100" align="right" />
       <el-table-column prop="operator" label="经办人" width="120" />
     </el-table>
     <el-empty v-if="!loading && !salaryList.length" description="暂无调薪记录" />

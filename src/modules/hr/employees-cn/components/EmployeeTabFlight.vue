@@ -1,12 +1,11 @@
 <template>
   <div class="tab-wrap">
-    <div class="tab-actions">
-      <el-button v-if="canManage" type="primary" size="small" @click="openApply">申请机票</el-button>
-      <el-button size="small" @click="load">刷新</el-button>
+    <div v-if="canManage" class="tab-actions">
+      <el-button type="primary" size="small" @click="openApply">申请机票</el-button>
     </div>
-    <el-table :data="list" size="small" stripe border>
-      <el-table-column prop="depart_city" label="出发城市" width="100" />
-      <el-table-column prop="arrive_city" label="到达城市" width="100" />
+    <el-table :data="list" size="small" stripe border style="margin-top: 12px">
+      <el-table-column prop="depart_city" label="出发城市" min-width="100" />
+      <el-table-column prop="arrive_city" label="到达城市" min-width="100" />
       <el-table-column prop="expected_departure_at" label="预计出发" width="110">
         <template #default="{ row }">{{ formatDate(row.expected_departure_at) }}</template>
       </el-table-column>
@@ -219,5 +218,5 @@ async function submitHandle() {
 
 <style scoped>
 .tab-wrap { padding: 0; }
-.tab-actions { margin-bottom: 12px; display: flex; gap: 8px; }
+.tab-actions { margin-bottom: 0; display: flex; gap: 8px; }
 </style>

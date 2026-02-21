@@ -1,10 +1,9 @@
 <template>
   <div class="tab-wrap">
-    <div class="tab-actions">
-      <el-button v-if="canManage" type="primary" size="small" @click="openApply">申请劳动许可</el-button>
-      <el-button size="small" @click="load">刷新</el-button>
+    <div v-if="canManage" class="tab-actions">
+      <el-button type="primary" size="small" @click="openApply">申请劳动许可</el-button>
     </div>
-    <el-table :data="list" size="small" stripe border>
+    <el-table :data="list" size="small" stripe border style="margin-top: 12px">
       <el-table-column prop="application_date" label="申请日期" width="110">
         <template #default="{ row }">{{ formatDate(row.application_date) }}</template>
       </el-table-column>
@@ -178,5 +177,5 @@ async function submitHandle() {
 
 <style scoped>
 .tab-wrap { padding: 0; }
-.tab-actions { margin-bottom: 12px; display: flex; gap: 8px; }
+.tab-actions { margin-bottom: 0; display: flex; gap: 8px; }
 </style>

@@ -1,6 +1,5 @@
 <template>
   <div class="tab-wrap">
-    <el-button size="small" @click="load">刷新</el-button>
     <el-table :data="list" size="small" stripe border style="margin-top: 12px">
       <el-table-column prop="reason" label="事由" min-width="120" show-overflow-tooltip />
       <el-table-column prop="start_at" label="开始" width="150">

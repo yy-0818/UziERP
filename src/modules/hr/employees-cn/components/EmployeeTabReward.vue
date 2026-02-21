@@ -1,6 +1,5 @@
 <template>
   <div class="tab-wrap">
-    <el-button size="small" @click="load">刷新</el-button>
     <el-table :data="list" size="small" stripe border style="margin-top: 12px">
       <el-table-column prop="record_type" label="类型" width="90">
         <template #default="{ row }">{{ row.record_type === 'reward' ? '奖励' : '违纪' }}</template>

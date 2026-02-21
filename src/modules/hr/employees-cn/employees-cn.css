@@ -123,21 +123,42 @@ html.dark .hr-stat-card:hover {
   padding: 12px 0;
 }
 
+/* 详情抽屉：淡入淡出动画 */
+.hr-detail-drawer--animated :deep(.el-drawer__wrapper) {
+  transition: opacity 0.25s ease;
+}
+.hr-detail-drawer--animated :deep(.el-overlay) {
+  transition: opacity 0.25s ease;
+}
+.hr-detail-drawer-body--fade {
+  animation: hr-detail-fade-in 0.3s ease;
+}
+@keyframes hr-detail-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* 详情头：员工信息卡片 */
 .hr-detail-header {
   display: flex;
-  gap: 20px;
-  padding: 20px;
-  background: linear-gradient(135deg, var(--erp-primary-light) 0%, transparent 60%);
+  gap: 24px;
+  padding: 24px;
+  background: linear-gradient(135deg, var(--erp-primary-light) 0%, transparent 65%);
   border-radius: var(--card-radius);
   border: 1px solid var(--border-color);
   margin-bottom: 20px;
 }
 
 .hr-detail-header__photo {
-  width: 96px;
-  height: 116px;
-  border-radius: 8px;
+  width: 100px;
+  height: 120px;
+  border-radius: 10px;
   overflow: hidden;
   flex-shrink: 0;
   background: var(--border-color);
@@ -146,6 +167,7 @@ html.dark .hr-stat-card:hover {
   justify-content: center;
   font-size: 12px;
   color: var(--text-placeholder);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .hr-detail-header__photo img {
@@ -157,19 +179,46 @@ html.dark .hr-stat-card:hover {
 .hr-detail-header__info {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .hr-detail-header__name {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 8px;
+  letter-spacing: 0.02em;
+  margin-bottom: 2px;
 }
 
-.hr-detail-header__meta {
+.hr-detail-header__meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
   font-size: 13px;
+  line-height: 1.5;
+}
+
+.hr-detail-header__meta-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.hr-detail-header__meta-label {
+  color: var(--text-placeholder);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.hr-detail-header__meta-value {
   color: var(--text-secondary);
-  line-height: 1.6;
+}
+
+.hr-detail-header__onboard-btn {
+  margin-left: 4px;
 }
 
 /* Tab 与主卡片结合 */
@@ -265,7 +314,7 @@ html.dark .hr-stat-card:hover {
   overflow: auto;
 }
 
-/* 详情内各子 tab 内容区：占满 tab 高度，内部滚动，不撑开抽屉 */
+/* 详情内各子 tab 内容区：占满高度，表格与容器宽度一致、对齐 */
 .hr-detail-drawer-body .tab-wrap,
 .hr-detail-drawer-body .hr-timeline-wrap {
   height: 100%;
@@ -274,16 +323,37 @@ html.dark .hr-stat-card:hover {
   max-width: 100%;
   overflow-y: auto;
   overflow-x: auto;
+  box-sizing: border-box;
 }
-.hr-detail-drawer-body .tab-wrap .el-table,
-.hr-detail-drawer-body .tab-wrap .hr-table-wrap {
+.hr-detail-drawer-body .tab-wrap .tab-actions {
+  margin-bottom: 12px;
+}
+.hr-detail-drawer-body .tab-wrap .el-table {
   width: 100% !important;
   max-width: 100%;
-  min-width: 0;
+  box-sizing: border-box;
 }
 .hr-detail-drawer-body .tab-wrap .hr-table-wrap {
+  width: 100%;
+  max-width: 100%;
   overflow-x: auto;
+  box-sizing: border-box;
 }
-.hr-detail-drawer-body .tab-wrap .hr-table-wrap :deep(.el-table) {
+.hr-detail-drawer-body .tab-wrap .hr-table-wrap .el-table {
+  width: 100% !important;
   min-width: 100%;
+  box-sizing: border-box;
+}
+.hr-detail-drawer-body .detail-tabs :deep(.el-tabs__content) {
+  padding: 12px 0 0;
+}
+.hr-detail-drawer-body .detail-tabs :deep(.el-tab-pane) {
+  padding: 0;
+  height: 100%;
+  display: block;
+}
+.hr-detail-drawer-body .tab-wrap .section-title {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }

@@ -25,6 +25,8 @@
         <el-select v-model="filters.statusFilter" placeholder="状态" clearable style="width: 120px">
           <el-option label="在职" value="active" />
           <el-option label="离职" value="resigned" />
+          <el-option label="暂未入职" value="pending" />
+          <el-option label="休假" value="onLeave" />
         </el-select>
         <el-button type="primary" @click="applyFilters">查询</el-button>
       </div>
@@ -50,10 +52,10 @@
               fit="cover"
               class="table-photo"
             />
-            <span v-else class="table-photo-placeholder">—</span>
+            <el-image v-else :src="noPhotoUrl" fit="cover" class="table-photo" />
           </template>
         </el-table-column>
-        <el-table-column prop="employee_no" label="工号" width="120" sortable="custom" />
+        <el-table-column prop="employee_no" label="工号" width="120" sortable="custom" :filters="employeeNoFilters" :filter-method="filterMethod('employee_no')" column-key="employee_no" />
         <el-table-column prop="name" label="姓名" min-width="100" />
         <el-table-column
           prop="department"
@@ -95,12 +97,18 @@
             <el-tag v-else type="success" size="small">在职</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="160" fixed="right" align="center">
+        <el-table-column label="操作" width="140" fixed="right" align="center">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="openDetail(row)">查看</el-button>
-            <el-button v-if="canManage" link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
+            <el-button link type="primary" size="small" class="hr-table-op-btn" @click="openDetail(row)">
+              <el-icon><View /></el-icon>
+            </el-button>
+            <el-button v-if="canManage" link type="primary" size="small" class="hr-table-op-btn" @click="openEdit(row)">
+              <el-icon><Edit /></el-icon>
+            </el-button>
             <el-dropdown v-if="canManage && !row.resigned_at" trigger="click" @command="(cmd: string) => onMoreCommand(cmd, row)">
-              <el-button link size="small">更多<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
+              <span class="hr-table-op-btn hr-table-op-trigger">
+                <el-icon><Finished /></el-icon>
+              </span>
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item command="transfer">调岗</el-dropdown-item>
@@ -121,34 +129,65 @@
       </div>
     </el-card>
 
-    <!-- 详情抽屉：宽度与高度均不超出视口（由 CSS 限制） -->
+    <!-- 详情抽屉：带淡入淡出 -->
     <el-drawer
       v-model="detailVisible"
       title="员工详情"
       size="880"
       destroy-on-close
       append-to-body
-      class="hr-detail-drawer"
+      class="hr-detail-drawer hr-detail-drawer--animated"
+      :show-close="true"
       @close="detailEmployeeId = null"
     >
       <template v-if="detailEmployee">
-        <div class="hr-detail-drawer-body">
+        <div class="hr-detail-drawer-body hr-detail-drawer-body--fade">
         <div class="hr-detail-header">
           <div class="hr-detail-header__photo">
             <el-image v-if="detailPhotoUrl" :src="detailPhotoUrl" fit="cover" style="width: 100%; height: 100%" />
-            <span v-else>暂无照片</span>
+            <el-image v-else :src="noPhotoUrl" fit="cover" style="width: 100%; height: 100%" />
           </div>
           <div class="hr-detail-header__info">
             <div class="hr-detail-header__name">{{ detailEmployee.name }}</div>
-            <div class="hr-detail-header__meta">工号 {{ detailEmployee.employee_no }} · {{ detailEmployee.department || '—' }} · {{ detailEmployee.position || '—' }}</div>
-            <div class="hr-detail-header__meta">
-              入职 {{ detailEmployee.hire_date ? formatDateOnly(detailEmployee.hire_date) : '暂未入职' }}
-              <template v-if="detailEmployee.resigned_at"> · 离职 {{ formatDateOnly(detailEmployee.resigned_at) }}</template>
+            <div class="hr-detail-header__meta-row">
+              <span class="hr-detail-header__meta-item">
+                <span class="hr-detail-header__meta-label">工号</span>
+                <span class="hr-detail-header__meta-value">{{ detailEmployee.employee_no }}</span>
+              </span>
+              <span class="hr-detail-header__meta-item">
+                <span class="hr-detail-header__meta-label">部门</span>
+                <span class="hr-detail-header__meta-value">{{ detailEmployee.department || '—' }}</span>
+              </span>
+              <span class="hr-detail-header__meta-item">
+                <span class="hr-detail-header__meta-label">岗位</span>
+                <span class="hr-detail-header__meta-value">{{ detailEmployee.position || '—' }}</span>
+              </span>
+            </div>
+            <div class="hr-detail-header__meta-row">
+              <span class="hr-detail-header__meta-item">
+                <span class="hr-detail-header__meta-label">入职</span>
+                <span class="hr-detail-header__meta-value">{{ detailEmployee.hire_date ? formatDateOnly(detailEmployee.hire_date) : '暂未入职' }}</span>
+              </span>
+              <template v-if="detailEmployee.resigned_at">
+                <span class="hr-detail-header__meta-item">
+                  <span class="hr-detail-header__meta-label">离职</span>
+                  <span class="hr-detail-header__meta-value">{{ formatDateOnly(detailEmployee.resigned_at) }}</span>
+                </span>
+              </template>
               <template v-else-if="!detailEmployee.hire_date && canManage">
-                <el-button type="primary" link size="small" class="ml-2" @click="confirmOnboard">确认正式入职</el-button>
+                <el-button type="primary" link size="small" class="hr-detail-header__onboard-btn" @click="confirmOnboard">确认正式入职</el-button>
               </template>
             </div>
-            <div class="hr-detail-header__meta">护照号 {{ detailEmployee.passport_no || '—' }} · 出生 {{ formatDateOnly(detailEmployee.birth_date) }}</div>
+            <div class="hr-detail-header__meta-row">
+              <span class="hr-detail-header__meta-item">
+                <span class="hr-detail-header__meta-label">护照号</span>
+                <span class="hr-detail-header__meta-value">{{ detailEmployee.passport_no || '—' }}</span>
+              </span>
+              <span class="hr-detail-header__meta-item">
+                <span class="hr-detail-header__meta-label">出生</span>
+                <span class="hr-detail-header__meta-value">{{ formatDateOnly(detailEmployee.birth_date) || '—' }}</span>
+              </span>
+            </div>
           </div>
         </div>
         <el-tabs v-model="detailTab" class="detail-tabs">
@@ -201,104 +240,157 @@
       </template>
     </el-drawer>
 
-    <!-- 入职/编辑 弹窗 -->
+    <!-- 入职/编辑 弹窗：分组布局 + 头像上传美化 -->
     <el-dialog
       v-model="formVisible"
-      :title="formMode === 'onboard' ? '入职登记（暂未入职，流程办理后可确认正式入职）' : '编辑档案'"
+      :title="formMode === 'onboard' ? '入职登记' : '编辑档案'"
       width="640px"
       destroy-on-close
       append-to-body
+      class="hr-form-dialog"
     >
-      <el-form ref="formRef" :model="form" :rules="formRules" label-width="100px">
-        <el-form-item label="操作人">
-          <el-input :model-value="currentOperator ?? '—'" disabled placeholder="当前登录用户" />
-        </el-form-item>
-        <el-form-item label="头像">
-          <div class="form-photo-row">
-            <el-upload
-              class="form-photo-upload"
-              :show-file-list="false"
-              accept="image/*"
-              :http-request="handlePhotoUpload"
-            >
-              <el-image v-if="formPhotoPreview" class="form-photo-preview" :src="formPhotoPreview" fit="cover" />
-              <el-button v-else type="primary" plain>上传照片</el-button>
-            </el-upload>
-            <el-button v-if="form.photo_url" type="danger" link size="small" @click="clearFormPhoto">清除</el-button>
-          </div>
-        </el-form-item>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="工号" prop="employee_no">
-              <el-input v-model="form.employee_no" placeholder="必填" :disabled="formMode === 'edit'" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="姓名" prop="name">
-              <el-input v-model="form.name" placeholder="必填" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="护照号">
-              <el-input v-model="form.passport_no" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="出生日期">
-              <el-date-picker v-model="form.birth_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="部门">
-              <el-input v-model="form.department" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="岗位">
-              <el-input v-model="form.position" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-form-item label="入职时间" v-if="formMode === 'edit'">
-          <el-date-picker v-model="form.hire_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" placeholder="暂未入职时为空" />
-        </el-form-item>
-        <el-form-item label="性别">
-          <el-select v-model="form.gender" placeholder="请选择" clearable style="width: 100%">
-            <el-option label="男" value="男" />
-            <el-option label="女" value="女" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="身份证号">
-          <el-input v-model="form.id_card_no" />
-        </el-form-item>
-        <el-form-item label="家庭地址">
-          <el-input v-model="form.home_address" type="textarea" :rows="2" />
-        </el-form-item>
-        <el-form-item label="婚姻状况">
-          <el-input v-model="form.marital_status" />
-        </el-form-item>
-        <el-form-item label="联系方式">
-          <el-input v-model="form.contact_phone" />
-        </el-form-item>
-        <el-form-item label="紧急联系人">
-          <el-input v-model="form.emergency_contact" />
-        </el-form-item>
-        <el-form-item label="紧急联系方式">
-          <el-input v-model="form.emergency_phone" />
-        </el-form-item>
-        <el-form-item label="银行卡号">
-          <el-input v-model="form.bank_account" />
-        </el-form-item>
-        <el-form-item label="开户行">
-          <el-input v-model="form.bank_name" />
-        </el-form-item>
-        <el-form-item label="工资标准">
-          <el-input-number v-model="form.salary_standard" :min="0" :precision="2" style="width: 100%" />
-        </el-form-item>
+      <el-form ref="formRef" :model="form" :rules="formRules" label-width="92px" label-position="right">
+        <div class="hr-form-section hr-form-section--avatar">
+          <el-form-item label="头像">
+            <div class="form-avatar-wrap">
+              <el-upload
+                class="form-avatar-upload"
+                :show-file-list="false"
+                accept="image/*"
+                :http-request="handlePhotoUpload"
+              >
+                <div class="form-avatar-box">
+                  <el-image v-if="formPhotoPreview" class="form-avatar-img" :src="formPhotoPreview" fit="cover" />
+                  <div v-else class="form-avatar-placeholder">
+                    <el-icon :size="32"><Avatar /></el-icon>
+                    <span>上传照片</span>
+                  </div>
+                  <div class="form-avatar-mask">
+                    <span>{{ form.photo_url ? '更换' : '上传' }}</span>
+                  </div>
+                </div>
+              </el-upload>
+              <el-button v-if="form.photo_url" type="danger" link size="small" class="form-avatar-clear" @click="clearFormPhoto">清除</el-button>
+            </div>
+          </el-form-item>
+        </div>
+        <div class="hr-form-section">
+          <div class="hr-form-section__title">基本信息</div>
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="工号" prop="employee_no">
+                <el-input v-model="form.employee_no" placeholder="必填" :disabled="formMode === 'edit'" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="姓名" prop="name">
+                <el-input v-model="form.name" placeholder="必填" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="护照号">
+                <el-input v-model="form.passport_no" placeholder="选填" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="出生日期">
+                <el-date-picker v-model="form.birth_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" placeholder="选填" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="性别">
+                <el-select v-model="form.gender" placeholder="请选择" clearable style="width: 100%">
+                  <el-option label="男" value="男" />
+                  <el-option label="女" value="女" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="身份证号">
+                <el-input v-model="form.id_card_no" placeholder="选填" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </div>
+        <div class="hr-form-section">
+          <div class="hr-form-section__title">部门与入职</div>
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="部门">
+                <el-input v-model="form.department" placeholder="选填" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="岗位">
+                <el-input v-model="form.position" placeholder="选填" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-form-item v-if="formMode === 'edit'" label="入职时间">
+            <el-date-picker v-model="form.hire_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" placeholder="暂未入职时为空" />
+          </el-form-item>
+        </div>
+        <div class="hr-form-section">
+          <div class="hr-form-section__title">联系与紧急</div>
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="联系方式">
+                <el-input v-model="form.contact_phone" placeholder="选填" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="婚姻状况">
+                <el-input v-model="form.marital_status" placeholder="选填" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-form-item label="家庭地址">
+            <el-input v-model="form.home_address" type="textarea" :rows="2" placeholder="选填" />
+          </el-form-item>
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="紧急联系人">
+                <el-input v-model="form.emergency_contact" placeholder="选填" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="紧急联系方式">
+                <el-input v-model="form.emergency_phone" placeholder="选填" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </div>
+        <div class="hr-form-section">
+          <div class="hr-form-section__title">银行与薪酬</div>
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="银行卡号">
+                <el-input v-model="form.bank_account" placeholder="选填" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="开户行">
+                <el-input v-model="form.bank_name" placeholder="选填" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="工资标准">
+                <el-input-number v-model="form.salary_standard" :min="0" :precision="2" style="width: 100%" placeholder="选填" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="操作人">
+                <el-input :model-value="currentOperator ?? '—'" disabled />
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </div>
       </el-form>
       <template #footer>
         <el-button @click="formVisible = false">取消</el-button>
@@ -434,7 +526,7 @@
 import { ref, computed, watch, onMounted, nextTick, defineAsyncComponent } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
-import { Refresh, ArrowDown } from '@element-plus/icons-vue';
+import { Refresh, View, Edit, Finished, Avatar } from '@element-plus/icons-vue';
 import { useAuthStore } from '../../../stores/auth';
 import {
   fetchEmployees,
@@ -456,6 +548,8 @@ import { formatDateOnly } from './types';
 import { isOnLeaveToday } from './api';
 import type { CnEmployee, CnEmployeeWithStatus, EmployeeTimelineItem } from './types';
 
+const noPhotoUrl = 'https://cube.elemecdn.com/9/c2/f0ee8a3c7c9638a54940382568c9dpng.png';
+
 const EmployeeTabInvitation = defineAsyncComponent(() => import('./components/EmployeeTabInvitation.vue'));
 const EmployeeTabVisa = defineAsyncComponent(() => import('./components/EmployeeTabVisa.vue'));
 const EmployeeTabFlight = defineAsyncComponent(() => import('./components/EmployeeTabFlight.vue'));
@@ -474,7 +568,7 @@ const currentOperator = computed(() => auth.user?.email ?? auth.email ?? null);
 const list = ref<CnEmployeeWithStatus[]>([]);
 const leaveRecords = ref<Awaited<ReturnType<typeof fetchLeaveRecords>>>([]);
 const loading = ref(false);
-const filters = ref({ keyword: '', statusFilter: '' as '' | 'active' | 'resigned' });
+const filters = ref({ keyword: '', statusFilter: '' as '' | 'active' | 'resigned' | 'pending' | 'onLeave' });
 const photoUrlMap = ref<Record<string, string>>({});
 const tableFilters = ref<Record<string, string[]>>({});
 const tableSort = ref<{ prop: string; order: 'ascending' | 'descending' | null }>({ prop: '', order: null });
@@ -492,23 +586,30 @@ const filteredList = computed(() => {
   }
   if (filters.value.statusFilter === 'active') rows = rows.filter((e) => !e.resigned_at);
   if (filters.value.statusFilter === 'resigned') rows = rows.filter((e) => !!e.resigned_at);
+  if (filters.value.statusFilter === 'pending') rows = rows.filter((e) => !e.hire_date && !e.resigned_at);
+  if (filters.value.statusFilter === 'onLeave') rows = rows.filter((e) => !!e.hire_date && !e.resigned_at && !!e.isOnLeave);
   return rows;
 });
 
-const departmentFilters = computed(() => {
-  const set = new Set<string>();
-  filteredList.value.forEach((e) => {
-    if (e.department?.trim()) set.add(e.department.trim());
-  });
-  return [...set].sort().map((t) => ({ text: t, value: t }));
-});
-const positionFilters = computed(() => {
-  const set = new Set<string>();
-  filteredList.value.forEach((e) => {
-    if (e.position?.trim()) set.add(e.position.trim());
-  });
-  return [...set].sort().map((t) => ({ text: t, value: t }));
-});
+function createFilter(field: keyof CnEmployeeWithStatus) {
+  return computed(() =>
+    Array.from(
+      new Set(
+        filteredList.value
+          .map(e => {
+            const val = e[field];
+            return typeof val === 'string' ? val.trim() : typeof val === 'number' ? String(val) : '';
+          })
+          .filter(v => v)
+      )
+    )
+      .sort()
+      .map(text => ({ text, value: text }))
+  );
+}
+const departmentFilters = createFilter('department');
+const positionFilters = createFilter('position');
+const employeeNoFilters = createFilter('employee_no');
 
 function filterMethod(columnKey: string) {
   return (value: string, row: CnEmployeeWithStatus) => {
@@ -523,12 +624,15 @@ function filterMethod(columnKey: string) {
     return true;
   };
 }
+
 function onFilterChange(filters: Record<string, string[]>) {
   tableFilters.value = { ...filters };
 }
+
 function onSortChange({ prop, order }: { prop: string; order: string | null }) {
   tableSort.value = { prop: prop || '', order: order as 'ascending' | 'descending' | null };
 }
+
 const tableDisplayList = computed(() => {
   let rows = filteredList.value;
   Object.entries(tableFilters.value).forEach(([key, values]) => {
@@ -1050,9 +1154,43 @@ onMounted(async () => {
 .header-actions { display: flex; gap: 8px; flex-shrink: 0; }
 .detail-tabs { margin-top: 8px; }
 .ml-2 { margin-left: 8px; }
-.form-photo-row { display: flex; align-items: center; gap: 12px; }
-.form-photo-upload :deep(.el-upload) { display: block; }
-.form-photo-preview { width: 80px; height: 80px; border-radius: 8px; display: block; }
+
+/* 入职/编辑弹窗：分组与头像 */
+.hr-form-dialog :deep(.el-dialog__body) { padding-top: 12px; max-height: 70vh; overflow-y: auto; }
+.hr-form-section { margin-bottom: 20px; }
+.hr-form-section--avatar { margin-bottom: 16px; }
+.hr-form-section__title {
+  font-size: 12px; font-weight: 600; color: var(--el-text-color-secondary);
+  margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--el-border-color-lighter);
+}
+.form-avatar-wrap { display: flex; align-items: center; gap: 12px; }
+.form-avatar-upload :deep(.el-upload) { display: block; }
+.form-avatar-box {
+  position: relative;
+  width: 88px; height: 88px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px dashed var(--el-border-color);
+  background: var(--el-fill-color-light);
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.form-avatar-box:hover { border-color: var(--el-color-primary); background: var(--el-color-primary-light-9); }
+.form-avatar-box:hover .form-avatar-mask { opacity: 1; }
+.form-avatar-img { width: 100%; height: 100%; display: block; }
+.form-avatar-placeholder {
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  color: var(--el-text-color-placeholder); font-size: 12px; gap: 4px;
+}
+.form-avatar-mask {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.5);
+  color: #fff; font-size: 12px;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.2s;
+}
+.form-avatar-clear { margin-left: 4px; }
 .hr-timeline-wrap { padding: 8px 0; }
 .hr-timeline-title { font-weight: 600; }
 .hr-timeline-meta { margin-top: 4px; }
@@ -1061,4 +1199,16 @@ onMounted(async () => {
 .dialog-operator { font-size: 12px; color: var(--el-text-color-secondary); margin-top: 8px; }
 .table-photo { width: 40px; height: 40px; border-radius: 6px; display: block; margin: 0 auto; }
 .table-photo-placeholder { font-size: 12px; color: var(--el-text-color-placeholder); }
+/* 操作列图标统一放大、无 tooltip，与容器对齐 */
+.hr-table-op-btn { padding: 4px 6px; }
+.hr-table-op-btn .el-icon { font-size: 18px; }
+.hr-table-op-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--el-color-primary);
+  transition: opacity 0.2s;
+}
+.hr-table-op-trigger:hover { opacity: 0.8; }
 </style>

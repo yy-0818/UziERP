@@ -1,11 +1,10 @@
 <template>
   <div class="tab-wrap">
-    <div class="tab-actions">
-      <el-button v-if="canManage" type="primary" size="small" @click="openApply">申请邀请函</el-button>
-      <el-button size="small" @click="load">刷新</el-button>
+    <div v-if="canManage" class="tab-actions">
+      <el-button type="primary" size="small" @click="openApply">申请邀请函</el-button>
     </div>
-    <el-table :data="list" size="small" stripe border>
-      <el-table-column prop="submitted_at" label="提交时间" width="160">
+    <el-table :data="list" size="small" stripe border style="margin-top: 12px">
+      <el-table-column prop="submitted_at" label="提交时间" min-width="160">
         <template #default="{ row }">{{ formatDate(row.submitted_at) }}</template>
       </el-table-column>
       <el-table-column prop="status" label="状态" width="90">
@@ -183,5 +182,5 @@ async function viewHandle(row: InvitationApplication) {
 
 <style scoped>
 .tab-wrap { padding: 0; }
-.tab-actions { margin-bottom: 12px; display: flex; gap: 8px; }
+.tab-actions { margin-bottom: 0; display: flex; gap: 8px; }
 </style>
