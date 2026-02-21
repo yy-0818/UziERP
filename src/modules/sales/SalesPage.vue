@@ -1301,6 +1301,9 @@ const LEGACY_KEY_ALIASES: Record<string, string> = {
   '美金金额$итог': '美金金额 $ итог',
   '苏姆金额somсуммавсумах': '苏姆金额 som Сумма в сумах',
   '备注': '备注',
+  /* Excel 无列名时 xlsx 会生成 __EMPTY, __EMPTY_1...，收款表第2列为账户、第6列为备注 */
+  '__empty': '账户',
+  '__empty_1': '备注',
 };
 
 function normalizeImportRowKeys(row: Record<string, any>) {
@@ -1348,6 +1351,13 @@ function normalizeImportRows(rows: Record<string, any>[], mode: ImportMode): Rec
          '汇率 Курс валют', '苏姆合计 Сумма в сумах', '退货苏姆']
       : ['amount_usd', 'amount_uzs', '美金金额 $ итог', '苏姆金额 som Сумма в сумах'];
     numericKeys.forEach((k) => { if (k in out) out[k] = normalizeNumericValue(out[k]); });
+    /* 收款导入：将 Excel 无列名 __EMPTY/__EMPTY_1 及中文列 账户/备注 统一映射为后端字段 account_name / note */
+    if (mode === 'receipt') {
+      const accountVal = out['__EMPTY'] ?? out['账户'];
+      if (accountVal != null && String(accountVal).trim() !== '') out['account_name'] = String(accountVal).trim();
+      const noteVal = out['__EMPTY_1'] ?? out['备注'];
+      if (noteVal != null && String(noteVal).trim() !== '') out['note'] = String(noteVal).trim();
+    }
     return out;
   });
 }
