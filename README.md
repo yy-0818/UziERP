@@ -53,9 +53,3 @@ npm run dev
 
 5. **后续更新**  
    代码推送到 GitHub 的 `main` 分支后，Vercel 会自动重新构建并发布。
-
-
-### Code Review 约定
-
-- 页面层禁止直接依赖 Supabase 实例；统一通过 `src/services/**` 或 `src/modules/*/api.ts` 访问数据。
-- 评审时请使用 `docs/code-review-checklist.md` 逐项检查。
