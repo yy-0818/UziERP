@@ -49,8 +49,11 @@
             <el-image
               v-if="photoUrlMap[row.id]"
               :src="photoUrlMap[row.id]"
+              :preview-src-list="[photoUrlMap[row.id]]"
               fit="cover"
               class="table-photo"
+              preview-teleported
+              show-progress
             />
             <el-image v-else :src="noPhotoUrl" fit="cover" class="table-photo" />
           </template>
@@ -144,7 +147,15 @@
         <div class="hr-detail-drawer-body hr-detail-drawer-body--fade">
         <div class="hr-detail-header">
           <div class="hr-detail-header__photo">
-            <el-image v-if="detailPhotoUrl" :src="detailPhotoUrl" fit="cover" style="width: 100%; height: 100%" />
+            <el-image
+              v-if="detailPhotoUrl"
+              :src="detailPhotoUrl"
+              :preview-src-list="[detailPhotoUrl]"
+              fit="cover"
+              style="width: 100%; height: 100%"
+              preview-teleported
+              show-progress
+            />
             <el-image v-else :src="noPhotoUrl" fit="cover" style="width: 100%; height: 100%" />
           </div>
           <div class="hr-detail-header__info">
@@ -264,7 +275,15 @@
                     :http-request="handlePhotoUpload"
                   >
                     <div class="form-avatar-box">
-                      <el-image v-if="formPhotoPreview" class="form-avatar-img" :src="formPhotoPreview" fit="cover" />
+                      <el-image
+                        v-if="formPhotoPreview"
+                        class="form-avatar-img"
+                        :src="formPhotoPreview"
+                        :preview-src-list="[formPhotoPreview]"
+                        fit="cover"
+                        preview-teleported
+                        show-progress
+                      />
                       <div v-else class="form-avatar-placeholder">
                         <el-icon :size="32"><Avatar /></el-icon>
                         <span>上传照片</span>
@@ -787,7 +806,10 @@ function applyFilters() {}
 const detailVisible = ref(false);
 const detailEmployeeId = ref<string | null>(null);
 const detailTab = ref('invitation');
-const detailPhotoUrl = ref('');
+/** 与表格共用 photoUrlMap 缓存，避免详情头像闪烁并保持持久化一致 */
+const detailPhotoUrl = computed(() =>
+  detailEmployeeId.value ? (photoUrlMap.value[detailEmployeeId.value] ?? '') : ''
+);
 const timelineItems = ref<EmployeeTimelineItem[]>([]);
 const detailEmployee = computed(() => {
   if (!detailEmployeeId.value) return null;
@@ -799,6 +821,14 @@ watch(detailEmployeeId, async (id) => {
   const emp = await fetchEmployeeById(id);
   if (emp && !list.value.find((e) => e.id === emp.id)) {
     list.value = [...list.value, { ...emp, isOnLeave: false }];
+    if (emp.photo_url) {
+      try {
+        const url = await getSignedUrl(emp.photo_url);
+        photoUrlMap.value = { ...photoUrlMap.value, [emp.id]: url };
+      } catch {
+        /* ignore */
+      }
+    }
   }
 });
 
@@ -833,22 +863,21 @@ function formatTimelineDate(dateStr: string) {
   }
 }
 
+/** 刷新当前详情员工头像到 photoUrlMap（编辑/上传后调用），与表格共用缓存 */
 async function loadDetailPhoto() {
-  if (!detailEmployee.value?.photo_url) {
-    detailPhotoUrl.value = '';
-    return;
-  }
+  if (!detailEmployee.value?.photo_url || !detailEmployeeId.value) return;
   try {
-    detailPhotoUrl.value = await getSignedUrl(detailEmployee.value.photo_url);
+    const url = await getSignedUrl(detailEmployee.value.photo_url);
+    photoUrlMap.value = { ...photoUrlMap.value, [detailEmployeeId.value]: url };
   } catch {
-    detailPhotoUrl.value = '';
+    /* ignore */
   }
 }
 
 function openDetail(row: CnEmployeeWithStatus) {
   detailEmployeeId.value = row.id;
   detailVisible.value = true;
-  loadDetailPhoto();
+  /* 头像已用 photoUrlMap[row.id]，无需再请求 */
 }
 
 async function confirmOnboard() {
@@ -1210,6 +1239,14 @@ watch(
     const emp = await fetchEmployeeById(detailId);
     if (emp && !list.value.find((e) => e.id === emp.id)) {
       list.value = [...list.value, { ...emp, isOnLeave: false }];
+      if (emp.photo_url) {
+        try {
+          const url = await getSignedUrl(emp.photo_url);
+          photoUrlMap.value = { ...photoUrlMap.value, [emp.id]: url };
+        } catch {
+          /* ignore */
+        }
+      }
     }
     detailEmployeeId.value = detailId;
     detailTab.value = tab;
@@ -1544,6 +1581,7 @@ onMounted(async () => {
   border-radius: 6px;
   display: block;
   margin: 0 auto;
+  cursor: pointer;
 }
 .table-photo-placeholder {
   font-size: 12px;
