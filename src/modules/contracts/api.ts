@@ -1,5 +1,6 @@
 import { supabase } from '../../supabase';
 import { getLocalIsoString } from '../../utils/datetime';
+import { parseRpcEnvelope } from '../../utils/rpc';
 import type { Contract, ContractVersion, ContractAttachment, ContractWithDetails } from './types';
 import type { AttachmentType } from './types';
 
@@ -8,6 +9,7 @@ import type { AttachmentType } from './types';
  * 添加策略：允许已认证用户对桶 contracts 执行 INSERT（上传）与 SELECT（读取/生成 signed URL）。 */
 const BUCKET = 'contracts';
 const SIGNED_URL_EXPIRES = 3600;
+
 
 /** 路径中的 segment（如 contract_no）仅保留 ASCII 安全字符，俄语/中文等非 ASCII 会替换 */
 function sanitizePathSegment(s: string): string {
@@ -120,83 +122,84 @@ export async function createContractWithFiles(params: {
   change_reason: string;
   files: { attachmentType: AttachmentType; logicalName: string; file: File }[];
 }): Promise<Contract> {
+  const requestId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+  const uploadedPaths: string[] = [];
+  const fileRows: Array<Record<string, unknown>> = [];
   const localNow = getLocalIsoString();
-  const { data: contract, error: eContract } = await supabase
-    .from('contracts')
-    .insert({
-      contract_no: params.contract_no,
-      business_type: params.business_type,
-      account_name: params.account_name,
-      customer_display_name: null,
-      created_at: localNow,
-    })
-    .select()
-    .single();
 
-  if (eContract) {
-    const code = String(eContract.code ?? '');
-    if (code === '23505') {
-      throw new Error('合同号已存在，请更换合同号或使用「上传附件」为该合同补充文件');
+  try {
+    for (const f of params.files) {
+      const storagePath = buildStoragePath(
+        params.business_type,
+        params.contract_no,
+        1,
+        f.attachmentType,
+        f.file.name
+      );
+      const { error: uploadErr } = await supabase.storage.from(BUCKET).upload(storagePath, f.file, {
+        cacheControl: '3600',
+        upsert: false,
+      });
+      if (uploadErr) throw uploadErr;
+      uploadedPaths.push(storagePath);
+      fileRows.push({
+        attachment_type: f.attachmentType,
+        logical_name: f.logicalName,
+        file_name: f.file.name,
+        file_path: storagePath,
+        file_ext: f.file.name.includes('.') ? f.file.name.split('.').pop()?.toLowerCase() ?? null : null,
+        is_current: true,
+        source: 'manual',
+        created_at: localNow,
+      });
     }
-    throw eContract;
-  }
-  const c = contract as Contract;
 
-  const { data: version, error: eVersion } = await supabase
-    .from('contract_versions')
-    .insert({
-      contract_id: c.id,
-      version_no: 1,
-      is_current: true,
-      contract_date: params.contract_date,
-      company_name: params.company_name,
-      created_at: localNow,
-      tax_number: params.tax_number,
-      address: params.address,
-      bank_name: params.bank_name ?? null,
-      bank_account: params.bank_account ?? null,
-      bank_mfo: params.bank_mfo ?? null,
-      bank_swift: params.bank_swift ?? null,
-      oked_code: params.oked_code ?? null,
-      director_name: params.director_name,
-      producer: params.producer,
-      change_reason: params.change_reason,
-    })
-    .select()
-    .single();
-
-  if (eVersion) throw eVersion;
-  const v = version as ContractVersion;
-
-  for (const f of params.files) {
-    const storagePath = buildStoragePath(
-      params.business_type,
-      params.contract_no,
-      v.version_no,
-      f.attachmentType,
-      f.file.name
+    const { data, error } = await supabase.rpc('rpc_create_contract_with_attachments_txn', {
+      p_request_id: requestId,
+      p_contract: {
+        contract_no: params.contract_no,
+        business_type: params.business_type,
+        account_name: params.account_name,
+        customer_display_name: null,
+        created_at: localNow,
+      },
+      p_version: {
+        version_no: 1,
+        is_current: true,
+        contract_date: params.contract_date,
+        company_name: params.company_name,
+        created_at: localNow,
+        tax_number: params.tax_number,
+        address: params.address,
+        bank_name: params.bank_name ?? null,
+        bank_account: params.bank_account ?? null,
+        bank_mfo: params.bank_mfo ?? null,
+        bank_swift: params.bank_swift ?? null,
+        oked_code: params.oked_code ?? null,
+        director_name: params.director_name,
+        producer: params.producer,
+        change_reason: params.change_reason,
+      },
+      p_files: fileRows,
+    });
+    if (error) throw error;
+    const payload = parseRpcEnvelope<{ ok: boolean; contract_id?: string; code?: string; message?: string }>(
+      data,
+      '合同创建失败'
     );
-    const { error: uploadErr } = await supabase.storage.from(BUCKET).upload(storagePath, f.file, {
-      cacheControl: '3600',
-      upsert: false,
-    });
-    if (uploadErr) throw uploadErr;
-
-    await supabase.from('contract_attachments').insert({
-      contract_id: c.id,
-      contract_version_id: v.id,
-      attachment_type: f.attachmentType,
-      logical_name: f.logicalName,
-      file_name: f.file.name,
-      file_path: storagePath,
-      file_ext: f.file.name.includes('.') ? f.file.name.split('.').pop()?.toLowerCase() ?? null : null,
-      is_current: true,
-      source: 'manual',
-      created_at: localNow,
-    });
+    const { data: contractRow, error: eContract } = await supabase
+      .from('contracts')
+      .select('*')
+      .eq('id', payload.contract_id)
+      .single();
+    if (eContract || !contractRow) throw eContract || new Error('合同创建成功但读取失败');
+    return contractRow as Contract;
+  } catch (e) {
+    if (uploadedPaths.length) {
+      await supabase.storage.from(BUCKET).remove(uploadedPaths);
+    }
+    throw e;
   }
-
-  return c;
 }
 
 /** 为已有合同补传合同文件（contract_pdf / didox_screenshot），使用该合同当前版本 */
@@ -221,36 +224,49 @@ export async function uploadContractFiles(params: {
 
   if (eVer) throw eVer;
   const versionNo = currentVersion?.version_no ?? 1;
-  const versionId = currentVersion?.id ?? null;
   const localNow = getLocalIsoString();
+  const requestId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+  const uploadedPaths: string[] = [];
+  const fileRows: Array<Record<string, unknown>> = [];
 
-  for (const f of params.files) {
-    const storagePath = buildStoragePath(
-      contract.business_type,
-      contract.contract_no,
-      versionNo,
-      f.attachmentType,
-      f.file.name
-    );
-    const { error: uploadErr } = await supabase.storage.from(BUCKET).upload(storagePath, f.file, {
-      cacheControl: '3600',
-      upsert: false,
+  try {
+    for (const f of params.files) {
+      const storagePath = buildStoragePath(
+        contract.business_type,
+        contract.contract_no,
+        versionNo,
+        f.attachmentType,
+        f.file.name
+      );
+      const { error: uploadErr } = await supabase.storage.from(BUCKET).upload(storagePath, f.file, {
+        cacheControl: '3600',
+        upsert: false,
+      });
+      if (uploadErr) throw uploadErr;
+      uploadedPaths.push(storagePath);
+      fileRows.push({
+        attachment_type: f.attachmentType,
+        logical_name: f.logicalName,
+        file_name: f.file.name,
+        file_path: storagePath,
+        file_ext: f.file.name.includes('.') ? f.file.name.split('.').pop()?.toLowerCase() ?? null : null,
+        is_current: true,
+        source: 'manual',
+        created_at: localNow,
+      });
+    }
+    const { data, error } = await supabase.rpc('rpc_attach_contract_files_txn', {
+      p_request_id: requestId,
+      p_contract_id: params.contractId,
+      p_files: fileRows,
     });
-    if (uploadErr) throw uploadErr;
-
-    const { error: insertErr } = await supabase.from('contract_attachments').insert({
-      contract_id: params.contractId,
-      contract_version_id: versionId,
-      attachment_type: f.attachmentType,
-      logical_name: f.logicalName,
-      file_name: f.file.name,
-      file_path: storagePath,
-      file_ext: f.file.name.includes('.') ? f.file.name.split('.').pop()?.toLowerCase() ?? null : null,
-      is_current: true,
-      source: 'manual',
-      created_at: localNow,
-    });
-    if (insertErr) throw insertErr;
+    if (error) throw error;
+    parseRpcEnvelope(data, '合同文件补传失败');
+  } catch (e) {
+    if (uploadedPaths.length) {
+      await supabase.storage.from(BUCKET).remove(uploadedPaths);
+    }
+    throw e;
   }
 }
 
@@ -284,38 +300,51 @@ export async function uploadAttachmentFiles(params: {
 
   if (eVer) throw eVer;
   const versionNo = currentVersion?.version_no ?? 1;
-  const versionId = currentVersion?.id ?? null;
   const localNow = getLocalIsoString();
+  const requestId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+  const uploadedPaths: string[] = [];
+  const fileRows: Array<Record<string, unknown>> = [];
 
-  for (const f of params.files) {
-    const storagePath = buildStoragePath(
-      contract.business_type,
-      contract.contract_no,
-      versionNo,
-      f.attachmentType,
-      f.file.name
-    );
-    const { error: uploadErr } = await supabase.storage.from(BUCKET).upload(storagePath, f.file, {
-      cacheControl: '3600',
-      upsert: false,
+  try {
+    for (const f of params.files) {
+      const storagePath = buildStoragePath(
+        contract.business_type,
+        contract.contract_no,
+        versionNo,
+        f.attachmentType,
+        f.file.name
+      );
+      const { error: uploadErr } = await supabase.storage.from(BUCKET).upload(storagePath, f.file, {
+        cacheControl: '3600',
+        upsert: false,
+      });
+      if (uploadErr) throw uploadErr;
+      uploadedPaths.push(storagePath);
+      fileRows.push({
+        attachment_type: f.attachmentType,
+        logical_name: f.logicalName,
+        file_name: f.file.name,
+        file_path: storagePath,
+        file_ext: f.file.name.includes('.') ? f.file.name.split('.').pop()?.toLowerCase() ?? null : null,
+        is_current: true,
+        source: 'manual',
+        remark: remarkText,
+        attachment_date: attachmentDateVal,
+        attachment_no: attachmentNoVal,
+        created_at: localNow,
+      });
+    }
+    const { data, error } = await supabase.rpc('rpc_attach_contract_files_txn', {
+      p_request_id: requestId,
+      p_contract_id: params.contractId,
+      p_files: fileRows,
     });
-    if (uploadErr) throw uploadErr;
-
-    const { error: insertErr } = await supabase.from('contract_attachments').insert({
-      contract_id: params.contractId,
-      contract_version_id: versionId,
-      attachment_type: f.attachmentType,
-      logical_name: f.logicalName,
-      file_name: f.file.name,
-      file_path: storagePath,
-      file_ext: f.file.name.includes('.') ? f.file.name.split('.').pop()?.toLowerCase() ?? null : null,
-      is_current: true,
-      source: 'manual',
-      remark: remarkText,
-      attachment_date: attachmentDateVal,
-      attachment_no: attachmentNoVal,
-      created_at: localNow,
-    });
-    if (insertErr) throw insertErr;
+    if (error) throw error;
+    parseRpcEnvelope(data, '附件上传失败');
+  } catch (e) {
+    if (uploadedPaths.length) {
+      await supabase.storage.from(BUCKET).remove(uploadedPaths);
+    }
+    throw e;
   }
 }
