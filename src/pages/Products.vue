@@ -55,10 +55,10 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus';
-import { supabase } from '../supabase';
 import { useAuthStore } from '../stores/auth';
 import type { ProductEntity, ProductEditForm } from '../types/products';
 import { createProductEditFormDefault } from '../types/products';
+import { listProducts, upsertProduct } from '../modules/master-data/api';
 
 const auth = useAuthStore();
 const keyword = ref('');
@@ -76,19 +76,13 @@ const canEdit = computed(() =>
 
 async function fetchData() {
   loading.value = true;
-  let query = supabase.from('products').select('*').order('created_at', {
-    ascending: false,
-  });
-  if (keyword.value) {
-    query = query.ilike('name', `%${keyword.value}%`);
+  try {
+    rows.value = await listProducts(keyword.value);
+  } catch (error: any) {
+    ElMessage.error(error.message || '查询失败');
+  } finally {
+    loading.value = false;
   }
-  const { data, error } = await query;
-  if (error) {
-    ElMessage.error('查询失败');
-  } else {
-    rows.value = data || [];
-  }
-  loading.value = false;
 }
 
 function openEdit(row: ProductEntity | null) {
@@ -109,33 +103,22 @@ async function saveData() {
     return;
   }
   saving.value = true;
-  let error;
-  if (f.id) {
-    ({ error } = await supabase
-      .from('products')
-      .update({
-        name: f.name,
-        category: f.category,
-        spec: f.spec,
-        unit: f.unit,
-      })
-      .eq('id', f.id));
-  } else {
-    ({ error } = await supabase.from('products').insert({
+  try {
+    await upsertProduct({
+      id: f.id,
       name: f.name,
       category: f.category,
       spec: f.spec,
       unit: f.unit,
-    }));
-  }
-  if (error) {
-    ElMessage.error('保存失败');
-  } else {
+    });
     ElMessage.success('保存成功');
     editVisible.value = false;
     await fetchData();
+  } catch (error: any) {
+    ElMessage.error(error.message || '保存失败');
+  } finally {
+    saving.value = false;
   }
-  saving.value = false;
 }
 
 onMounted(fetchData);

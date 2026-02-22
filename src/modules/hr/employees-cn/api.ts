@@ -4,6 +4,7 @@
  */
 import { supabase } from '../../../supabase';
 import { getLocalIsoString } from '../../../utils/datetime';
+import { parseRpcEnvelope } from '../../../utils/rpc';
 import { logOperation } from '../../operation-log/api';
 import type {
   CnEmployee,
@@ -446,46 +447,33 @@ export async function createFlightHandle(params: {
   ticket_image_url: string | null;
   issuer_company: string | null;
   operator?: string | null;
+  request_id?: string;
 }): Promise<FlightHandle> {
-  const now = getLocalIsoString();
-  const { data: visa, error: eVisa } = await supabase
-    .from('cn_visa_handles')
-    .select('remaining_times')
-    .eq('id', params.visa_handle_id)
-    .single();
-  if (eVisa || !visa) throw new Error('签证记录不存在');
-  const remaining = (visa as VisaHandle).remaining_times;
-  if (remaining !== null && remaining !== -1 && remaining < params.entry_count) {
-    throw new Error(`签证剩余次数不足，当前剩余 ${remaining} 次`);
-  }
-  const newRemaining =
-    remaining === null || remaining === -1 ? -1 : Math.max(0, remaining - params.entry_count);
+  const requestId = params.request_id ?? (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`);
+  const { data, error } = await supabase.rpc('rpc_create_flight_handle_txn', {
+    p_application_id: params.application_id,
+    p_visa_handle_id: params.visa_handle_id,
+    p_entry_count: params.entry_count,
+    p_actual_departure_at: params.actual_departure_at,
+    p_arrival_at: params.arrival_at,
+    p_depart_city: params.depart_city,
+    p_arrive_city: params.arrive_city,
+    p_ticket_amount: params.ticket_amount,
+    p_ticket_image_url: params.ticket_image_url,
+    p_issuer_company: params.issuer_company,
+    p_operator: params.operator ?? null,
+    p_request_id: requestId,
+  });
+  if (error) throw error;
+  const payload = parseRpcEnvelope<{ ok: boolean; code?: string; message?: string; handle_id?: string }>(data, '机票办理失败');
+  const handleId = (payload as { handle_id?: string }).handle_id;
+  if (!handleId) throw new Error('机票办理返回缺少 handle_id');
   const { data: handle, error: eHandle } = await supabase
     .from('cn_flight_handles')
-    .insert({
-      application_id: params.application_id,
-      actual_departure_at: params.actual_departure_at,
-      arrival_at: params.arrival_at,
-      depart_city: params.depart_city,
-      arrive_city: params.arrive_city,
-      entry_count: params.entry_count,
-      ticket_amount: params.ticket_amount,
-      ticket_image_url: params.ticket_image_url,
-      issuer_company: params.issuer_company,
-      operator: params.operator ?? null,
-      created_at: now,
-    })
-    .select()
+    .select('*')
+    .eq('id', handleId)
     .single();
-  if (eHandle) throw eHandle;
-  await supabase
-    .from('cn_visa_handles')
-    .update({ remaining_times: newRemaining })
-    .eq('id', params.visa_handle_id);
-  await supabase
-    .from('cn_flight_applications')
-    .update({ status: 'done', updated_at: now })
-    .eq('id', params.application_id);
+  if (eHandle || !handle) throw eHandle || new Error('机票办理成功但无法读取结果');
   try {
     const { data: appRow } = await supabase
       .from('cn_flight_applications')

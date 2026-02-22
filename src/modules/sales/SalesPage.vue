@@ -471,8 +471,6 @@ import dayjs from 'dayjs';
 import { exportToExcel } from '../../composables/useExport';
 import { useAuthStore } from '../../stores/auth';
 import {
-  fetchSalesPage,
-  fetchReceiptPage,
   fetchAllSalesRows,
   fetchAllReceiptRows,
   importSalesRowsLegacy,
@@ -492,6 +490,8 @@ import type {
   SalesImportRowLegacy,
   ReceiptImportRowLegacy,
 } from './types';
+import type { SalesRow, ReceiptRow } from './types';
+import { querySales, queryReceipts } from './composables/useSalesPageQueries';
 
 type ImportMode = 'sales' | 'receipt';
 type TabName = 'sales' | 'receipts';
@@ -821,7 +821,7 @@ async function fetchSalesData() {
     const columnFilters = Object.keys(salesColumnFilters.value).length
       ? { ...salesColumnFilters.value }
       : undefined;
-    const res = await fetchSalesPage({
+    const res = await querySales({
       page: salesPage.value,
       pageSize: salesPageSize.value,
       dateFrom: salesFilters.value.dateRange?.[0] || null,
@@ -846,7 +846,7 @@ async function fetchReceiptData() {
     const columnFilters = Object.keys(receiptColumnFilters.value).length
       ? { ...receiptColumnFilters.value }
       : undefined;
-    const res = await fetchReceiptPage({
+    const res = await queryReceipts({
       page: receiptPage.value,
       pageSize: receiptPageSize.value,
       dateFrom: receiptFilters.value.dateRange?.[0] || null,

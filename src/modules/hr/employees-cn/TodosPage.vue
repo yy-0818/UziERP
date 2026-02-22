@@ -355,6 +355,7 @@ function openHandleDialog(row: TodoItem) {
 }
 
 async function submitHandle() {
+  if (handleSaving.value) return;
   const task = currentTask.value;
   if (!task) return;
   handleSaving.value = true;

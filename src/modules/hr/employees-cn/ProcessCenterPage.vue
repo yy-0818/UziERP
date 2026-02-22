@@ -519,6 +519,7 @@ function openHandleDialog(
 }
 
 async function submitHandle() {
+  if (handleSaving.value) return;
   const row = currentHandleRow.value;
   const type = handleType.value;
   if (!row) return;

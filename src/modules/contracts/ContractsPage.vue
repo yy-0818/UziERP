@@ -274,7 +274,8 @@ import { ref, shallowRef, onMounted, computed } from 'vue';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { supabase } from '../../supabase';
-import { fetchContractsWithDetails, getAttachmentUrl } from './api';
+import { getAttachmentUrl } from './api';
+import { queryContracts } from './composables/useContractsPageData';
 import { BUSINESS_TYPE_LABELS, formatContractDate, CONTRACT_FILE_TYPES, ATTACHMENT_ONLY_TYPES } from './types';
 import type { ContractWithDetails, ContractVersion, ContractAttachment } from './types';
 import ContractUploadDialog from './components/ContractUploadDialog.vue';
@@ -385,7 +386,7 @@ function businessTypeLabel(bt: string): string {
 async function fetchData() {
   loading.value = true;
   try {
-    list.value = await fetchContractsWithDetails();
+    list.value = await queryContracts();
   } catch (e: any) {
     ElMessage.error(e?.message || '加载失败');
   } finally {
