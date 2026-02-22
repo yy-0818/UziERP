@@ -124,10 +124,8 @@ html.dark .hr-stat-card:hover {
 }
 
 /* 详情抽屉：淡入淡出动画 */
-.hr-detail-drawer--animated :deep(.el-drawer__wrapper) {
-  transition: opacity 0.25s ease;
-}
-.hr-detail-drawer--animated :deep(.el-overlay) {
+.hr-detail-drawer--animated .el-drawer__wrapper,
+.hr-detail-drawer--animated .el-overlay {
   transition: opacity 0.25s ease;
 }
 .hr-detail-drawer-body--fade {
