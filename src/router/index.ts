@@ -158,8 +158,11 @@ const router = createRouter({
 
 router.beforeEach(async (to, _from, next) => {
   const auth = useAuthStore();
-  if (!auth.initialized) {
-    await auth.loadUser();
+
+  await auth.ensureAuthReady();
+
+  if (to.meta.requiresAuth || to.meta.requiresRole) {
+    await auth.refreshAuthState({ force: true });
   }
 
   if (to.path === '/login') {
@@ -180,4 +183,3 @@ router.beforeEach(async (to, _from, next) => {
 });
 
 export default router;
-
