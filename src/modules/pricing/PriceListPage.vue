@@ -9,6 +9,7 @@
           </div>
           <div style="display:flex;gap:10px;align-items:center;">
             <el-button v-if="canEdit" type="success" @click="openEdit">新增价格</el-button>
+            <el-button v-if="canEdit" type="warning" plain @click="exportData">导出数据</el-button>
             <el-button type="info" plain @click="refreshData" :loading="loading"><el-icon><Refresh /></el-icon>刷新</el-button>
           </div>
         </div>
@@ -113,6 +114,39 @@ const history = ref<any[]>([]);
 function formatPrice(v: number) {
   if (v == null || Number.isNaN(v)) return '—';
   return Number(v) === Math.floor(v) ? String(v) : Number(v).toFixed(2);
+}
+
+function exportData() {
+  if (!canEdit.value) return;
+  if (!wideRows.value.length) {
+    ElMessage.warning('暂无可导出的数据');
+    return;
+  }
+
+  const columns = productColumns.value;
+  const header = ['公司', '账户', '等级', '国家', '价格类型', ...columns];
+  const dataRows = wideRows.value.map((row: any) => {
+    const base = [row.company ?? '', row.account_name ?? '', row.level ?? '', row.region ?? '', row.price_type ?? ''];
+    const prices = columns.map((spec) => {
+      const cell = row._cells?.[spec];
+      return cell != null ? formatPrice(cell.price) : '';
+    });
+    return [...base, ...prices];
+  });
+
+  const csvRows = [header, ...dataRows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','));
+  const csvContent = `\uFEFF${csvRows.join('\r\n')}`;
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `价格数据_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+
+  ElMessage.success(`已导出 ${wideRows.value.length} 条记录`);
 }
 
 async function openHistoryForCell(row: any, spec: string) {

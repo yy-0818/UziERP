@@ -3,7 +3,7 @@
     <router-view v-slot="{ Component, route }">
       <Suspense>
         <template #default>
-          <transition name="erp-page" mode="out-in" appear>
+          <transition name="erp-page" appear>
             <keep-alive :max="8">
               <component :is="Component" :key="mainViewKey(route)" />
             </keep-alive>
@@ -61,15 +61,25 @@ function mainViewKey(route: RouteLocationNormalizedLoaded): string {
   animation: erp-spin 0.8s linear infinite;
 }
 
-.erp-page-enter-active,
+.erp-page-enter-active {
+  transition: opacity 0.14s ease-out, transform 0.14s ease-out;
+}
+
 .erp-page-leave-active {
-  transition: opacity var(--transition-fast), transform var(--transition-fast);
+  transition: opacity 0.1s ease-in;
 }
 
 .erp-page-enter-from,
 .erp-page-leave-to {
   opacity: 0;
-  transform: translateY(6px);
+}
+
+.erp-page-enter-from {
+  transform: translateY(4px);
+}
+
+.erp-page-leave-to {
+  transform: none;
 }
 
 @keyframes erp-spin {
