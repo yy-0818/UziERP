@@ -4,6 +4,7 @@
  */
 import { supabase } from '../../../supabase';
 import { getLocalIsoString } from '../../../utils/datetime';
+import { logOperation } from '../../operation-log/api';
 import type {
   CnEmployee,
   InvitationApplication,
@@ -67,6 +68,12 @@ export async function fetchEmployeeById(id: string): Promise<CnEmployee | null> 
   return data as CnEmployee | null;
 }
 
+/** 获取员工姓名与工号，用于操作日志 detail */
+async function getEmployeeBrief(employeeId: string): Promise<{ name: string; employee_no: string } | null> {
+  const emp = await fetchEmployeeById(employeeId);
+  return emp ? { name: emp.name, employee_no: emp.employee_no } : null;
+}
+
 export async function fetchEmployeeByNo(employeeNo: string): Promise<CnEmployee | null> {
   const { data, error } = await supabase
     .from('cn_employees')
@@ -89,7 +96,17 @@ export async function createEmployee(params: Partial<CnEmployee>): Promise<CnEmp
     .select()
     .single();
   if (error) throw error;
-  return data as CnEmployee;
+  const emp = data as CnEmployee;
+  try {
+    await logOperation({
+      category: 'employee',
+      action: '新增员工',
+      target_type: 'cn_employees',
+      target_id: emp.id,
+      detail: { name: emp.name, employee_no: emp.employee_no },
+    });
+  } catch (_) { /* 日志失败不影响主流程 */ }
+  return emp;
 }
 
 export async function updateEmployee(id: string, params: Partial<CnEmployee>): Promise<CnEmployee> {
@@ -110,11 +127,21 @@ export async function setEmployeeResigned(
   operator?: string | null,
   resignRemark?: string | null
 ): Promise<CnEmployee> {
-  return updateEmployee(id, {
+  const emp = await updateEmployee(id, {
     resigned_at: getLocalIsoString(),
     ...(operator != null && { resigned_by: operator }),
     ...(resignRemark != null && { resign_remark: resignRemark }),
   });
+  try {
+    await logOperation({
+      category: 'resign',
+      action: '离职',
+      target_type: 'cn_employees',
+      target_id: id,
+      detail: { name: emp.name, employee_no: emp.employee_no },
+    });
+  } catch (_) { /* 日志失败不影响主流程 */ }
+  return emp;
 }
 
 // ==================== 邀请函 ====================
@@ -165,7 +192,18 @@ export async function createInvitationApplication(params: {
     .select()
     .single();
   if (error) throw error;
-  return data as InvitationApplication;
+  const app = data as InvitationApplication;
+  try {
+    const brief = await getEmployeeBrief(app.employee_id);
+    await logOperation({
+      category: 'invitation',
+      action: '邀请函申请',
+      target_type: 'cn_invitation_applications',
+      target_id: app.id,
+      detail: { employee_id: app.employee_id, ...brief },
+    });
+  } catch (_) { /* 日志失败不影响主流程 */ }
+  return app;
 }
 
 export async function createInvitationHandle(params: {
@@ -193,6 +231,21 @@ export async function createInvitationHandle(params: {
     .from('cn_invitation_applications')
     .update({ status: 'done', updated_at: now })
     .eq('id', params.application_id);
+  try {
+    const { data: appRow } = await supabase
+      .from('cn_invitation_applications')
+      .select('employee_id')
+      .eq('id', params.application_id)
+      .maybeSingle();
+    const brief = appRow?.employee_id ? await getEmployeeBrief(appRow.employee_id) : null;
+    await logOperation({
+      category: 'invitation',
+      action: '邀请函办理',
+      target_type: 'cn_invitation_handles',
+      target_id: (handle as InvitationHandle).id,
+      detail: { application_id: params.application_id, ...brief },
+    });
+  } catch (_) { /* 日志失败不影响主流程 */ }
   return handle as InvitationHandle;
 }
 
@@ -257,7 +310,18 @@ export async function createVisaApplication(params: {
     .select()
     .single();
   if (error) throw error;
-  return data as VisaApplication;
+  const app = data as VisaApplication;
+  try {
+    const brief = await getEmployeeBrief(app.employee_id);
+    await logOperation({
+      category: 'visa',
+      action: '签证申请',
+      target_type: 'cn_visa_applications',
+      target_id: app.id,
+      detail: { employee_id: app.employee_id, ...brief },
+    });
+  } catch (_) { /* 日志失败不影响主流程 */ }
+  return app;
 }
 
 export async function createVisaHandle(params: {
@@ -293,6 +357,21 @@ export async function createVisaHandle(params: {
     .from('cn_visa_applications')
     .update({ status: 'done', updated_at: now })
     .eq('id', params.application_id);
+  try {
+    const { data: appRow } = await supabase
+      .from('cn_visa_applications')
+      .select('employee_id')
+      .eq('id', params.application_id)
+      .maybeSingle();
+    const brief = appRow?.employee_id ? await getEmployeeBrief(appRow.employee_id) : null;
+    await logOperation({
+      category: 'visa',
+      action: '签证办理',
+      target_type: 'cn_visa_handles',
+      target_id: (handle as VisaHandle).id,
+      detail: { application_id: params.application_id, ...brief },
+    });
+  } catch (_) { /* 日志失败不影响主流程 */ }
   return handle as VisaHandle;
 }
 
@@ -340,7 +419,18 @@ export async function createFlightApplication(params: {
     .select()
     .single();
   if (error) throw error;
-  return data as FlightApplication;
+  const app = data as FlightApplication;
+  try {
+    const brief = await getEmployeeBrief(app.employee_id);
+    await logOperation({
+      category: 'flight',
+      action: '机票申请',
+      target_type: 'cn_flight_applications',
+      target_id: app.id,
+      detail: { employee_id: app.employee_id, ...brief },
+    });
+  } catch (_) { /* 日志失败不影响主流程 */ }
+  return app;
 }
 
 /** 办理机票并扣减签证剩余次数（entry_count 从指定 visa_handle_id 扣减） */
@@ -396,6 +486,21 @@ export async function createFlightHandle(params: {
     .from('cn_flight_applications')
     .update({ status: 'done', updated_at: now })
     .eq('id', params.application_id);
+  try {
+    const { data: appRow } = await supabase
+      .from('cn_flight_applications')
+      .select('employee_id')
+      .eq('id', params.application_id)
+      .maybeSingle();
+    const brief = appRow?.employee_id ? await getEmployeeBrief(appRow.employee_id) : null;
+    await logOperation({
+      category: 'flight',
+      action: '机票办理',
+      target_type: 'cn_flight_handles',
+      target_id: (handle as FlightHandle).id,
+      detail: { application_id: params.application_id, ...brief },
+    });
+  } catch (_) { /* 日志失败不影响主流程 */ }
   return handle as FlightHandle;
 }
 
@@ -443,7 +548,18 @@ export async function createLaborPermitApplication(params: {
     .select()
     .single();
   if (error) throw error;
-  return data as LaborPermitApplication;
+  const app = data as LaborPermitApplication;
+  try {
+    const brief = await getEmployeeBrief(app.employee_id);
+    await logOperation({
+      category: 'labor_permit',
+      action: '劳动许可申请',
+      target_type: 'cn_labor_permit_applications',
+      target_id: app.id,
+      detail: { employee_id: app.employee_id, ...brief },
+    });
+  } catch (_) { /* 日志失败不影响主流程 */ }
+  return app;
 }
 
 export async function createLaborPermitHandle(params: {
@@ -475,6 +591,21 @@ export async function createLaborPermitHandle(params: {
     .from('cn_labor_permit_applications')
     .update({ status: 'done', updated_at: now })
     .eq('id', params.application_id);
+  try {
+    const { data: appRow } = await supabase
+      .from('cn_labor_permit_applications')
+      .select('employee_id')
+      .eq('id', params.application_id)
+      .maybeSingle();
+    const brief = appRow?.employee_id ? await getEmployeeBrief(appRow.employee_id) : null;
+    await logOperation({
+      category: 'labor_permit',
+      action: '劳动许可办理',
+      target_type: 'cn_labor_permit_handles',
+      target_id: (handle as LaborPermitHandle).id,
+      detail: { application_id: params.application_id, ...brief },
+    });
+  } catch (_) { /* 日志失败不影响主流程 */ }
   return handle as LaborPermitHandle;
 }
 
@@ -514,7 +645,23 @@ export async function createTransferRecord(params: {
       updated_at: now,
     })
     .eq('id', params.employee_id);
-  return data as TransferRecord;
+  const rec = data as TransferRecord;
+  try {
+    const brief = await getEmployeeBrief(params.employee_id);
+    await logOperation({
+      category: 'transfer',
+      action: '调岗',
+      target_type: 'cn_transfer_records',
+      target_id: rec.id,
+      detail: {
+        employee_id: params.employee_id,
+        from_department: params.from_department,
+        to_department: params.to_department,
+        ...brief,
+      },
+    });
+  } catch (_) { /* 日志失败不影响主流程 */ }
+  return rec;
 }
 
 export async function fetchSalaryChangeRecords(employeeId: string): Promise<SalaryChangeRecord[]> {
@@ -545,7 +692,18 @@ export async function createSalaryChangeRecord(params: {
     .from('cn_employees')
     .update({ salary_standard: params.salary_after, updated_at: now })
     .eq('id', params.employee_id);
-  return data as SalaryChangeRecord;
+  const rec = data as SalaryChangeRecord;
+  try {
+    const brief = await getEmployeeBrief(params.employee_id);
+    await logOperation({
+      category: 'salary',
+      action: '调薪',
+      target_type: 'cn_salary_change_records',
+      target_id: rec.id,
+      detail: { employee_id: params.employee_id, ...brief },
+    });
+  } catch (_) { /* 日志失败不影响主流程 */ }
+  return rec;
 }
 
 export async function fetchLeaveRecords(employeeId?: string): Promise<LeaveRecord[]> {
@@ -581,7 +739,18 @@ export async function createLeaveRecord(params: {
     .select()
     .single();
   if (error) throw error;
-  return data as LeaveRecord;
+  const rec = data as LeaveRecord;
+  try {
+    const brief = await getEmployeeBrief(params.employee_id);
+    await logOperation({
+      category: 'leave',
+      action: '请假',
+      target_type: 'cn_leave_records',
+      target_id: rec.id,
+      detail: { employee_id: params.employee_id, ...brief },
+    });
+  } catch (_) { /* 日志失败不影响主流程 */ }
+  return rec;
 }
 
 export async function fetchRewardDisciplineRecords(employeeId?: string): Promise<RewardDisciplineRecord[]> {
@@ -606,7 +775,18 @@ export async function createRewardDisciplineRecord(params: {
     .select()
     .single();
   if (error) throw error;
-  return data as RewardDisciplineRecord;
+  const rec = data as RewardDisciplineRecord;
+  try {
+    const brief = await getEmployeeBrief(params.employee_id);
+    await logOperation({
+      category: 'reward_discipline',
+      action: params.record_type === 'reward' ? '奖励' : '违纪',
+      target_type: 'cn_reward_discipline_records',
+      target_id: rec.id,
+      detail: { employee_id: params.employee_id, ...brief },
+    });
+  } catch (_) { /* 日志失败不影响主流程 */ }
+  return rec;
 }
 
 // ==================== 待办中心（聚合各流程待办理申请） ====================

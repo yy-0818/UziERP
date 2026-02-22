@@ -8,7 +8,7 @@
             <div class="subtitle">在职/离职、部门岗位、工资标准由调岗/调薪/离职自动更新</div>
           </div>
           <div class="header-actions">
-            <el-button v-if="canManage" type="primary" @click="openOnboard">入职登记</el-button>
+            <el-button v-if="canManage" type="primary" @click="openOnboard" :icon="FolderAdd">入职登记</el-button>
             <el-button :icon="Refresh" @click="fetchData">刷新</el-button>
           </div>
         </div>
@@ -572,7 +572,7 @@
 import { ref, computed, watch, onMounted, nextTick, defineAsyncComponent } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
-import { Refresh, View, Edit, Finished, Avatar } from '@element-plus/icons-vue';
+import { Refresh, View, Edit, Finished, Avatar, FolderAdd } from '@element-plus/icons-vue';
 import { useAuthStore } from '../../../stores/auth';
 import {
   fetchEmployees,

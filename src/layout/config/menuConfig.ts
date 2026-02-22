@@ -62,6 +62,7 @@ export const rawMenuTree: MenuNode[] = [
     requiresRole: ['super_admin'],
     children: [
       { type: 'item', index: '/admin/users', title: '用户与角色' },
+      { type: 'item', index: '/admin/operation-log', title: '操作日志' },
     ],
   },
 ];

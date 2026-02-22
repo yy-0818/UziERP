@@ -24,6 +24,7 @@ import EmployeesCnProcess from '../modules/hr/employees-cn/ProcessCenterPage.vue
 import EmployeesCnAttendance from '../modules/hr/employees-cn/AttendancePersonnelPage.vue';
 import EmployeesCnTodos from '../modules/hr/employees-cn/TodosPage.vue';
 const AdminUsers = () => import('../pages/AdminUsers.vue'); // 系统用户与角色
+const OperationLog = () => import('../modules/operation-log/OperationLogPage.vue'); // 操作日志
 
 const routes: RouteRecordRaw[] = [
   // 登录
@@ -139,6 +140,12 @@ const routes: RouteRecordRaw[] = [
         name: 'admin-users',
         component: AdminUsers,
         meta: { module: 'admin', title: '用户与角色', requiresRole: ['super_admin'] },
+      },
+      {
+        path: 'admin/operation-log',
+        name: 'admin-operation-log',
+        component: OperationLog,
+        meta: { module: 'admin', title: '操作日志', requiresRole: ['super_admin'] },
       },
     ],
   },
