@@ -464,6 +464,7 @@ function reset() {
 }
 
 async function submit() {
+  if (uploading.value) return;
   if (uploadMode.value === 'contract') {
     const valid = contractFileList.value.filter((x) => x.file);
     if (!valid.length) {
