@@ -21,6 +21,23 @@ VITE_SUPABASE_ANON_KEY=你的-anon-key
 npm run dev
 ```
 
+
+### 本地开发质量检查流程
+
+建议在每次提交前执行以下检查命令：
+
+```bash
+npm run lint
+npm run build
+npm run test
+```
+
+可选：一次性串行执行
+
+```bash
+npm run lint && npm run build && npm run test
+```
+
 ### 部署到 Vercel
 
 1. **推送代码到 GitHub**  
