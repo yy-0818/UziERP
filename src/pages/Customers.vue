@@ -56,14 +56,16 @@ import { ref, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import { supabase } from '../supabase';
 import { useAuthStore } from '../stores/auth';
+import type { CustomerEntity, CustomerEditForm } from '../types/customers';
+import { createCustomerEditFormDefault } from '../types/customers';
 
 const auth = useAuthStore();
 const keyword = ref('');
-const rows = ref<any[]>([]);
+const rows = ref<CustomerEntity[]>([]);
 const loading = ref(false);
 const editVisible = ref(false);
 const editTitle = ref('');
-const editForm = ref<any>({});
+const editForm = ref<CustomerEditForm>(createCustomerEditFormDefault());
 const saving = ref(false);
 
 const canEdit = computed(() =>
@@ -80,13 +82,13 @@ async function fetchData() {
   loading.value = false;
 }
 
-function openEdit(row: any | null) {
+function openEdit(row: CustomerEntity | null) {
   if (row) {
     editTitle.value = '编辑客户';
-    editForm.value = { ...row };
+    editForm.value = { ...createCustomerEditFormDefault(), ...row };
   } else {
     editTitle.value = '新增客户';
-    editForm.value = { name: '', level: '', region: '' };
+    editForm.value = createCustomerEditFormDefault();
   }
   editVisible.value = true;
 }

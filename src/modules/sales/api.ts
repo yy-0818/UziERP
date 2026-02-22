@@ -1,5 +1,5 @@
 import { supabase } from '../../supabase';
-import type { SalesRow, ReceiptRow, PageResult } from './types';
+import type { SalesRow, ReceiptRow, PageResult, SalesImportRowLegacy, ReceiptImportRowLegacy } from './types';
 
 const SALES_SELECT =
   'id, document_date, document_no, payment_method, customer_name, product_name, color_code, spec_model, category, grade, box_count, area_sqm, unit_price_usd, amount_usd, exchange_rate, amount_uzs, order_no, vehicle_no, export_country, dealer_name, shipper_name, note, refund_uzs, driver_tax_no, logistics_tax_no, vehicle_type, contract_no';
@@ -20,7 +20,7 @@ export async function fetchSalesPage(params: {
   dateFrom?: string | null;
   dateTo?: string | null;
   keyword?: string;
-  columnFilters?: Record<string, string[]>;
+  columnFilters?: Partial<Record<(typeof SALES_FILTER_COLUMNS)[number], string[]>>;
 }): Promise<PageResult<SalesRow>> {
   const from = (params.page - 1) * params.pageSize;
   const to = from + params.pageSize - 1;
@@ -60,7 +60,7 @@ export async function fetchReceiptPage(params: {
   dateFrom?: string | null;
   dateTo?: string | null;
   keyword?: string;
-  columnFilters?: Record<string, string[]>;
+  columnFilters?: Partial<Record<(typeof RECEIPT_FILTER_COLUMNS)[number], string[]>>;
 }): Promise<PageResult<ReceiptRow>> {
   const from = (params.page - 1) * params.pageSize;
   const to = from + params.pageSize - 1;
@@ -98,7 +98,7 @@ export async function fetchAllSalesRows(params: {
   dateFrom?: string | null;
   dateTo?: string | null;
   keyword?: string;
-  columnFilters?: Record<string, string[]>;
+  columnFilters?: Partial<Record<(typeof SALES_FILTER_COLUMNS)[number], string[]>>;
 }): Promise<SalesRow[]> {
   const PAGE = 1000;
   const all: SalesRow[] = [];
@@ -142,7 +142,7 @@ export async function fetchAllReceiptRows(params: {
   dateFrom?: string | null;
   dateTo?: string | null;
   keyword?: string;
-  columnFilters?: Record<string, string[]>;
+  columnFilters?: Partial<Record<(typeof RECEIPT_FILTER_COLUMNS)[number], string[]>>;
 }): Promise<ReceiptRow[]> {
   const PAGE = 1000;
   const all: ReceiptRow[] = [];
@@ -179,14 +179,14 @@ export async function fetchAllReceiptRows(params: {
   return all;
 }
 
-export async function importSalesRowsLegacy(rows: Record<string, any>[]) {
+export async function importSalesRowsLegacy(rows: SalesImportRowLegacy[]) {
   const { data, error } = await supabase.rpc('rpc_sales_import_rows_legacy_headers', { p_rows: rows });
   if (error) throw error;
   const d = data as { written?: number; total?: number };
   return { written: Number(d?.written ?? 0) };
 }
 
-export async function importReceiptRowsLegacy(rows: Record<string, any>[]) {
+export async function importReceiptRowsLegacy(rows: ReceiptImportRowLegacy[]) {
   const { data, error } = await supabase.rpc('rpc_sales_receipts_import_rows_legacy_headers', { p_rows: rows });
   if (error) throw error;
   const d = data as { written?: number; total?: number };
@@ -235,15 +235,15 @@ export async function updateReceiptRecord(id: string, payload: Partial<Omit<Rece
 
 export async function updateSalesRecord(params: {
   id: string;
-  payload: Record<string, any>;
+  payload: Partial<Omit<SalesRow, 'id'>>;
   modifierEmail?: string;
   modifierUserId?: string;
 }) {
-  let extra: Record<string, any> = {};
+  let extra: Record<string, string> = {};
   if (params.modifierEmail) {
     const { data: cur, error: e1 } = await supabase.from('sales_records').select('extra').eq('id', params.id).single();
     if (e1) throw e1;
-    extra = (cur as any)?.extra || {};
+    extra = ((cur as { extra?: Record<string, string> } | null)?.extra) || {};
     extra = {
       ...(extra || {}),
       modifier_email: params.modifierEmail,
@@ -251,7 +251,7 @@ export async function updateSalesRecord(params: {
     };
     if (params.modifierUserId) extra.modifier_user_id = params.modifierUserId;
   }
-  const updatePayload: Record<string, any> = { ...params.payload };
+  const updatePayload: Partial<Omit<SalesRow, 'id'>> & { extra?: Record<string, string>; updated_by?: string } = { ...params.payload };
   if (params.modifierEmail) updatePayload.extra = extra;
   if (params.modifierUserId) updatePayload.updated_by = params.modifierUserId;
 

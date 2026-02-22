@@ -1,12 +1,7 @@
 /** 合同主表 */
-export interface Contract {
-  id: string;
-  contract_no: string;
-  business_type: 'uz_domestic' | 'export';
-  account_name: string | null;
-  customer_display_name: string | null;
-  created_at: string;
-}
+import type { ContractEntity } from '../../types/contracts';
+
+export type Contract = ContractEntity;
 
 /** 合同版本表 */
 export interface ContractVersion {

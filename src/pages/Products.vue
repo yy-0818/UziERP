@@ -57,15 +57,17 @@ import { ref, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import { supabase } from '../supabase';
 import { useAuthStore } from '../stores/auth';
+import type { ProductEntity, ProductEditForm } from '../types/products';
+import { createProductEditFormDefault } from '../types/products';
 
 const auth = useAuthStore();
 const keyword = ref('');
-const rows = ref<any[]>([]);
+const rows = ref<ProductEntity[]>([]);
 const loading = ref(false);
 
 const editVisible = ref(false);
 const editTitle = ref('');
-const editForm = ref<any>({});
+const editForm = ref<ProductEditForm>(createProductEditFormDefault());
 const saving = ref(false);
 
 const canEdit = computed(() =>
@@ -89,18 +91,13 @@ async function fetchData() {
   loading.value = false;
 }
 
-function openEdit(row: any | null) {
+function openEdit(row: ProductEntity | null) {
   if (row) {
     editTitle.value = '编辑产品';
-    editForm.value = { ...row };
+    editForm.value = { ...createProductEditFormDefault(), ...row };
   } else {
     editTitle.value = '新增产品';
-    editForm.value = {
-      name: '',
-      category: '',
-      spec: '',
-      unit: '',
-    };
+    editForm.value = createProductEditFormDefault();
   }
   editVisible.value = true;
 }
@@ -152,4 +149,3 @@ onMounted(fetchData);
   margin-bottom: 12px;
 }
 </style>
-

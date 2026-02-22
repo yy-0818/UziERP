@@ -29,9 +29,10 @@
 import { ref, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { supabase } from '../supabase';
+import type { EmployeeEntity } from '../types/hr';
 
 const keyword = ref('');
-const rows = ref<any[]>([]);
+const rows = ref<EmployeeEntity[]>([]);
 const loading = ref(false);
 
 async function fetchData() {

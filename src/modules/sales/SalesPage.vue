@@ -484,7 +484,14 @@ import {
   deleteReceiptRecord,
   updateReceiptRecord,
 } from './api';
-import type { SalesRow, ReceiptRow } from './types';
+import type {
+  SalesRow,
+  ReceiptRow,
+  SalesEditForm,
+  ReceiptEditForm,
+  SalesImportRowLegacy,
+  ReceiptImportRowLegacy,
+} from './types';
 
 type ImportMode = 'sales' | 'receipt';
 type TabName = 'sales' | 'receipts';
@@ -504,9 +511,9 @@ const receiptTotalCount = ref(0);
 const salesFilters = ref({ keyword: '', dateRange: null as [string, string] | null });
 const receiptFilters = ref({ keyword: '', dateRange: null as [string, string] | null });
 /** 销售列筛选（服务端）：columnKey -> 选中的值数组，空数组表示不过滤该列 */
-const salesColumnFilters = ref<Record<string, string[]>>({});
+const salesColumnFilters = ref<Partial<Record<'document_date' | 'document_no' | 'payment_method' | 'customer_name' | 'category' | 'grade' | 'export_country' | 'vehicle_no', string[]>>>({});
 /** 收款列筛选（服务端） */
-const receiptColumnFilters = ref<Record<string, string[]>>({});
+const receiptColumnFilters = ref<Partial<Record<'receipt_date' | 'account_name' | 'customer_name', string[]>>>({});
 const salesPage = ref(1);
 const salesPageSize = ref(200);
 const receiptPage = ref(1);
@@ -526,11 +533,11 @@ const modifierEmail = computed(() => {
 
 /* ==================== 列筛选选项（从当前页收集，限制条数防卡顿；筛选由服务端执行） ==================== */
 const FILTER_OPTIONS_MAX = 150;
-function collectFilterOptions(rows: any[], field: string): { text: string; value: string }[] {
+function collectFilterOptions<T extends Record<string, unknown>>(rows: T[], field: keyof T): { text: string; value: string }[] {
   const seen = new Set<string>();
   const result: { text: string; value: string }[] = [];
   for (const row of rows) {
-    const val = String((row as any)[field] ?? '').trim();
+    const val = String(row[field] ?? "").trim();
     if (val && !seen.has(val)) {
       seen.add(val);
       result.push({ text: val, value: val });
@@ -561,7 +568,7 @@ const importMode = ref<ImportMode>('sales');
 const importText = ref('');
 const importing = ref(false);
 const fileInputRef = ref<HTMLInputElement | null>(null);
-const parsedImportRows = ref<Record<string, any>[] | null>(null);
+const parsedImportRows = ref<Array<SalesImportRowLegacy | ReceiptImportRowLegacy> | null>(null);
 
 const importProgress = ref({ total: 0, done: 0, written: 0 });
 const importProgressPercent = computed(() => {
@@ -577,11 +584,11 @@ const salesEntryMode = ref<'single' | 'batch'>('batch');
 const salesBatchPasteText = ref('');
 const saving = ref(false);
 const salesFormRef = ref<FormInstance>();
-const salesForm = ref<any>({});
+const salesForm = ref<SalesEditForm>(getEmptySalesForm());
 
 const salesBatchParsedCount = computed(() => parseExcelPasteRows(salesBatchPasteText.value, 'sales').length);
 
-function getEmptySalesForm() {
+function getEmptySalesForm(): SalesEditForm {
   return {
     id: null,
     document_date: dayjs().format('YYYY-MM-DD'),
@@ -619,11 +626,11 @@ const receiptDialogIsCreate = ref(false);
 const receiptEntryMode = ref<'single' | 'batch'>('batch');
 const receiptBatchPasteText = ref('');
 const receiptFormRef = ref<FormInstance>();
-const receiptForm = ref<any>({});
+const receiptForm = ref<ReceiptEditForm>(getEmptyReceiptForm());
 
 const receiptBatchParsedCount = computed(() => parseExcelPasteRows(receiptBatchPasteText.value, 'receipt').length);
 
-function getEmptyReceiptForm() {
+function getEmptyReceiptForm(): ReceiptEditForm {
   return {
     id: null,
     receipt_date: dayjs().format('YYYY-MM-DD'),
@@ -717,12 +724,12 @@ function parseTsvRows(txt: string): string[][] {
   return rows;
 }
 
-function parseExcelPasteRows(text: string, mode: 'sales' | 'receipt'): Record<string, any>[] {
+function parseExcelPasteRows(text: string, mode: 'sales' | 'receipt'): Array<SalesImportRowLegacy | ReceiptImportRowLegacy> {
   const txt = String(text || '').trim();
   if (!txt) return [];
   const keys = mode === 'sales' ? SALES_PASTE_KEYS : RECEIPT_PASTE_KEYS;
   const lines = parseTsvRows(txt);
-  const rows: Record<string, any>[] = [];
+  const rows: Array<SalesImportRowLegacy | ReceiptImportRowLegacy> = [];
   let startIdx = 0;
   if (lines.length > 0 && lines[0].length > 0) {
     const firstCell = String(lines[0][0] || '').trim().replace(/^"|"$/g, '');
@@ -730,7 +737,7 @@ function parseExcelPasteRows(text: string, mode: 'sales' | 'receipt'): Record<st
   }
   for (let i = startIdx; i < lines.length; i++) {
     const cells = lines[i];
-    const row: Record<string, any> = {};
+    const row: Record<string, string | number | null> = {};
     for (let j = 0; j < keys.length; j++) {
       let val = cells[j] != null ? String(cells[j]).trim() : '';
       val = val.replace(/^"|"$/g, '').replace(/""/g, '"');
@@ -1217,7 +1224,7 @@ async function exportSales() {
     }
     exportToExcel(
       allRows.map((r) => {
-        const row: Record<string, any> = {};
+        const row: Record<string, string | number | null> = {};
         for (const col of SALES_EXPORT_COLS) {
           row[col.key] = (r as any)[col.key] ?? '';
         }
@@ -1249,7 +1256,7 @@ async function exportReceipts() {
     }
     exportToExcel(
       allRows.map((r) => {
-        const row: Record<string, any> = {};
+        const row: Record<string, string | number | null> = {};
         for (const col of RECEIPT_EXPORT_COLS) {
           row[col.key] = (r as any)[col.key] ?? '';
         }
@@ -1306,8 +1313,8 @@ const LEGACY_KEY_ALIASES: Record<string, string> = {
   '__empty_1': '备注',
 };
 
-function normalizeImportRowKeys(row: Record<string, any>) {
-  const out: Record<string, any> = {};
+function normalizeImportRowKeys(row: Record<string, unknown>) {
+  const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(row || {})) {
     const original = String(k || '').trim();
     if (!original) continue;
@@ -1342,7 +1349,7 @@ function normalizeNumericValue(v: any): string {
   return s;
 }
 
-function normalizeImportRows(rows: Record<string, any>[], mode: ImportMode): Record<string, any>[] {
+function normalizeImportRows(rows: Array<SalesImportRowLegacy | ReceiptImportRowLegacy>, mode: ImportMode): Array<SalesImportRowLegacy | ReceiptImportRowLegacy> {
   return rows.map((r) => {
     const out = normalizeImportRowKeys(r || {});
     const numericKeys = mode === 'sales'
@@ -1362,7 +1369,7 @@ function normalizeImportRows(rows: Record<string, any>[], mode: ImportMode): Rec
   });
 }
 
-async function parseRowsFromFile(file: File): Promise<Record<string, any>[]> {
+async function parseRowsFromFile(file: File): Promise<Array<SalesImportRowLegacy | ReceiptImportRowLegacy>> {
   const lower = file.name.toLowerCase();
   if (lower.endsWith('.json')) {
     const parsed = JSON.parse(await file.text());
@@ -1374,7 +1381,7 @@ async function parseRowsFromFile(file: File): Promise<Record<string, any>[]> {
   const sheetName = wb.SheetNames[0];
   if (!sheetName) return [];
   const sheet = wb.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: '', raw: false });
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '', raw: false });
   return rows.map((r) => normalizeImportRowKeys(r || {}));
 }
 
@@ -1412,7 +1419,7 @@ async function submitImport() {
   importing.value = true;
   importProgress.value = { total: 0, done: 0, written: 0 };
   try {
-    let payload: Record<string, any>[];
+    let payload: Array<SalesImportRowLegacy | ReceiptImportRowLegacy>;
     if (parsedImportRows.value && parsedImportRows.value.length > 0) {
       payload = parsedImportRows.value;
     } else {
