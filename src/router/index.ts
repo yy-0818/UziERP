@@ -159,11 +159,8 @@ const router = createRouter({
 router.beforeEach(async (to, _from, next) => {
   const auth = useAuthStore();
 
+  // 仅首次等待 auth 就绪，避免每次切换页面都强制刷新用户/角色（原逻辑导致每次点击都请求接口，切换卡顿）
   await auth.ensureAuthReady();
-
-  if (to.meta.requiresAuth || to.meta.requiresRole) {
-    await auth.refreshAuthState({ force: true });
-  }
 
   if (to.path === '/login') {
     if (auth.isLoggedIn) return next('/');
