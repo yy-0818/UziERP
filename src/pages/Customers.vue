@@ -54,8 +54,8 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus';
-import { supabase } from '../supabase';
 import { useAuthStore } from '../stores/auth';
+import { listCustomers, upsertCustomer } from '../modules/master-data/api';
 
 const auth = useAuthStore();
 const keyword = ref('');
@@ -72,12 +72,13 @@ const canEdit = computed(() =>
 
 async function fetchData() {
   loading.value = true;
-  let query = supabase.from('customers').select('*').order('created_at', { ascending: false });
-  if (keyword.value) query = query.ilike('name', `%${keyword.value}%`);
-  const { data, error } = await query;
-  if (error) ElMessage.error('查询失败');
-  else rows.value = data || [];
-  loading.value = false;
+  try {
+    rows.value = await listCustomers(keyword.value);
+  } catch (error: any) {
+    ElMessage.error(error.message || '查询失败');
+  } finally {
+    loading.value = false;
+  }
 }
 
 function openEdit(row: any | null) {
@@ -98,20 +99,21 @@ async function saveData() {
     return;
   }
   saving.value = true;
-  const payload = { name: f.name, level: f.level || null, region: f.region || null };
-  let error;
-  if (f.id) {
-    ({ error } = await supabase.from('customers').update(payload).eq('id', f.id));
-  } else {
-    ({ error } = await supabase.from('customers').insert(payload));
-  }
-  if (error) ElMessage.error('保存失败');
-  else {
+  try {
+    await upsertCustomer({
+      id: f.id,
+      name: f.name,
+      level: f.level,
+      region: f.region,
+    });
     ElMessage.success('保存成功');
     editVisible.value = false;
     await fetchData();
+  } catch (error: any) {
+    ElMessage.error(error.message || '保存失败');
+  } finally {
+    saving.value = false;
   }
-  saving.value = false;
 }
 
 onMounted(fetchData);
