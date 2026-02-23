@@ -34,9 +34,10 @@
             <el-table-column prop="status" label="状态" width="90">
               <template #default="{ row }">{{ row.status === 'done' ? '已办理' : '待办理' }}</template>
             </el-table-column>
-            <el-table-column v-if="canManage" label="操作" width="100" fixed="right">
+            <el-table-column v-if="canManage" label="操作" width="140" fixed="right">
               <template #default="{ row }">
                 <el-button v-if="row.status === 'pending'" link type="primary" size="small" @click="openHandleDialog('invitation', row)">办理</el-button>
+                <el-button v-if="row.status === 'done'" link type="primary" size="small" @click="openEditDialog('invitation', row)">编辑</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -64,9 +65,10 @@
             <el-table-column prop="status" label="状态" width="90">
               <template #default="{ row }">{{ row.status === 'done' ? '已办理' : '待办理' }}</template>
             </el-table-column>
-            <el-table-column v-if="canManage" label="操作" width="100" fixed="right">
+            <el-table-column v-if="canManage" label="操作" width="140" fixed="right">
               <template #default="{ row }">
                 <el-button v-if="row.status === 'pending'" link type="primary" size="small" @click="openHandleDialog('visa', row)">办理</el-button>
+                <el-button v-if="row.status === 'done'" link type="primary" size="small" @click="openEditDialog('visa', row)">编辑</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -95,9 +97,10 @@
             <el-table-column prop="status" label="状态" width="90">
               <template #default="{ row }">{{ row.status === 'done' ? '已办理' : '待办理' }}</template>
             </el-table-column>
-            <el-table-column v-if="canManage" label="操作" width="100" fixed="right">
+            <el-table-column v-if="canManage" label="操作" width="140" fixed="right">
               <template #default="{ row }">
                 <el-button v-if="row.status === 'pending'" link type="primary" size="small" @click="openHandleDialog('flight', row)">办理</el-button>
+                <el-button v-if="row.status === 'done'" link type="primary" size="small" @click="openEditDialog('flight', row)">编辑</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -125,9 +128,10 @@
             <el-table-column prop="status" label="状态" width="90">
               <template #default="{ row }">{{ row.status === 'done' ? '已办理' : '待办理' }}</template>
             </el-table-column>
-            <el-table-column v-if="canManage" label="操作" width="100" fixed="right">
+            <el-table-column v-if="canManage" label="操作" width="140" fixed="right">
               <template #default="{ row }">
                 <el-button v-if="row.status === 'pending'" link type="primary" size="small" @click="openHandleDialog('labor', row)">办理</el-button>
+                <el-button v-if="row.status === 'done'" link type="primary" size="small" @click="openEditDialog('labor', row)">编辑</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -152,7 +156,7 @@
       width="520px"
       destroy-on-close
       append-to-body
-      @close="currentHandleRow = null; invLetterPreview = ''"
+      @close="currentHandleRow = null; invLetterPreview = ''; isEditMode = false; currentEditHandleId = null"
     >
       <template v-if="currentHandleRow">
         <p class="dialog-task-info">员工：{{ currentHandleRow.employee_name ?? '—' }}</p>
@@ -164,15 +168,11 @@
             <el-form-item label="费用金额">
               <el-input-number v-model="invHandleForm.fee_amount" :min="0" :precision="2" style="width: 100%" />
             </el-form-item>
-            <el-form-item label="邀请函图片">
+            <el-form-item label="邀请函附件">
               <div class="form-invitation-upload">
-                <el-upload
-                  :show-file-list="false"
-                  accept="image/*"
-                  :http-request="handleInvitationLetterUpload"
-                >
+                <el-upload :show-file-list="false" :http-request="handleInvitationLetterUpload">
                   <el-image v-if="invLetterPreview" class="inv-letter-preview" :src="invLetterPreview" fit="contain" />
-                  <el-button v-else type="primary" plain>上传图片</el-button>
+                  <el-button v-else type="primary" plain>上传附件</el-button>
                 </el-upload>
                 <el-button v-if="invHandleForm.letter_image_url" type="danger" link size="small" @click="clearInvLetter">清除</el-button>
               </div>
@@ -202,29 +202,39 @@
             <el-form-item label="出证公司">
               <el-input v-model="visaHandleForm.issuer_company" />
             </el-form-item>
+            <el-form-item label="签证附件">
+              <div class="form-attachment-upload">
+                <el-upload :show-file-list="false" :http-request="handleVisaAttachmentUpload">
+                  <el-button type="primary" plain size="small">上传附件</el-button>
+                </el-upload>
+                <el-button v-if="visaHandleForm.visa_image_url" type="danger" link size="small" @click="visaHandleForm.visa_image_url = null">清除</el-button>
+              </div>
+            </el-form-item>
             <el-form-item label="操作人">
               <el-input :model-value="currentOperator ?? '—'" disabled />
             </el-form-item>
           </el-form>
         </template>
         <template v-else-if="handleType === 'flight'">
-          <el-alert v-if="!validVisasForHandle.length" type="warning" :closable="false" style="margin-bottom: 12px">
+          <el-alert v-if="!isEditMode && !validVisasForHandle.length" type="warning" :closable="false" style="margin-bottom: 12px">
             该员工暂无有效签证，请先在档案详情中办理签证后再办理机票。
           </el-alert>
           <el-form ref="flightHandleFormRef" :model="flightHandleForm" label-width="100px">
-            <el-form-item label="使用签证">
-              <el-select v-model="flightHandleForm.visa_handle_id" placeholder="必选" style="width: 100%">
-                <el-option
-                  v-for="v in validVisasForHandle"
-                  :key="v.id"
-                  :label="`${formatDateOnly(v.effective_date)} - ${formatDateOnly(v.expiry_date)} 剩余${v.remaining_times === -1 ? '无限' : v.remaining_times}次`"
-                  :value="v.id"
-                />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="入境次数">
-              <el-input-number v-model="flightHandleForm.entry_count" :min="1" style="width: 100%" />
-            </el-form-item>
+            <template v-if="!isEditMode">
+              <el-form-item label="使用签证">
+                <el-select v-model="flightHandleForm.visa_handle_id" placeholder="必选" style="width: 100%">
+                  <el-option
+                    v-for="v in validVisasForHandle"
+                    :key="v.id"
+                    :label="`${formatDateOnly(v.effective_date)} - ${formatDateOnly(v.expiry_date)} 剩余${v.remaining_times === -1 ? '无限' : v.remaining_times}次`"
+                    :value="v.id"
+                  />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="入境次数">
+                <el-input-number v-model="flightHandleForm.entry_count" :min="1" style="width: 100%" />
+              </el-form-item>
+            </template>
             <el-form-item label="实际起飞">
               <el-date-picker v-model="flightHandleForm.actual_departure_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width: 100%" />
             </el-form-item>
@@ -236,6 +246,14 @@
             </el-form-item>
             <el-form-item label="出票公司">
               <el-input v-model="flightHandleForm.issuer_company" />
+            </el-form-item>
+            <el-form-item label="机票附件">
+              <div class="form-attachment-upload">
+                <el-upload :show-file-list="false" :http-request="handleFlightAttachmentUpload">
+                  <el-button type="primary" plain size="small">上传附件</el-button>
+                </el-upload>
+                <el-button v-if="flightHandleForm.ticket_image_url" type="danger" link size="small" @click="flightHandleForm.ticket_image_url = null">清除</el-button>
+              </div>
             </el-form-item>
             <el-form-item label="操作人">
               <el-input :model-value="currentOperator ?? '—'" disabled />
@@ -256,6 +274,14 @@
             <el-form-item label="费用">
               <el-input-number v-model="laborHandleForm.fee_amount" :min="0" :precision="2" style="width: 100%" />
             </el-form-item>
+            <el-form-item label="劳动许可附件">
+              <div class="form-attachment-upload">
+                <el-upload :show-file-list="false" :http-request="handleLaborAttachmentUpload">
+                  <el-button type="primary" plain size="small">上传附件</el-button>
+                </el-upload>
+                <el-button v-if="laborHandleForm.image_url" type="danger" link size="small" @click="laborHandleForm.image_url = null">清除</el-button>
+              </div>
+            </el-form-item>
             <el-form-item label="操作人">
               <el-input :model-value="currentOperator ?? '—'" disabled />
             </el-form-item>
@@ -264,7 +290,7 @@
       </template>
       <template #footer>
         <el-button @click="handleDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="handleSaving" @click="submitHandle">保存</el-button>
+        <el-button type="primary" :loading="handleSaving" @click="submitHandle">{{ isEditMode ? '保存' : '保存' }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -282,10 +308,18 @@ import {
   fetchVisaApplications,
   fetchFlightApplications,
   fetchLaborPermitApplications,
+  fetchInvitationHandleByApplicationId,
+  fetchVisaHandleByApplicationId,
+  fetchFlightHandleByApplicationId,
+  fetchLaborPermitHandleByApplicationId,
   createInvitationHandle,
   createVisaHandle,
   createFlightHandle,
   createLaborPermitHandle,
+  updateInvitationHandle,
+  updateVisaHandle,
+  updateFlightHandle,
+  updateLaborPermitHandle,
   fetchValidVisasForEmployee,
   hasInvitationHandled,
   uploadEmployeeFile,
@@ -355,6 +389,8 @@ const handleType = ref<'invitation' | 'visa' | 'flight' | 'labor'>('invitation')
 const currentHandleRow = ref<HandleRow | null>(null);
 const handleDialogVisible = ref(false);
 const handleSaving = ref(false);
+const isEditMode = ref(false);
+const currentEditHandleId = ref<string | null>(null);
 const validVisasForHandle = ref<VisaHandle[]>([]);
 const invLetterPreview = ref('');
 const invHandleForm = ref({ letter_date: null as string | null, fee_amount: null as number | null, letter_image_url: null as string | null });
@@ -365,6 +401,7 @@ const visaHandleForm = ref({
   remaining_times: null as number | null,
   fee_amount: null as number | null,
   issuer_company: null as string | null,
+  visa_image_url: null as string | null,
 });
 const flightHandleForm = ref({
   visa_handle_id: '',
@@ -372,6 +409,7 @@ const flightHandleForm = ref({
   actual_departure_at: null as string | null,
   arrival_at: null as string | null,
   ticket_amount: null as number | null,
+  ticket_image_url: null as string | null,
   issuer_company: null as string | null,
 });
 const laborHandleForm = ref({
@@ -379,6 +417,7 @@ const laborHandleForm = ref({
   effective_date: null as string | null,
   expiry_date: null as string | null,
   fee_amount: null as number | null,
+  image_url: null as string | null,
 });
 
 const invitationList = ref<(InvitationApplication & { employee_name?: string; employee_no?: string })[]>([]);
@@ -394,7 +433,8 @@ const handleTypeLabels: Record<string, string> = {
 };
 const handleDialogTitle = computed(() => {
   if (!currentHandleRow.value || !handleType.value) return '办理';
-  return handleTypeLabels[handleType.value] || '办理';
+  const label = handleTypeLabels[handleType.value] || '办理';
+  return isEditMode.value ? `编辑${label.replace('办理', '')}` : label;
 });
 
 function formatDate(v: string | null | undefined) {
@@ -480,7 +520,11 @@ async function handleInvitationLetterUpload(options: { file: File }) {
   try {
     const path = await uploadEmployeeFile('invitation', options.file.name, options.file);
     invHandleForm.value.letter_image_url = path;
-    invLetterPreview.value = await getSignedUrl(path);
+    if (options.file.type.startsWith('image/')) {
+      invLetterPreview.value = await getSignedUrl(path);
+    } else {
+      invLetterPreview.value = '';
+    }
   } catch (e: any) {
     ElMessage.error(e?.message || '上传失败');
   }
@@ -490,10 +534,37 @@ function clearInvLetter() {
   invLetterPreview.value = '';
 }
 
+async function handleVisaAttachmentUpload(options: { file: File }) {
+  try {
+    const path = await uploadEmployeeFile('visa', options.file.name, options.file);
+    visaHandleForm.value.visa_image_url = path;
+  } catch (e: any) {
+    ElMessage.error(e?.message || '上传失败');
+  }
+}
+async function handleFlightAttachmentUpload(options: { file: File }) {
+  try {
+    const path = await uploadEmployeeFile('flight', options.file.name, options.file);
+    flightHandleForm.value.ticket_image_url = path;
+  } catch (e: any) {
+    ElMessage.error(e?.message || '上传失败');
+  }
+}
+async function handleLaborAttachmentUpload(options: { file: File }) {
+  try {
+    const path = await uploadEmployeeFile('labor', options.file.name, options.file);
+    laborHandleForm.value.image_url = path;
+  } catch (e: any) {
+    ElMessage.error(e?.message || '上传失败');
+  }
+}
+
 function openHandleDialog(
   type: 'invitation' | 'visa' | 'flight' | 'labor',
   row: HandleRow
 ) {
+  isEditMode.value = false;
+  currentEditHandleId.value = null;
   handleType.value = type;
   currentHandleRow.value = row;
   invLetterPreview.value = '';
@@ -505,6 +576,7 @@ function openHandleDialog(
     remaining_times: null,
     fee_amount: null,
     issuer_company: null,
+    visa_image_url: null,
   };
   flightHandleForm.value = {
     visa_handle_id: '',
@@ -512,19 +584,144 @@ function openHandleDialog(
     actual_departure_at: null,
     arrival_at: null,
     ticket_amount: null,
+    ticket_image_url: null,
     issuer_company: null,
   };
-  laborHandleForm.value = { permit_date: null, effective_date: null, expiry_date: null, fee_amount: null };
+  laborHandleForm.value = { permit_date: null, effective_date: null, expiry_date: null, fee_amount: null, image_url: null };
   handleDialogVisible.value = true;
+}
+
+async function openEditDialog(
+  type: 'invitation' | 'visa' | 'flight' | 'labor',
+  row: HandleRow
+) {
+  handleType.value = type;
+  currentHandleRow.value = row;
+  isEditMode.value = true;
+  currentEditHandleId.value = null;
+  invLetterPreview.value = '';
+  try {
+    if (type === 'invitation') {
+      const h = await fetchInvitationHandleByApplicationId(row.id);
+      if (!h) {
+        ElMessage.warning('未找到办理记录');
+        return;
+      }
+      currentEditHandleId.value = h.id;
+      invHandleForm.value = {
+        letter_date: h.letter_date,
+        fee_amount: h.fee_amount,
+        letter_image_url: h.letter_image_url,
+      };
+      if (h.letter_image_url) invLetterPreview.value = await getSignedUrl(h.letter_image_url);
+    } else if (type === 'visa') {
+      const h = await fetchVisaHandleByApplicationId(row.id);
+      if (!h) {
+        ElMessage.warning('未找到办理记录');
+        return;
+      }
+      currentEditHandleId.value = h.id;
+      visaHandleForm.value = {
+        effective_date: h.effective_date,
+        expiry_date: h.expiry_date,
+        visa_times: h.visa_times,
+        remaining_times: h.remaining_times,
+        fee_amount: h.fee_amount,
+        issuer_company: h.issuer_company ?? null,
+        visa_image_url: h.visa_image_url ?? null,
+      };
+    } else if (type === 'flight') {
+      const h = await fetchFlightHandleByApplicationId(row.id);
+      if (!h) {
+        ElMessage.warning('未找到办理记录');
+        return;
+      }
+      currentEditHandleId.value = h.id;
+      validVisasForHandle.value = await fetchValidVisasForEmployee(row.employee_id);
+      flightHandleForm.value = {
+        visa_handle_id: validVisasForHandle.value[0]?.id ?? '',
+        entry_count: h.entry_count ?? 1,
+        actual_departure_at: h.actual_departure_at,
+        arrival_at: h.arrival_at,
+        ticket_amount: h.ticket_amount,
+        ticket_image_url: h.ticket_image_url ?? null,
+        issuer_company: h.issuer_company ?? null,
+      };
+    } else if (type === 'labor') {
+      const h = await fetchLaborPermitHandleByApplicationId(row.id);
+      if (!h) {
+        ElMessage.warning('未找到办理记录');
+        return;
+      }
+      currentEditHandleId.value = h.id;
+      laborHandleForm.value = {
+        permit_date: h.permit_date,
+        effective_date: h.effective_date,
+        expiry_date: h.expiry_date,
+        fee_amount: h.fee_amount,
+        image_url: h.image_url ?? null,
+      };
+    }
+    handleDialogVisible.value = true;
+  } catch (e: any) {
+    ElMessage.error(e?.message || '加载办理记录失败');
+  }
 }
 
 async function submitHandle() {
   if (handleSaving.value) return;
   const row = currentHandleRow.value;
   const type = handleType.value;
+  const handleId = currentEditHandleId.value;
   if (!row) return;
   handleSaving.value = true;
   try {
+    if (isEditMode.value && handleId) {
+      if (type === 'invitation') {
+        await updateInvitationHandle(handleId, {
+          letter_date: invHandleForm.value.letter_date,
+          letter_image_url: invHandleForm.value.letter_image_url,
+          fee_amount: invHandleForm.value.fee_amount,
+          operator: currentOperator.value,
+        });
+      } else if (type === 'visa') {
+        await updateVisaHandle(handleId, {
+          effective_date: visaHandleForm.value.effective_date,
+          expiry_date: visaHandleForm.value.expiry_date,
+          visa_times: visaHandleForm.value.visa_times,
+          remaining_times: visaHandleForm.value.remaining_times ?? visaHandleForm.value.visa_times ?? null,
+          fee_amount: visaHandleForm.value.fee_amount,
+          issuer_company: visaHandleForm.value.issuer_company,
+          visa_image_url: visaHandleForm.value.visa_image_url,
+          operator: currentOperator.value,
+        });
+      } else if (type === 'flight') {
+        await updateFlightHandle(handleId, {
+          actual_departure_at: flightHandleForm.value.actual_departure_at,
+          arrival_at: flightHandleForm.value.arrival_at,
+          ticket_amount: flightHandleForm.value.ticket_amount,
+          ticket_image_url: flightHandleForm.value.ticket_image_url,
+          issuer_company: flightHandleForm.value.issuer_company,
+          operator: currentOperator.value,
+        });
+      } else if (type === 'labor') {
+        await updateLaborPermitHandle(handleId, {
+          permit_date: laborHandleForm.value.permit_date,
+          effective_date: laborHandleForm.value.effective_date,
+          expiry_date: laborHandleForm.value.expiry_date,
+          fee_amount: laborHandleForm.value.fee_amount,
+          image_url: laborHandleForm.value.image_url,
+          operator: currentOperator.value,
+        });
+      }
+      ElMessage.success('已保存');
+      handleDialogVisible.value = false;
+      currentHandleRow.value = null;
+      currentEditHandleId.value = null;
+      isEditMode.value = false;
+      await loadAll();
+      return;
+    }
     if (type === 'invitation') {
       await createInvitationHandle({
         application_id: row.id,
@@ -547,7 +744,7 @@ async function submitHandle() {
         expiry_date: visaHandleForm.value.expiry_date,
         visa_times: visaHandleForm.value.visa_times,
         remaining_times: rt,
-        visa_image_url: null,
+        visa_image_url: visaHandleForm.value.visa_image_url,
         fee_amount: visaHandleForm.value.fee_amount,
         issuer_company: visaHandleForm.value.issuer_company,
         operator: currentOperator.value,
@@ -567,7 +764,7 @@ async function submitHandle() {
         depart_city: null,
         arrive_city: null,
         ticket_amount: flightHandleForm.value.ticket_amount,
-        ticket_image_url: null,
+        ticket_image_url: flightHandleForm.value.ticket_image_url,
         issuer_company: flightHandleForm.value.issuer_company,
         operator: currentOperator.value,
       });
@@ -578,7 +775,7 @@ async function submitHandle() {
         effective_date: laborHandleForm.value.effective_date,
         expiry_date: laborHandleForm.value.expiry_date,
         fee_amount: laborHandleForm.value.fee_amount,
-        image_url: null,
+        image_url: laborHandleForm.value.image_url,
         operator: currentOperator.value,
       });
     }
@@ -619,4 +816,5 @@ onMounted(() => {
 .dialog-task-info { margin-bottom: 16px; color: var(--el-text-color-regular); }
 .form-invitation-upload { display: flex; align-items: center; gap: 12px; }
 .inv-letter-preview { width: 120px; height: 90px; border-radius: 6px; display: block; border: 1px solid var(--el-border-color); }
+.form-attachment-upload { display: flex; align-items: center; gap: 8px; }
 </style>

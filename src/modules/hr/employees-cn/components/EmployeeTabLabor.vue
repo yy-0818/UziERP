@@ -51,6 +51,14 @@
         <el-form-item label="费用">
           <el-input-number v-model="handleForm.fee_amount" :min="0" :precision="2" style="width: 100%" />
         </el-form-item>
+        <el-form-item label="劳动许可附件">
+          <div class="form-attachment-upload">
+            <el-upload :show-file-list="false" :http-request="handleAttachmentUpload">
+              <el-button type="primary" plain size="small">上传附件</el-button>
+            </el-upload>
+            <el-button v-if="handleForm.image_url" type="danger" link size="small" @click="handleForm.image_url = null">清除</el-button>
+          </div>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="handleVisible = false">取消</el-button>
@@ -68,6 +76,7 @@ import {
   fetchLaborPermitApplications,
   createLaborPermitApplication,
   createLaborPermitHandle,
+  uploadEmployeeFile,
 } from '../api';
 import type { LaborPermitApplication } from '../types';
 
@@ -90,6 +99,7 @@ const handleForm = ref({
   effective_date: null as string | null,
   expiry_date: null as string | null,
   fee_amount: null as number | null,
+  image_url: null as string | null,
 });
 const currentApply = ref<LaborPermitApplication | null>(null);
 
@@ -146,8 +156,18 @@ function openHandle(row: LaborPermitApplication) {
     effective_date: null,
     expiry_date: null,
     fee_amount: null,
+    image_url: null,
   };
   handleVisible.value = true;
+}
+
+async function handleAttachmentUpload(options: { file: File }) {
+  try {
+    const path = await uploadEmployeeFile('labor', options.file.name, options.file);
+    handleForm.value.image_url = path;
+  } catch (e: any) {
+    ElMessage.error(e?.message || '上传失败');
+  }
 }
 
 async function submitHandle() {
@@ -160,7 +180,7 @@ async function submitHandle() {
       effective_date: handleForm.value.effective_date,
       expiry_date: handleForm.value.expiry_date,
       fee_amount: handleForm.value.fee_amount,
-      image_url: null,
+      image_url: handleForm.value.image_url,
       operator: auth.user?.email ?? auth.email ?? null,
     });
     ElMessage.success('办理完成');
@@ -178,4 +198,5 @@ async function submitHandle() {
 <style scoped>
 .tab-wrap { padding: 0; }
 .tab-actions { margin-bottom: 0; display: flex; gap: 8px; }
+.form-attachment-upload { display: flex; align-items: center; gap: 8px; }
 </style>

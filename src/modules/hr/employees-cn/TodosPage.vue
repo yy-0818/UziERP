@@ -66,15 +66,11 @@
             <el-form-item label="费用金额">
               <el-input-number v-model="invHandleForm.fee_amount" :min="0" :precision="2" style="width: 100%" />
             </el-form-item>
-            <el-form-item label="邀请函图片">
+            <el-form-item label="邀请函附件">
               <div class="form-invitation-upload">
-                <el-upload
-                  :show-file-list="false"
-                  accept="image/*"
-                  :http-request="handleInvitationLetterUpload"
-                >
+                <el-upload :show-file-list="false" :http-request="handleInvitationLetterUpload">
                   <el-image v-if="invLetterPreview" class="inv-letter-preview" :src="invLetterPreview" fit="contain" />
-                  <el-button v-else type="primary" plain>上传图片</el-button>
+                  <el-button v-else type="primary" plain>上传附件</el-button>
                 </el-upload>
                 <el-button v-if="invHandleForm.letter_image_url" type="danger" link size="small" @click="clearInvLetter">清除</el-button>
               </div>
@@ -107,6 +103,14 @@
             </el-form-item>
             <el-form-item label="出证公司">
               <el-input v-model="visaHandleForm.issuer_company" />
+            </el-form-item>
+            <el-form-item label="签证附件">
+              <div class="form-attachment-upload">
+                <el-upload :show-file-list="false" :http-request="handleVisaAttachmentUpload">
+                  <el-button type="primary" plain size="small">上传附件</el-button>
+                </el-upload>
+                <el-button v-if="visaHandleForm.visa_image_url" type="danger" link size="small" @click="visaHandleForm.visa_image_url = null">清除</el-button>
+              </div>
             </el-form-item>
           </el-form>
         </template>
@@ -144,6 +148,14 @@
             <el-form-item label="出票公司">
               <el-input v-model="flightHandleForm.issuer_company" />
             </el-form-item>
+            <el-form-item label="机票附件">
+              <div class="form-attachment-upload">
+                <el-upload :show-file-list="false" :http-request="handleFlightAttachmentUpload">
+                  <el-button type="primary" plain size="small">上传附件</el-button>
+                </el-upload>
+                <el-button v-if="flightHandleForm.ticket_image_url" type="danger" link size="small" @click="flightHandleForm.ticket_image_url = null">清除</el-button>
+              </div>
+            </el-form-item>
           </el-form>
         </template>
         <!-- 劳动许可办理 -->
@@ -164,6 +176,14 @@
             <el-form-item label="费用">
               <el-input-number v-model="laborHandleForm.fee_amount" :min="0" :precision="2" style="width: 100%" />
             </el-form-item>
+            <el-form-item label="劳动许可附件">
+              <div class="form-attachment-upload">
+                <el-upload :show-file-list="false" :http-request="handleLaborAttachmentUpload">
+                  <el-button type="primary" plain size="small">上传附件</el-button>
+                </el-upload>
+                <el-button v-if="laborHandleForm.image_url" type="danger" link size="small" @click="laborHandleForm.image_url = null">清除</el-button>
+              </div>
+            </el-form-item>
           </el-form>
         </template>
       </template>
@@ -176,11 +196,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { useAuthStore } from '../../../stores/auth';
 import {
   fetchTodoList,
+  subscribeTodoListUpdates,
   createInvitationHandle,
   createVisaHandle,
   createFlightHandle,
@@ -252,6 +273,7 @@ const visaHandleForm = ref({
   remaining_times: null as number | null,
   fee_amount: null as number | null,
   issuer_company: null as string | null,
+  visa_image_url: null as string | null,
 });
 const flightHandleForm = ref({
   visa_handle_id: '',
@@ -259,6 +281,7 @@ const flightHandleForm = ref({
   actual_departure_at: null as string | null,
   arrival_at: null as string | null,
   ticket_amount: null as number | null,
+  ticket_image_url: null as string | null,
   issuer_company: null as string | null,
 });
 const laborHandleForm = ref({
@@ -266,6 +289,7 @@ const laborHandleForm = ref({
   effective_date: null as string | null,
   expiry_date: null as string | null,
   fee_amount: null as number | null,
+  image_url: null as string | null,
 });
 
 const todoTypeLabels: Record<TodoItem['type'], string> = {
@@ -320,7 +344,11 @@ async function handleInvitationLetterUpload(options: { file: File }) {
   try {
     const path = await uploadEmployeeFile('invitation', options.file.name, options.file);
     invHandleForm.value.letter_image_url = path;
-    invLetterPreview.value = await getSignedUrl(path);
+    if (options.file.type.startsWith('image/')) {
+      invLetterPreview.value = await getSignedUrl(path);
+    } else {
+      invLetterPreview.value = '';
+    }
   } catch (e: any) {
     ElMessage.error(e?.message || '上传失败');
   }
@@ -328,6 +356,30 @@ async function handleInvitationLetterUpload(options: { file: File }) {
 function clearInvLetter() {
   invHandleForm.value.letter_image_url = null;
   invLetterPreview.value = '';
+}
+async function handleVisaAttachmentUpload(options: { file: File }) {
+  try {
+    const path = await uploadEmployeeFile('visa', options.file.name, options.file);
+    visaHandleForm.value.visa_image_url = path;
+  } catch (e: any) {
+    ElMessage.error(e?.message || '上传失败');
+  }
+}
+async function handleFlightAttachmentUpload(options: { file: File }) {
+  try {
+    const path = await uploadEmployeeFile('flight', options.file.name, options.file);
+    flightHandleForm.value.ticket_image_url = path;
+  } catch (e: any) {
+    ElMessage.error(e?.message || '上传失败');
+  }
+}
+async function handleLaborAttachmentUpload(options: { file: File }) {
+  try {
+    const path = await uploadEmployeeFile('labor', options.file.name, options.file);
+    laborHandleForm.value.image_url = path;
+  } catch (e: any) {
+    ElMessage.error(e?.message || '上传失败');
+  }
 }
 
 function openHandleDialog(row: TodoItem) {
@@ -341,6 +393,7 @@ function openHandleDialog(row: TodoItem) {
     remaining_times: null,
     fee_amount: null,
     issuer_company: null,
+    visa_image_url: null,
   };
   flightHandleForm.value = {
     visa_handle_id: validVisasForTodo.value[0]?.id ?? '',
@@ -348,9 +401,10 @@ function openHandleDialog(row: TodoItem) {
     actual_departure_at: null,
     arrival_at: null,
     ticket_amount: null,
+    ticket_image_url: null,
     issuer_company: null,
   };
-  laborHandleForm.value = { permit_date: null, effective_date: null, expiry_date: null, fee_amount: null };
+  laborHandleForm.value = { permit_date: null, effective_date: null, expiry_date: null, fee_amount: null, image_url: null };
   handleDialogVisible.value = true;
 }
 
@@ -382,7 +436,7 @@ async function submitHandle() {
         expiry_date: visaHandleForm.value.expiry_date,
         visa_times: visaHandleForm.value.visa_times,
         remaining_times: rt,
-        visa_image_url: null,
+        visa_image_url: visaHandleForm.value.visa_image_url,
         fee_amount: visaHandleForm.value.fee_amount,
         issuer_company: visaHandleForm.value.issuer_company,
         operator: currentOperator.value,
@@ -402,7 +456,7 @@ async function submitHandle() {
         depart_city: null,
         arrive_city: null,
         ticket_amount: flightHandleForm.value.ticket_amount,
-        ticket_image_url: null,
+        ticket_image_url: flightHandleForm.value.ticket_image_url,
         issuer_company: flightHandleForm.value.issuer_company,
         operator: currentOperator.value,
       });
@@ -413,7 +467,7 @@ async function submitHandle() {
         effective_date: laborHandleForm.value.effective_date,
         expiry_date: laborHandleForm.value.expiry_date,
         fee_amount: laborHandleForm.value.fee_amount,
-        image_url: null,
+        image_url: laborHandleForm.value.image_url,
         operator: currentOperator.value,
       });
     }
@@ -430,9 +484,39 @@ async function submitHandle() {
 
 watch(typeFilter, debouncedPersistUiState);
 
+const POLL_INTERVAL_MS = 30000;
+let unsubscribeRealtime: (() => void) | null = null;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+function startRealtimeAndPolling() {
+  const onUpdate = () => {
+    if (document.visibilityState === 'visible') load();
+  };
+  unsubscribeRealtime = subscribeTodoListUpdates(onUpdate);
+  pollTimer = setInterval(() => {
+    if (document.visibilityState === 'visible') load();
+  }, POLL_INTERVAL_MS);
+}
+
+function stopRealtimeAndPolling() {
+  if (unsubscribeRealtime) {
+    unsubscribeRealtime();
+    unsubscribeRealtime = null;
+  }
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
+
 onMounted(() => {
   restoreUiState();
   load();
+  startRealtimeAndPolling();
+});
+
+onUnmounted(() => {
+  stopRealtimeAndPolling();
 });
 </script>
 
@@ -443,4 +527,5 @@ onMounted(() => {
 .dialog-task-info { margin-bottom: 16px; color: var(--el-text-color-regular); }
 .form-invitation-upload { display: flex; align-items: center; gap: 12px; }
 .inv-letter-preview { width: 120px; height: 90px; border-radius: 6px; display: block; border: 1px solid var(--el-border-color); }
+.form-attachment-upload { display: flex; align-items: center; gap: 8px; }
 </style>

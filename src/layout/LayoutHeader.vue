@@ -40,7 +40,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { ElMessageBox } from 'element-plus';
 import { UserFilled, ArrowDown, Expand, Fold, Moon, Sunny, SwitchButton, BellFilled } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
@@ -48,7 +48,7 @@ import AppBreadcrumb from '../components/common/AppBreadcrumb.vue';
 import { useAuthStore } from '../stores/auth';
 import { useLayoutStore } from '../stores/layout';
 import { useTheme } from '../composables/useTheme';
-import { fetchTodoCount } from '../modules/hr/employees-cn/api';
+import { fetchTodoCount, subscribeTodoListUpdates } from '../modules/hr/employees-cn/api';
 
 const router = useRouter();
 const layout = useLayoutStore();
@@ -57,12 +57,30 @@ const { isDark, toggleTheme } = useTheme();
 const todoCount = ref<number | undefined>(undefined);
 const canSeeTodo = computed(() => auth.role === 'super_admin');
 
-onMounted(async () => {
+async function refreshTodoCount() {
   if (!canSeeTodo.value) return;
   try {
     todoCount.value = await fetchTodoCount();
   } catch {
     todoCount.value = 0;
+  }
+}
+
+let unsubscribeTodos: (() => void) | null = null;
+
+onMounted(async () => {
+  await refreshTodoCount();
+  if (canSeeTodo.value) {
+    unsubscribeTodos = subscribeTodoListUpdates(() => {
+      refreshTodoCount();
+    });
+  }
+});
+
+onUnmounted(() => {
+  if (unsubscribeTodos) {
+    unsubscribeTodos();
+    unsubscribeTodos = null;
   }
 });
 

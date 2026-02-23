@@ -8,6 +8,7 @@
             <div class="subtitle">在职/离职、部门岗位、工资标准由调岗/调薪/离职自动更新</div>
           </div>
           <div class="header-actions">
+            <el-button v-if="canManage" type="success" plain :icon="Download" :loading="exporting" @click="exportArchives">导出档案</el-button>
             <el-button v-if="canManage" type="primary" @click="openOnboard" :icon="FolderAdd">入职登记</el-button>
             <el-button :icon="Refresh" @click="fetchData">刷新</el-button>
           </div>
@@ -572,12 +573,13 @@
 import { ref, computed, watch, onMounted, nextTick, defineAsyncComponent } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
-import { Refresh, View, Edit, Finished, Avatar, FolderAdd } from '@element-plus/icons-vue';
+import { Refresh, View, Edit, Finished, Avatar, FolderAdd, Download } from '@element-plus/icons-vue';
 import { useAuthStore } from '../../../stores/auth';
 import {
   fetchEmployees,
   fetchEmployeeById,
   fetchLeaveRecords,
+  fetchEmployeesForExport,
   createEmployee,
   updateEmployee,
   setEmployeeResigned,
@@ -589,6 +591,7 @@ import {
   uploadEmployeeFile,
   fetchEmployeeTimeline,
 } from './api';
+import { exportToExcel } from '../../../composables/useExport';
 import './employees-cn.css';
 import { formatDateOnly } from './types';
 import { isOnLeaveToday } from './api';
@@ -616,6 +619,7 @@ const STATE_KEY = 'hr.employees-cn.archives.ui_state.v1';
 const list = ref<CnEmployeeWithStatus[]>([]);
 const leaveRecords = ref<Awaited<ReturnType<typeof fetchLeaveRecords>>>([]);
 const loading = ref(false);
+const exporting = ref(false);
 const filters = ref<{ keyword: string; statusFilter: '' | 'active' | 'resigned' | 'pending' | 'onLeave' }>({ keyword: '', statusFilter: '' });
 const photoUrlMap = ref<Record<string, string>>({});
 const tableFilters = ref<Record<string, string[]>>({});
@@ -782,6 +786,23 @@ async function fetchData() {
     ElMessage.error(e?.message || '加载失败');
   } finally {
     loading.value = false;
+  }
+}
+
+async function exportArchives() {
+  exporting.value = true;
+  try {
+    const data = await fetchEmployeesForExport();
+    if (!data.length) {
+      ElMessage.warning('暂无可导出的数据');
+      return;
+    }
+    exportToExcel(data, undefined, '员工档案');
+    ElMessage.success(`已导出 ${data.length} 条记录`);
+  } catch (e: any) {
+    ElMessage.error(e?.message || '导出失败');
+  } finally {
+    exporting.value = false;
   }
 }
 

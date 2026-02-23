@@ -37,10 +37,13 @@
         <el-form-item label="费用金额">
           <el-input-number v-model="handleForm.fee_amount" :min="0" :precision="2" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="邀请函图片">
-          <el-input v-model="handleForm.letter_image_url" placeholder="上传后填写存储路径或 URL" />
-          <input ref="fileRef" type="file" accept="image/*" style="display: none" @change="onFileChange" />
-          <el-button size="small" @click="fileRef?.click()">选择文件</el-button>
+        <el-form-item label="邀请函附件">
+          <div class="form-attachment-upload">
+            <input ref="fileRef" type="file" style="display: none" @change="onFileChange" />
+            <el-button size="small" @click="fileRef?.click()">上传附件</el-button>
+            <el-button v-if="handleForm.letter_image_url" type="danger" link size="small" @click="handleForm.letter_image_url = null">清除</el-button>
+            <span v-if="handleForm.letter_image_url" class="attachment-hint">已选文件</span>
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -136,6 +139,7 @@ async function onFileChange(ev: Event) {
   try {
     const path = await uploadEmployeeFile('invitation', file.name, file);
     handleForm.value.letter_image_url = path;
+    ElMessage.success('附件已选择');
   } catch (e: any) {
     ElMessage.error(e?.message || '上传失败');
   }
@@ -172,10 +176,10 @@ async function viewHandle(row: InvitationApplication) {
       const url = await getSignedUrl(h.letter_image_url);
       window.open(url, '_blank');
     } catch {
-      ElMessage.warning('无法预览图片');
+      ElMessage.warning('无法打开附件');
     }
   } else {
-    ElMessage.info('暂无邀请函图片');
+    ElMessage.info('暂无邀请函附件');
   }
 }
 </script>
@@ -183,4 +187,6 @@ async function viewHandle(row: InvitationApplication) {
 <style scoped>
 .tab-wrap { padding: 0; }
 .tab-actions { margin-bottom: 0; display: flex; gap: 8px; }
+.form-attachment-upload { display: flex; align-items: center; gap: 8px; }
+.attachment-hint { font-size: 12px; color: var(--el-text-color-secondary); }
 </style>

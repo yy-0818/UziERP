@@ -26,16 +26,20 @@
           </el-select>
         </el-form-item>
         <el-form-item label="申请类型">
-          <el-input v-model="visaForm.application_type" placeholder="如：旅游签、工作签" />
+          <el-select v-model="visaForm.application_type" filterable allow-create placeholder="请选择或输入" style="width: 100%">
+            <el-option label="工作签" value="工作签" />
+            <el-option label="商务签" value="商务签" />
+            <el-option label="落地签" value="落地签" />
+          </el-select>
         </el-form-item>
         <el-form-item label="预计出发">
           <el-date-picker v-model="visaForm.expected_departure_at" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
         </el-form-item>
       </el-form>
     </template>
-    <!-- 机票 -->
+    <!-- 机票：根据 cn_visa_handles 的 visa_times/remaining_times 校验，无有效签证则不可提交 -->
     <template v-else-if="tab === 'flight'">
-      <el-alert v-if="flightEmployeeId && !flightValidVisas.length" type="warning" :closable="false" style="margin-bottom: 12px">
+      <el-alert v-if="flightVisaBlocked" type="warning" :closable="false" style="margin-bottom: 12px">
         该员工当前无有效签证或剩余次数为0，请先办理签证。
       </el-alert>
       <el-form ref="flightFormRef" :model="flightForm" label-width="100px">
@@ -83,7 +87,7 @@
       <el-button
         type="primary"
         :loading="loading"
-        :disabled="tab === 'flight' && !!flightForm.employee_id && !flightValidVisas.length"
+        :disabled="flightVisaBlocked"
         @click="submit"
       >
         提交
@@ -103,7 +107,7 @@ import {
   createLaborPermitApplication,
   fetchValidVisasForEmployee,
 } from '../api';
-import type { CnEmployee } from '../types';
+import type { CnEmployee, VisaHandle } from '../types';
 
 const props = defineProps<{
   visible: boolean;
@@ -143,8 +147,9 @@ const laborForm = ref({
   applicant: '',
 });
 
-const flightValidVisas = ref<{ id: string }[]>([]);
+const flightValidVisas = ref<VisaHandle[]>([]);
 const flightEmployeeId = computed(() => flightForm.value.employee_id);
+const flightVisaBlocked = computed(() => props.tab === 'flight' && !!flightForm.value.employee_id && !flightValidVisas.value.length);
 const loading = ref(false);
 
 const dialogTitle = computed(() => {
@@ -182,7 +187,7 @@ async function onFlightEmployeeChange(employeeId: string) {
   }
   try {
     const visas = await fetchValidVisasForEmployee(employeeId);
-    flightValidVisas.value = visas.map((v) => ({ id: v.id }));
+    flightValidVisas.value = visas;
   } catch {
     flightValidVisas.value = [];
   }
@@ -217,7 +222,7 @@ async function submit() {
         return;
       }
       if (!flightValidVisas.value.length) {
-        ElMessage.warning('该员工无有效签证，无法申请机票');
+        ElMessage.warning('该员工当前无有效签证或剩余次数为0，请先办理签证');
         return;
       }
       await createFlightApplication({

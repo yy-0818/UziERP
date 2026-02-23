@@ -250,6 +250,44 @@ export async function createInvitationHandle(params: {
   return handle as InvitationHandle;
 }
 
+/** 补充编辑邀请函办理（附件遗漏、资料更正） */
+export async function updateInvitationHandle(
+  id: string,
+  params: {
+    letter_date?: string | null;
+    letter_image_url?: string | null;
+    fee_amount?: number | null;
+    operator?: string | null;
+  }
+): Promise<InvitationHandle> {
+  const { data, error } = await supabase
+    .from('cn_invitation_handles')
+    .update({
+      ...(params.letter_date !== undefined && { letter_date: params.letter_date }),
+      ...(params.letter_image_url !== undefined && { letter_image_url: params.letter_image_url }),
+      ...(params.fee_amount !== undefined && { fee_amount: params.fee_amount }),
+      ...(params.operator !== undefined && { operator: params.operator }),
+    })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  try {
+    const { data: row } = await supabase.from('cn_invitation_handles').select('application_id').eq('id', id).single();
+    const appId = (row as { application_id?: string })?.application_id;
+    const { data: appRow } = appId ? await supabase.from('cn_invitation_applications').select('employee_id').eq('id', appId).maybeSingle() : { data: null };
+    const brief = appRow?.employee_id ? await getEmployeeBrief(appRow.employee_id) : null;
+    await logOperation({
+      category: 'invitation',
+      action: '邀请函编辑',
+      target_type: 'cn_invitation_handles',
+      target_id: id,
+      detail: { application_id: appId, ...brief },
+    });
+  } catch (_) { /* 日志失败不影响主流程 */ }
+  return data as InvitationHandle;
+}
+
 // ==================== 签证 ====================
 
 export async function fetchVisaApplications(employeeId?: string): Promise<VisaApplication[]> {
@@ -270,7 +308,7 @@ export async function fetchVisaHandleByApplicationId(applicationId: string): Pro
   return data as VisaHandle | null;
 }
 
-/** 获取员工当前有效签证（生效日期<=今天<=失效日期 且 剩余次数>0 或 -1） */
+/** 查询该员工有效签证：cn_visa_handles 表。有效 = 未过期（expiry_date>=今天或 null）且 remaining_times>0 或 -1；不要求生效日已到（办理后未生效的签证也可用于申请机票） */
 export async function fetchValidVisasForEmployee(employeeId: string): Promise<VisaHandle[]> {
   const today = new Date().toISOString().slice(0, 10);
   const { data: apps, error: eApps } = await supabase
@@ -283,12 +321,14 @@ export async function fetchValidVisasForEmployee(employeeId: string): Promise<Vi
   const { data: handles, error } = await supabase
     .from('cn_visa_handles')
     .select('*')
-    .in('application_id', appIds)
-    .lte('effective_date', today)
-    .gte('expiry_date', today);
+    .in('application_id', appIds);
   if (error) throw error;
   const list = (handles || []) as VisaHandle[];
-  return list.filter((h) => h.remaining_times === null || h.remaining_times === -1 || h.remaining_times > 0);
+  return list.filter((h) => {
+    const notExpired = h.expiry_date == null || h.expiry_date >= today;
+    const hasTimes = h.remaining_times === null || h.remaining_times === -1 || h.remaining_times > 0;
+    return notExpired && hasTimes;
+  });
 }
 
 export async function createVisaApplication(params: {
@@ -376,6 +416,52 @@ export async function createVisaHandle(params: {
   return handle as VisaHandle;
 }
 
+/** 补充编辑签证办理 */
+export async function updateVisaHandle(
+  id: string,
+  params: {
+    effective_date?: string | null;
+    expiry_date?: string | null;
+    visa_times?: number | null;
+    remaining_times?: number | null;
+    visa_image_url?: string | null;
+    fee_amount?: number | null;
+    issuer_company?: string | null;
+    operator?: string | null;
+  }
+): Promise<VisaHandle> {
+  const { data, error } = await supabase
+    .from('cn_visa_handles')
+    .update({
+      ...(params.effective_date !== undefined && { effective_date: params.effective_date }),
+      ...(params.expiry_date !== undefined && { expiry_date: params.expiry_date }),
+      ...(params.visa_times !== undefined && { visa_times: params.visa_times }),
+      ...(params.remaining_times !== undefined && { remaining_times: params.remaining_times }),
+      ...(params.visa_image_url !== undefined && { visa_image_url: params.visa_image_url }),
+      ...(params.fee_amount !== undefined && { fee_amount: params.fee_amount }),
+      ...(params.issuer_company !== undefined && { issuer_company: params.issuer_company }),
+      ...(params.operator !== undefined && { operator: params.operator }),
+    })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  try {
+    const { data: row } = await supabase.from('cn_visa_handles').select('application_id').eq('id', id).single();
+    const appId = (row as { application_id?: string })?.application_id;
+    const { data: appRow } = appId ? await supabase.from('cn_visa_applications').select('employee_id').eq('id', appId).maybeSingle() : { data: null };
+    const brief = appRow?.employee_id ? await getEmployeeBrief(appRow.employee_id) : null;
+    await logOperation({
+      category: 'visa',
+      action: '签证编辑',
+      target_type: 'cn_visa_handles',
+      target_id: id,
+      detail: { application_id: appId, ...brief },
+    });
+  } catch (_) { /* 日志失败不影响主流程 */ }
+  return data as VisaHandle;
+}
+
 // ==================== 机票 ====================
 
 export async function fetchFlightApplications(employeeId?: string): Promise<FlightApplication[]> {
@@ -396,6 +482,7 @@ export async function fetchFlightHandleByApplicationId(applicationId: string): P
   return data as FlightHandle | null;
 }
 
+/** 新建机票申请：提交前校验该员工在 cn_visa_handles 中是否存在有效签证（visa_times/remaining_times），无有效签证或剩余次数为0则阻断 */
 export async function createFlightApplication(params: {
   employee_id: string;
   depart_city: string | null;
@@ -404,6 +491,10 @@ export async function createFlightApplication(params: {
   remark: string | null;
   submitted_by: string | null;
 }): Promise<FlightApplication> {
+  const validVisas = await fetchValidVisasForEmployee(params.employee_id);
+  if (!validVisas.length) {
+    throw new Error('该员工当前无有效签证或剩余次数为0，请先办理签证');
+  }
   const now = getLocalIsoString();
   const { data, error } = await supabase
     .from('cn_flight_applications')
@@ -490,6 +581,52 @@ export async function createFlightHandle(params: {
     });
   } catch (_) { /* 日志失败不影响主流程 */ }
   return handle as FlightHandle;
+}
+
+/** 补充编辑机票办理（不修改签证扣减，仅更新时间/金额/附件等） */
+export async function updateFlightHandle(
+  id: string,
+  params: {
+    actual_departure_at?: string | null;
+    arrival_at?: string | null;
+    depart_city?: string | null;
+    arrive_city?: string | null;
+    ticket_amount?: number | null;
+    ticket_image_url?: string | null;
+    issuer_company?: string | null;
+    operator?: string | null;
+  }
+): Promise<FlightHandle> {
+  const { data, error } = await supabase
+    .from('cn_flight_handles')
+    .update({
+      ...(params.actual_departure_at !== undefined && { actual_departure_at: params.actual_departure_at }),
+      ...(params.arrival_at !== undefined && { arrival_at: params.arrival_at }),
+      ...(params.depart_city !== undefined && { depart_city: params.depart_city }),
+      ...(params.arrive_city !== undefined && { arrive_city: params.arrive_city }),
+      ...(params.ticket_amount !== undefined && { ticket_amount: params.ticket_amount }),
+      ...(params.ticket_image_url !== undefined && { ticket_image_url: params.ticket_image_url }),
+      ...(params.issuer_company !== undefined && { issuer_company: params.issuer_company }),
+      ...(params.operator !== undefined && { operator: params.operator }),
+    })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  try {
+    const { data: row } = await supabase.from('cn_flight_handles').select('application_id').eq('id', id).single();
+    const appId = (row as { application_id?: string })?.application_id;
+    const { data: appRow } = appId ? await supabase.from('cn_flight_applications').select('employee_id').eq('id', appId).maybeSingle() : { data: null };
+    const brief = appRow?.employee_id ? await getEmployeeBrief(appRow.employee_id) : null;
+    await logOperation({
+      category: 'flight',
+      action: '机票编辑',
+      target_type: 'cn_flight_handles',
+      target_id: id,
+      detail: { application_id: appId, ...brief },
+    });
+  } catch (_) { /* 日志失败不影响主流程 */ }
+  return data as FlightHandle;
 }
 
 // ==================== 劳动许可 ====================
@@ -595,6 +732,48 @@ export async function createLaborPermitHandle(params: {
     });
   } catch (_) { /* 日志失败不影响主流程 */ }
   return handle as LaborPermitHandle;
+}
+
+/** 补充编辑劳动许可办理 */
+export async function updateLaborPermitHandle(
+  id: string,
+  params: {
+    permit_date?: string | null;
+    effective_date?: string | null;
+    expiry_date?: string | null;
+    fee_amount?: number | null;
+    image_url?: string | null;
+    operator?: string | null;
+  }
+): Promise<LaborPermitHandle> {
+  const { data, error } = await supabase
+    .from('cn_labor_permit_handles')
+    .update({
+      ...(params.permit_date !== undefined && { permit_date: params.permit_date }),
+      ...(params.effective_date !== undefined && { effective_date: params.effective_date }),
+      ...(params.expiry_date !== undefined && { expiry_date: params.expiry_date }),
+      ...(params.fee_amount !== undefined && { fee_amount: params.fee_amount }),
+      ...(params.image_url !== undefined && { image_url: params.image_url }),
+      ...(params.operator !== undefined && { operator: params.operator }),
+    })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  try {
+    const { data: row } = await supabase.from('cn_labor_permit_handles').select('application_id').eq('id', id).single();
+    const appId = (row as { application_id?: string })?.application_id;
+    const { data: appRow } = appId ? await supabase.from('cn_labor_permit_applications').select('employee_id').eq('id', appId).maybeSingle() : { data: null };
+    const brief = appRow?.employee_id ? await getEmployeeBrief(appRow.employee_id) : null;
+    await logOperation({
+      category: 'labor_permit',
+      action: '劳动许可编辑',
+      target_type: 'cn_labor_permit_handles',
+      target_id: id,
+      detail: { application_id: appId, ...brief },
+    });
+  } catch (_) { /* 日志失败不影响主流程 */ }
+  return data as LaborPermitHandle;
 }
 
 // ==================== 调岗 / 调薪 / 请假 / 奖励违纪 ====================
@@ -823,6 +1002,36 @@ export async function fetchTodoCount(): Promise<number> {
   return list.length;
 }
 
+/** 订阅待办相关表变更，用于消息中心实时刷新（新申请/状态变更时回调） */
+export function subscribeTodoListUpdates(callback: () => void): () => void {
+  const channel = supabase
+    .channel('hr-todos-updates')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'cn_invitation_applications' },
+      () => callback()
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'cn_visa_applications' },
+      () => callback()
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'cn_flight_applications' },
+      () => callback()
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'cn_labor_permit_applications' },
+      () => callback()
+    )
+    .subscribe();
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}
+
 // ==================== 员工流程时间线（详情页展示） ====================
 
 export async function fetchEmployeeTimeline(employeeId: string): Promise<EmployeeTimelineItem[]> {
@@ -933,4 +1142,33 @@ export async function fetchEmployeeTimeline(employeeId: string): Promise<Employe
 
   items.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   return items;
+}
+
+// ==================== 员工档案导出（仅 cn_employees 表） ====================
+
+const EMPLOYEE_EXPORT_KEYS: (keyof CnEmployee)[] = [
+  'employee_no', 'name', 'passport_no', 'birth_date', 'gender', 'department', 'position',
+  'hire_date', 'resigned_at', 'bank_account', 'bank_name', 'salary_standard', 'id_card_no',
+  'home_address', 'marital_status', 'contact_phone', 'emergency_contact', 'emergency_phone',
+  'created_at', 'updated_at',
+];
+const EMPLOYEE_EXPORT_LABELS: Record<string, string> = {
+  employee_no: '工号', name: '姓名', passport_no: '护照号', birth_date: '出生日期', gender: '性别',
+  department: '部门', position: '岗位', hire_date: '入职日期', resigned_at: '离职时间',
+  bank_account: '银行账号', bank_name: '开户行', salary_standard: '工资标准', id_card_no: '身份证号',
+  home_address: '家庭住址', marital_status: '婚姻状况', contact_phone: '联系电话',
+  emergency_contact: '紧急联系人', emergency_phone: '紧急联系电话', created_at: '创建时间', updated_at: '更新时间',
+};
+
+/** 导出 cn_employees 表数据（中文表头） */
+export async function fetchEmployeesForExport(): Promise<Record<string, unknown>[]> {
+  const list = await fetchEmployees();
+  return list.map((e) => {
+    const row: Record<string, unknown> = {};
+    EMPLOYEE_EXPORT_KEYS.forEach((k) => {
+      const label = EMPLOYEE_EXPORT_LABELS[k] ?? k;
+      row[label] = e[k] ?? '';
+    });
+    return row;
+  });
 }
