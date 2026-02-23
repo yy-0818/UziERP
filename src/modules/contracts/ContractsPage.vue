@@ -62,21 +62,21 @@
             <div class="expand-content">
               <div class="expand-section">
                 <div class="expand-section-title">合同信息</div>
-                <dl class="contract-info-dl" v-if="currentVersion(row)">
+                <dl class="contract-info-dl" v-if="row.currentVersion">
                   <dt>合同号：</dt><dd>{{ row.contract_no }}</dd>
-                  <dt>合同日期：</dt><dd>{{ formatContractDate(currentVersion(row)!.contract_date) }}</dd>
-                  <dt>公司名称：</dt><dd>{{ currentVersion(row)!.company_name }}</dd>
-                  <dt>地址：</dt><dd>{{ currentVersion(row)!.address || '—' }}</dd>
-                  <dt>银行：</dt><dd>{{ currentVersion(row)!.bank_name || '—' }}</dd>
-                  <dt>账号(р/с)：</dt><dd>{{ currentVersion(row)!.bank_account || '—' }}</dd>
-                  <dt>银行代码(МФО)：</dt><dd>{{ currentVersion(row)!.bank_mfo || '—' }}</dd>
+                  <dt>合同日期：</dt><dd>{{ formatContractDate(row.currentVersion.contract_date) }}</dd>
+                  <dt>公司名称：</dt><dd>{{ row.currentVersion.company_name }}</dd>
+                  <dt>地址：</dt><dd>{{ row.currentVersion.address || '—' }}</dd>
+                  <dt>银行：</dt><dd>{{ row.currentVersion.bank_name || '—' }}</dd>
+                  <dt>账号(р/с)：</dt><dd>{{ row.currentVersion.bank_account || '—' }}</dd>
+                  <dt>银行代码(МФО)：</dt><dd>{{ row.currentVersion.bank_mfo || '—' }}</dd>
                   <template v-if="row.business_type === 'export'">
-                    <dt>SWIFT：</dt><dd>{{ currentVersion(row)!.bank_swift || currentVersion(row)!.swift_code || '—' }}</dd>
-                    <dt>OKED：</dt><dd>{{ currentVersion(row)!.oked_code || '—' }}</dd>
+                    <dt>SWIFT：</dt><dd>{{ row.currentVersion.bank_swift || row.currentVersion.swift_code || '—' }}</dd>
+                    <dt>OKED：</dt><dd>{{ row.currentVersion.oked_code || '—' }}</dd>
                   </template>
-                  <dt>税号(ИНН)：</dt><dd>{{ currentVersion(row)!.tax_number }}</dd>
-                  <dt>老板(Директор)：</dt><dd>{{ currentVersion(row)!.director_name || '—' }}</dd>
-                  <dt>制作人：</dt><dd>{{ currentVersion(row)!.producer || '—' }}</dd>
+                  <dt>税号(ИНН)：</dt><dd>{{ row.currentVersion.tax_number }}</dd>
+                  <dt>老板(Директор)：</dt><dd>{{ row.currentVersion.director_name || '—' }}</dd>
+                  <dt>制作人：</dt><dd>{{ row.currentVersion.producer || '—' }}</dd>
                 </dl>
                 <div v-else class="expand-empty">暂无版本信息</div>
               </div>
@@ -85,7 +85,7 @@
                   <el-button v-if="canManage" type="primary" link size="small" @click="openUpload('contract', row.id)">+ 上传合同</el-button>
                 </div>
                 <div class="file-tags">
-                  <template v-for="a in contractFiles(row)" :key="a.id">
+                  <template v-for="a in row.contractFiles" :key="a.id">
                     <el-tag size="small" class="file-tag">
                       <span v-if="(a.file_ext || '').toLowerCase() === 'pdf'">[PDF]</span>
                       <span v-else>[其他]</span>
@@ -95,7 +95,7 @@
                     </el-tag>
                   </template>
                 </div>
-                <div v-if="!contractFiles(row).length" class="expand-empty">暂无合同文件</div>
+                <div v-if="!row.contractFiles.length" class="expand-empty">暂无合同文件</div>
               </div>
               <div class="expand-section">
                 <div class="expand-section-title">
@@ -103,7 +103,7 @@
                   <el-button v-if="canManage" type="primary" link size="small" @click="openUpload('attachment', row.id)">+ 上传附件</el-button>
                 </div>
                 <div class="file-tags">
-                  <template v-for="a in attachmentFiles(row)" :key="a.id">
+                  <template v-for="a in row.attachmentFiles" :key="a.id">
                     <el-tag size="small" class="file-tag">
                       <span v-if="a.attachment_type === 'archive_image'">[存档图片]</span>
                       <span v-else-if="(a.file_ext || '').toLowerCase() === 'pdf'">[PDF]</span>
@@ -114,20 +114,20 @@
                     </el-tag>
                   </template>
                 </div>
-                <div v-if="!attachmentFiles(row).length" class="expand-empty">暂无附件</div>
+                <div v-if="!row.attachmentFiles.length" class="expand-empty">暂无附件</div>
               </div>
             </div>
           </template>
         </el-table-column>
         <el-table-column label="合同日期" width="100">
-          <template #default="{ row }">{{ formatDateOnly(currentVersion(row)?.contract_date) }}</template>
+          <template #default="{ row }">{{ formatDateOnly(row.currentVersion?.contract_date) }}</template>
         </el-table-column>
         <el-table-column prop="contract_no" label="合同号" min-width="140" show-overflow-tooltip />
         <el-table-column label="公司名称" min-width="200" show-overflow-tooltip>
-          <template #default="{ row }">{{ currentVersion(row)?.company_name || '—' }}</template>
+          <template #default="{ row }">{{ row.currentVersion?.company_name || '—' }}</template>
         </el-table-column>
         <el-table-column label="税号" width="160" show-overflow-tooltip>
-          <template #default="{ row }">{{ currentVersion(row)?.tax_number || '—' }}</template>
+          <template #default="{ row }">{{ row.currentVersion?.tax_number || '—' }}</template>
         </el-table-column>
         <el-table-column label="账户" min-width="160" show-overflow-tooltip>
           <template #default="{ row }">{{ row.account_name || row.customer_display_name || '—' }}</template>
@@ -136,7 +136,7 @@
           <template #default="{ row }">{{ businessTypeLabel(row.business_type) }}</template>
         </el-table-column>
         <el-table-column label="合同附件数" width="120" align="center">
-          <template #default="{ row }">{{ pdfAttachmentCount(row) }}</template>
+          <template #default="{ row }">{{ row.pdfAttachmentCount }}</template>
         </el-table-column>
         <el-table-column v-if="canManage" label="操作" width="110" fixed="right" align="center">
           <template #default="{ row }">
@@ -293,17 +293,56 @@ const filters = ref({
   onlyWithAttachments: false,
 });
 
-const filteredList = computed(() => {
-  let rows = list.value;
+type ContractTableRow = ContractWithDetails & {
+  currentVersion?: ContractVersion;
+  contractFiles: ContractAttachment[];
+  attachmentFiles: ContractAttachment[];
+  pdfAttachmentCount: number;
+};
+
+function buildTableRow(contract: ContractWithDetails): ContractTableRow {
+  const versions = contract.versions || [];
+  const currentVersion = versions.find((v) => v.is_current) || versions[versions.length - 1];
+  const versionDateMap = new Map(versions.map((v) => [v.id, v.contract_date || '']));
+  const attachments = contract.attachments || [];
+
+  const contractFiles = attachments
+    .filter((a) => CONTRACT_FILE_TYPES.includes(a.attachment_type))
+    .sort((a, b) => {
+      const aDate = a.contract_version_id ? versionDateMap.get(a.contract_version_id) || '' : '';
+      const bDate = b.contract_version_id ? versionDateMap.get(b.contract_version_id) || '' : '';
+      return bDate.localeCompare(aDate);
+    });
+
+  const attachmentFiles = attachments
+    .filter((a) => ATTACHMENT_ONLY_TYPES.includes(a.attachment_type))
+    .sort((a, b) => {
+      const aDate = a.attachment_date || a.remark?.match(/日期:([0-9]{4}-[0-9]{2}-[0-9]{2})/)?.[1] || '';
+      const bDate = b.attachment_date || b.remark?.match(/日期:([0-9]{4}-[0-9]{2}-[0-9]{2})/)?.[1] || '';
+      return bDate.localeCompare(aDate);
+    });
+
+  return {
+    ...contract,
+    currentVersion,
+    contractFiles,
+    attachmentFiles,
+    pdfAttachmentCount: attachments.filter((a) => (a.file_ext || '').toLowerCase() === 'pdf').length,
+  };
+}
+
+const tableRows = computed<ContractTableRow[]>(() => list.value.map(buildTableRow));
+
+const filteredList = computed<ContractTableRow[]>(() => {
+  let rows = tableRows.value;
   const k = filters.value.keyword.trim().toLowerCase();
   if (k) {
     rows = rows.filter((c) => {
-      const v = currentVersion(c);
       return (
         c.contract_no?.toLowerCase().includes(k) ||
         c.account_name?.toLowerCase().includes(k) ||
         c.customer_display_name?.toLowerCase().includes(k) ||
-        v?.tax_number?.toLowerCase().includes(k)
+        c.currentVersion?.tax_number?.toLowerCase().includes(k)
       );
     });
   }
@@ -313,8 +352,7 @@ const filteredList = computed(() => {
   if (filters.value.dateRange && filters.value.dateRange.length === 2) {
     const [start, end] = filters.value.dateRange;
     rows = rows.filter((c) => {
-      const v = currentVersion(c);
-      const d = v?.contract_date;
+      const d = c.currentVersion?.contract_date;
       if (!d) return false;
       return d >= start && d <= end;
     });
@@ -324,8 +362,8 @@ const filteredList = computed(() => {
   }
   // 默认按合同日期倒序（无日期则按 created_at 倒序兜底）
   return [...rows].sort((a, b) => {
-    const da = currentVersion(a)?.contract_date || '';
-    const db = currentVersion(b)?.contract_date || '';
+    const da = a.currentVersion?.contract_date || '';
+    const db = b.currentVersion?.contract_date || '';
     if (da && db) return db.localeCompare(da);
     if (da) return -1;
     if (db) return 1;
@@ -336,39 +374,6 @@ const filteredList = computed(() => {
 const uploadVisible = ref(false);
 const uploadMode = ref<'contract' | 'attachment'>('contract');
 const preselectedContractId = ref<string | null>(null);
-
-function currentVersion(row: ContractWithDetails): ContractVersion | undefined {
-  const vers = row.versions || [];
-  return vers.find((v) => v.is_current) || vers[vers.length - 1];
-}
-
-/** 合同文件（contract_pdf/didox_screenshot），按对应版本的合同日期倒序 */
-function contractFiles(row: ContractWithDetails): ContractAttachment[] {
-  const atts = (row.attachments || []).filter((a) => CONTRACT_FILE_TYPES.includes(a.attachment_type));
-  const vers = row.versions || [];
-  const getDate = (a: ContractAttachment) => {
-    if (!a.contract_version_id) return '';
-    const v = vers.find((x) => x.id === a.contract_version_id);
-    return v?.contract_date || '';
-  };
-  return [...atts].sort((a, b) => (getDate(b) || '').localeCompare(getDate(a) || ''));
-}
-
-/** 附件（appendix/agreement/archive_image），按 attachment_date 或解析 remark 中的日期倒序 */
-function attachmentFiles(row: ContractWithDetails): ContractAttachment[] {
-  const atts = (row.attachments || []).filter((a) => ATTACHMENT_ONLY_TYPES.includes(a.attachment_type));
-  const getDate = (a: ContractAttachment): string => {
-    if (a.attachment_date) return a.attachment_date;
-    const m = a.remark?.match(/日期:([0-9]{4}-[0-9]{2}-[0-9]{2})/);
-    return m ? m[1] : '';
-  };
-  return [...atts].sort((a, b) => (getDate(b) || '').localeCompare(getDate(a) || ''));
-}
-
-function pdfAttachmentCount(row: ContractWithDetails): number {
-  const atts = row.attachments || [];
-  return atts.filter((a) => (a.file_ext || '').toLowerCase() === 'pdf').length;
-}
 
 function formatDateOnly(v: string | undefined): string {
   if (!v) return '—';
@@ -410,7 +415,7 @@ function exportData() {
     return;
   }
   const data = rows.map((c) => {
-    const v = currentVersion(c);
+    const v = c.currentVersion;
     return {
       contract_no: c.contract_no,
       business_type: businessTypeLabel(c.business_type),
@@ -426,7 +431,7 @@ function exportData() {
       oked_code: v?.oked_code || '',
       director_name: v?.director_name || '',
       producer: v?.producer || '',
-      attachments_count: pdfAttachmentCount(c),
+      attachments_count: c.pdfAttachmentCount,
     };
   });
   exportToExcel(
@@ -516,7 +521,8 @@ const editRules: FormRules = {
 
 function openEdit(row: ContractWithDetails) {
   if (!canManage.value) return;
-  const v = currentVersion(row);
+  const normalizedRow = row as ContractTableRow;
+  const v = normalizedRow.currentVersion;
   if (!v) {
     ElMessage.warning('暂无可编辑的版本信息');
     return;
