@@ -101,6 +101,81 @@ export async function getAttachmentUrl(filePath: string): Promise<string> {
   return data.signedUrl;
 }
 
+/** 检查合同号是否已存在（用于新建时唯一性校验） */
+export async function checkContractNoExists(contractNo: string): Promise<boolean> {
+  const no = contractNo?.trim();
+  if (!no) return false;
+  const { data, error } = await supabase
+    .from('contracts')
+    .select('id')
+    .eq('contract_no', no)
+    .maybeSingle();
+  if (error) throw error;
+  return !!data;
+}
+
+/** 创建合同 + 当前版本（仅文本信息，不传文件；附件可后续在表格展开时补传） */
+export async function createContract(params: {
+  contract_no: string;
+  business_type: 'uz_domestic' | 'export';
+  account_name: string;
+  contract_date: string;
+  company_name: string;
+  tax_number: string;
+  address: string;
+  bank_name?: string | null;
+  bank_account?: string | null;
+  bank_mfo?: string | null;
+  bank_swift?: string | null;
+  oked_code?: string | null;
+  director_name: string;
+  producer: string;
+  change_reason: string;
+}): Promise<Contract> {
+  const localNow = getLocalIsoString();
+  const requestId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+  const { data, error } = await supabase.rpc('rpc_create_contract_with_attachments_txn', {
+    p_request_id: requestId,
+    p_contract: {
+      contract_no: params.contract_no,
+      business_type: params.business_type,
+      account_name: params.account_name,
+      customer_display_name: null,
+      created_at: localNow,
+    },
+    p_version: {
+      version_no: 1,
+      is_current: true,
+      contract_date: params.contract_date,
+      company_name: params.company_name,
+      created_at: localNow,
+      tax_number: params.tax_number,
+      address: params.address,
+      bank_name: params.bank_name ?? null,
+      bank_account: params.bank_account ?? null,
+      bank_mfo: params.bank_mfo ?? null,
+      bank_swift: params.bank_swift ?? null,
+      oked_code: params.oked_code ?? null,
+      director_name: params.director_name,
+      producer: params.producer,
+      change_reason: params.change_reason,
+    },
+    p_files: [],
+  });
+  if (error) throw error;
+  const payload = parseRpcEnvelope<{ ok: boolean; contract_id?: string; code?: string; message?: string }>(
+    data,
+    '合同创建失败'
+  );
+  const { data: contractRow, error: eContract } = await supabase
+    .from('contracts')
+    .select('*')
+    .eq('id', payload.contract_id)
+    .single();
+  if (eContract || !contractRow) throw eContract || new Error('合同创建成功但读取失败');
+  return contractRow as Contract;
+}
+
 /** 创建合同 + 当前版本，并上传多个合同文件（contract_pdf / didox_screenshot） */
 export async function createContractWithFiles(params: {
   contract_no: string;

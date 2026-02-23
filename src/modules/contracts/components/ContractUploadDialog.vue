@@ -123,7 +123,7 @@
         </el-col>
       </el-row>
 
-      <div class="form-section">合同文件（PDF + 配图，可多选）</div>
+      <div class="form-section">合同文件（PDF + 配图，可多选，可选填；保存后可在此或表格展开时补传）</div>
       <div v-for="(item, idx) in contractFileList" :key="idx" class="file-row">
         <el-select v-model="item.attachmentType" placeholder="类型" style="width: 120px">
           <el-option
@@ -245,7 +245,7 @@ import {
 } from '../types';
 import type { ContractWithDetails } from '../types';
 import type { AttachmentType } from '../types';
-import { createContractWithFiles, uploadContractFiles, uploadAttachmentFiles } from '../api';
+import { createContract, createContractWithFiles, uploadContractFiles, uploadAttachmentFiles, checkContractNoExists } from '../api';
 
 const props = defineProps<{
   visible: boolean;
@@ -418,7 +418,7 @@ watch(
         } else if (!props.preselectedContractId) {
           contractForm.value = emptyContractForm();
         }
-        if (contractFileList.value.length === 0) addContractFile();
+        if (isContractAddToExisting.value && contractFileList.value.length === 0) addContractFile();
       }
       if (uploadMode.value === 'attachment' && attachmentFileList.value.length === 0) addAttachmentFile();
     }
@@ -467,14 +467,27 @@ async function submit() {
   if (uploading.value) return;
   if (uploadMode.value === 'contract') {
     const valid = contractFileList.value.filter((x) => x.file);
-    if (!valid.length) {
-      ElMessage.warning('请至少添加一个合同文件（PDF 或图片）');
-      return;
+    if (isContractAddToExisting.value) {
+      if (!valid.length) {
+        ElMessage.warning('请至少添加一个合同文件（PDF 或图片）');
+        return;
+      }
     }
     if (!isContractAddToExisting.value) {
       try {
         await contractFormRef.value?.validate();
       } catch {
+        return;
+      }
+      const contractNo = contractForm.value.contract_no.trim();
+      try {
+        const exists = await checkContractNoExists(contractNo);
+        if (exists) {
+          ElMessage.warning('合同号已存在，请使用其他合同号');
+          return;
+        }
+      } catch (e: any) {
+        ElMessage.error(e?.message || '合同号校验失败');
         return;
       }
     }
@@ -490,7 +503,7 @@ async function submit() {
           })),
         });
         ElMessage.success('合同文件补传成功');
-      } else {
+      } else if (valid.length > 0) {
         await createContractWithFiles({
           contract_no: contractForm.value.contract_no.trim(),
           business_type: contractForm.value.business_type as 'uz_domestic' | 'export',
@@ -514,11 +527,35 @@ async function submit() {
           })),
         });
         ElMessage.success('合同创建并上传成功');
+      } else {
+        await createContract({
+          contract_no: contractForm.value.contract_no.trim(),
+          business_type: contractForm.value.business_type as 'uz_domestic' | 'export',
+          account_name: contractForm.value.account_name.trim(),
+          contract_date: contractForm.value.contract_date,
+          company_name: contractForm.value.company_name.trim(),
+          tax_number: contractForm.value.tax_number.trim(),
+          address: contractForm.value.address.trim(),
+          bank_name: contractForm.value.bank_name?.trim() || null,
+          bank_account: contractForm.value.bank_account?.trim() || null,
+          bank_mfo: contractForm.value.bank_mfo?.trim() || null,
+          bank_swift: contractForm.value.business_type === 'export' ? (contractForm.value.bank_swift?.trim() || null) : null,
+          oked_code: contractForm.value.business_type === 'export' ? (contractForm.value.oked_code?.trim() || null) : null,
+          director_name: contractForm.value.director_name.trim(),
+          producer: contractForm.value.producer.trim(),
+          change_reason: contractForm.value.change_reason.trim(),
+        });
+        ElMessage.success('合同已保存，可在表格展开该合同后补传附件');
       }
       emit('uploaded');
       dialogVisible.value = false;
     } catch (e: any) {
-      ElMessage.error(e?.message || '提交失败');
+      const msg = e?.message || '提交失败';
+      if (/unique|duplicate|合同号|已存在/i.test(msg)) {
+        ElMessage.warning('合同号已存在，请使用其他合同号');
+      } else {
+        ElMessage.error(msg);
+      }
     } finally {
       uploading.value = false;
     }
