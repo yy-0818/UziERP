@@ -136,10 +136,10 @@
         <el-upload
           :auto-upload="false"
           :show-file-list="false"
-          :on-change="(e: any) => (item.file = e.raw)"
+          :on-change="(e: any) => onContractFileChange(idx, e)"
           accept=".pdf,.png,.jpg,.jpeg"
         >
-          <el-button size="small" type="primary" plain>{{ item.file ? item.file.name : '选择文件' }}</el-button>
+          <el-button size="small" type="primary" plain>{{ item.file ? (item.replaceIfExists ? `${item.file.name}（替换）` : item.file.name) : '选择文件' }}</el-button>
         </el-upload>
         <el-button size="small" text type="danger" @click="removeContractFile(idx)">删除</el-button>
       </div>
@@ -217,10 +217,10 @@
         <el-upload
           :auto-upload="false"
           :show-file-list="false"
-          :on-change="(e: any) => onAttachmentFileChange(idx, e.raw)"
+          :on-change="(e: any) => onAttachmentFileChange(idx, e)"
           accept=".pdf,.png,.jpg,.jpeg,.webp"
         >
-          <el-button size="small" type="primary" plain>{{ item.file ? item.file.name : '选择文件' }}</el-button>
+          <el-button size="small" type="primary" plain>{{ item.file ? (item.replaceIfExists ? `${item.file.name}（替换）` : item.file.name) : '选择文件' }}</el-button>
         </el-upload>
         <el-button size="small" text type="danger" @click="removeAttachmentFile(idx)">删除</el-button>
       </div>
@@ -236,7 +236,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import {
   ATTACHMENT_TYPE_LABELS,
   BUSINESS_TYPE_LABELS,
@@ -346,6 +346,8 @@ const contractRules: FormRules = {
 interface FileItem {
   attachmentType: AttachmentType;
   file: File | null;
+  /** 为 true 时后端使用 Storage upsert 覆盖同名文件（替换） */
+  replaceIfExists?: boolean;
 }
 
 const contractFileList = ref<FileItem[]>([]);
@@ -370,6 +372,22 @@ const contractList = computed(() => props.contractList);
 const selectedContract = computed(() => {
   if (!attachmentForm.value.contractId) return null;
   return props.contractList.find((c) => c.id === attachmentForm.value.contractId) ?? null;
+});
+
+/** 当前合同下已有合同类文件名称（合同模式补传时用于检测同名） */
+const existingContractFileNames = computed(() => {
+  const c = selectedContractForContract.value;
+  if (!c?.attachments?.length) return [];
+  return c.attachments
+    .filter((a) => CONTRACT_FILE_TYPES.includes(a.attachment_type))
+    .map((a) => a.file_name);
+});
+
+/** 当前选中合同下已有附件名称（附件模式用于检测同名） */
+const existingAttachmentFileNames = computed(() => {
+  const c = selectedContract.value;
+  if (!c?.attachments?.length) return [];
+  return c.attachments.map((a) => a.file_name);
 });
 
 const selectedContractSourceNo = computed(() => selectedContract.value?.contract_no ?? '');
@@ -427,11 +445,65 @@ watch(
 
 function onContractChange() {}
 
-/** 附件文件选择时：若为 PDF 且附件编号为空，则用文件名（去扩展名）自动填充 */
-function onAttachmentFileChange(idx: number, file: File | null) {
+/** 合同文件选择：若与当前合同下已有文件同名，弹窗确认是否替换 */
+async function onContractFileChange(idx: number, ev: { raw: File } | null) {
+  const item = contractFileList.value[idx];
+  if (!item) return;
+  const file = ev?.raw ?? null;
+  if (!file) {
+    item.file = null;
+    item.replaceIfExists = false;
+    return;
+  }
+  const existing = existingContractFileNames.value;
+  if (existing.length > 0 && existing.includes(file.name)) {
+    try {
+      await ElMessageBox.confirm('检测到同名文件，是否替换？替换后将覆盖原文件。', '同名文件', {
+        confirmButtonText: '替换',
+        cancelButtonText: '取消',
+        type: 'warning',
+      });
+      item.file = file;
+      item.replaceIfExists = true;
+    } catch {
+      item.file = null;
+      item.replaceIfExists = false;
+    }
+    return;
+  }
+  item.file = file;
+  item.replaceIfExists = false;
+}
+
+/** 附件文件选择：若与当前合同下已有附件同名则确认是否替换；若为 PDF 且附件编号为空则用文件名自动填充 */
+async function onAttachmentFileChange(idx: number, ev: { raw: File } | null) {
   const item = attachmentFileList.value[idx];
-  if (item) item.file = file;
-  if (file && /\.pdf$/i.test(file.name) && !attachmentForm.value.attachmentNo?.trim()) {
+  if (!item) return;
+  const file = ev?.raw ?? null;
+  if (!file) {
+    item.file = null;
+    item.replaceIfExists = false;
+    return;
+  }
+  const existing = existingAttachmentFileNames.value;
+  if (existing.length > 0 && existing.includes(file.name)) {
+    try {
+      await ElMessageBox.confirm('检测到同名文件，是否替换？替换后将覆盖原文件。', '同名文件', {
+        confirmButtonText: '替换',
+        cancelButtonText: '取消',
+        type: 'warning',
+      });
+      item.file = file;
+      item.replaceIfExists = true;
+    } catch {
+      item.file = null;
+      item.replaceIfExists = false;
+    }
+    return;
+  }
+  item.file = file;
+  item.replaceIfExists = false;
+  if (/\.pdf$/i.test(file.name) && !attachmentForm.value.attachmentNo?.trim()) {
     const nameWithoutExt = file.name.replace(/\.pdf$/i, '');
     attachmentForm.value.attachmentNo = nameWithoutExt;
   }
@@ -500,6 +572,7 @@ async function submit() {
             attachmentType: x.attachmentType,
             logicalName: x.file!.name,
             file: x.file!,
+            replaceIfExists: x.replaceIfExists === true,
           })),
         });
         ElMessage.success('合同文件补传成功');
@@ -582,6 +655,7 @@ async function submit() {
         attachmentType: x.attachmentType,
         logicalName: x.file!.name,
         file: x.file!,
+        replaceIfExists: x.replaceIfExists === true,
       })),
     });
     ElMessage.success('附件上传成功');

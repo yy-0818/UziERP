@@ -277,10 +277,11 @@ export async function createContractWithFiles(params: {
   }
 }
 
-/** 为已有合同补传合同文件（contract_pdf / didox_screenshot），使用该合同当前版本 */
+/** 为已有合同补传合同文件（contract_pdf / didox_screenshot），使用该合同当前版本。
+ * 当 replaceIfExists 为 true 时，Storage 使用 upsert 覆盖同名文件，实现替换。 */
 export async function uploadContractFiles(params: {
   contractId: string;
-  files: { attachmentType: AttachmentType; logicalName: string; file: File }[];
+  files: { attachmentType: AttachmentType; logicalName: string; file: File; replaceIfExists?: boolean }[];
 }): Promise<void> {
   const { data: contract, error: eContract } = await supabase
     .from('contracts')
@@ -313,9 +314,10 @@ export async function uploadContractFiles(params: {
         f.attachmentType,
         f.file.name
       );
+      const replace = f.replaceIfExists === true;
       const { error: uploadErr } = await supabase.storage.from(BUCKET).upload(storagePath, f.file, {
         cacheControl: '3600',
-        upsert: false,
+        upsert: replace,
       });
       if (uploadErr) throw uploadErr;
       uploadedPaths.push(storagePath);
@@ -345,12 +347,13 @@ export async function uploadContractFiles(params: {
   }
 }
 
-/** 为指定合同上传多个附件（appendix / agreement / archive_image），使用该合同当前版本；attachment_date、attachment_no 存表单日期与编号 */
+/** 为指定合同上传多个附件（appendix / agreement / archive_image），使用该合同当前版本；attachment_date、attachment_no 存表单日期与编号。
+ * 当 replaceIfExists 为 true 时，Storage 使用 upsert 覆盖同名文件，实现替换。 */
 export async function uploadAttachmentFiles(params: {
   contractId: string;
   attachmentDate?: string;
   attachmentNo?: string;
-  files: { attachmentType: AttachmentType; logicalName: string; file: File }[];
+  files: { attachmentType: AttachmentType; logicalName: string; file: File; replaceIfExists?: boolean }[];
 }): Promise<void> {
   const remarkText =
     [params.attachmentDate && `日期:${params.attachmentDate}`, params.attachmentNo && `附件编号:${params.attachmentNo}`]
@@ -389,9 +392,10 @@ export async function uploadAttachmentFiles(params: {
         f.attachmentType,
         f.file.name
       );
+      const replace = f.replaceIfExists === true;
       const { error: uploadErr } = await supabase.storage.from(BUCKET).upload(storagePath, f.file, {
         cacheControl: '3600',
-        upsert: false,
+        upsert: replace,
       });
       if (uploadErr) throw uploadErr;
       uploadedPaths.push(storagePath);

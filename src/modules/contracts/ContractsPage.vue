@@ -86,10 +86,11 @@
                 </div>
                 <div class="file-tags">
                   <template v-for="a in contractFiles(row)" :key="a.id">
-                    <el-tag size="small" class="file-tag">
+                    <el-tag size="small" class="file-tag" :class="{ 'file-tag--replaced': isAttachmentReplaced(row, a, true) }">
                       <span v-if="(a.file_ext || '').toLowerCase() === 'pdf'">[PDF]</span>
                       <span v-else>[其他]</span>
                       {{ a.logical_name }}
+                      <span v-if="isAttachmentReplaced(row, a, true)" class="replaced-badge">废弃：已被替换</span>
                       <el-button link type="primary" size="small" @click="viewAttachment(a)">查看</el-button>
                       <el-button link type="primary" size="small" @click="downloadAttachment(a)">下载</el-button>
                     </el-tag>
@@ -104,11 +105,12 @@
                 </div>
                 <div class="file-tags">
                   <template v-for="a in attachmentFiles(row)" :key="a.id">
-                    <el-tag size="small" class="file-tag">
+                    <el-tag size="small" class="file-tag" :class="{ 'file-tag--replaced': isAttachmentReplaced(row, a, false) }">
                       <span v-if="a.attachment_type === 'archive_image'">[存档图片]</span>
                       <span v-else-if="(a.file_ext || '').toLowerCase() === 'pdf'">[PDF]</span>
                       <span v-else>[其他]</span>
                       {{ a.logical_name }}
+                      <span v-if="isAttachmentReplaced(row, a, false)" class="replaced-badge">废弃：已被替换</span>
                       <el-button link type="primary" size="small" @click="viewAttachment(a)">查看</el-button>
                       <el-button link type="primary" size="small" @click="downloadAttachment(a)">下载</el-button>
                     </el-tag>
@@ -363,6 +365,18 @@ function attachmentFiles(row: ContractWithDetails): ContractAttachment[] {
     return m ? m[1] : '';
   };
   return [...atts].sort((a, b) => (getDate(b) || '').localeCompare(getDate(a) || ''));
+}
+
+/** 判断附件是否已被替换：后端有 replaced_by 则视为已替换；否则同 file_path 下存在更新 created_at 的记录则视为已替换 */
+function isAttachmentReplaced(row: ContractWithDetails, a: ContractAttachment, isContractFile: boolean): boolean {
+  if (a.replaced_by) return true;
+  const list = isContractFile
+    ? (row.attachments || []).filter((x) => CONTRACT_FILE_TYPES.includes(x.attachment_type))
+    : (row.attachments || []).filter((x) => ATTACHMENT_ONLY_TYPES.includes(x.attachment_type));
+  const samePath = list.filter((x) => x.file_path === a.file_path);
+  if (samePath.length <= 1) return false;
+  const newest = samePath.reduce((best, x) => ((x.created_at || '') > (best?.created_at || '') ? x : best), samePath[0]);
+  return newest.id !== a.id;
 }
 
 function pdfAttachmentCount(row: ContractWithDetails): number {
@@ -690,6 +704,17 @@ async function saveEdit() {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+.file-tag--replaced {
+  opacity: 0.75;
+  border-style: dashed;
+}
+
+.replaced-badge {
+  font-size: 11px;
+  color: var(--el-color-warning);
+  margin-left: 2px;
 }
 
 .expand-empty {
