@@ -73,9 +73,12 @@
       </el-tabs>
     </el-card>
 
-    <!-- 登记请假 -->
+    <!-- 登记请假：默认操作人为当前账户，请假时长可自动计算 -->
     <el-dialog v-model="leaveVisible" title="登记请假" width="500px" append-to-body>
       <el-form ref="leaveFormRef" :model="leaveForm" :rules="leaveRules" label-width="100px">
+        <el-form-item label="操作人">
+          <el-input :model-value="currentOperator ?? '—'" disabled />
+        </el-form-item>
         <el-form-item label="员工" prop="employee_id">
           <el-select v-model="leaveForm.employee_id" filterable placeholder="请选择员工" style="width: 100%">
             <el-option v-for="e in employees" :key="e.id" :label="`${e.employee_no} ${e.name}`" :value="e.id" />
@@ -87,11 +90,12 @@
         <el-form-item label="开始时间" prop="start_at">
           <el-date-picker v-model="leaveForm.start_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="结束时间" prop="end_at">
-          <el-date-picker v-model="leaveForm.end_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width: 100%" />
+        <el-form-item label="结束时间">
+          <el-date-picker v-model="leaveForm.end_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" placeholder="选填，归期未知可不填" style="width: 100%" />
         </el-form-item>
         <el-form-item label="请假时长">
-          <el-input-number v-model="leaveForm.leave_hours" :min="0" :precision="2" style="width: 100%" />
+          <span v-if="leaveDurationText" class="leave-duration-text">{{ leaveDurationText }}</span>
+          <el-input-number v-model="leaveForm.leave_hours" :min="0" :precision="2" style="width: 100%" placeholder="可自动计算或手动填写" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -212,6 +216,18 @@ watch(
   },
   { immediate: true }
 );
+const leaveDurationText = computed(() => {
+  const start = leaveForm.value.start_at;
+  const end = leaveForm.value.end_at;
+  if (!start || !end) return '';
+  const a = new Date(start).getTime();
+  const b = new Date(end).getTime();
+  if (b <= a) return '';
+  const hours = (b - a) / (1000 * 60 * 60);
+  if (hours >= 24) return `约 ${(hours / 24).toFixed(1)} 天`;
+  return `约 ${hours.toFixed(1)} 小时`;
+});
+
 const leaveVisible = ref(false);
 const rewardVisible = ref(false);
 const leaveFormRef = ref<FormInstance>();
@@ -233,7 +249,7 @@ const leaveRules: FormRules = {
   employee_id: [{ required: true, message: '请选择员工', trigger: 'change' }],
   reason: [{ required: true, message: '请输入事由', trigger: 'blur' }],
   start_at: [{ required: true, message: '请选择开始时间', trigger: 'change' }],
-  end_at: [{ required: true, message: '请选择结束时间', trigger: 'change' }],
+  /* 结束时间非必填，支持归期未知 */
 };
 const rewardRules: FormRules = {
   employee_id: [{ required: true, message: '请选择员工', trigger: 'change' }],
@@ -320,6 +336,17 @@ function onTabChange() {
   loadCurrentTab();
 }
 
+watch(
+  () => [leaveForm.value.start_at, leaveForm.value.end_at],
+  ([start, end]) => {
+    if (!start || !end) return;
+    const a = new Date(start as string).getTime();
+    const b = new Date(end as string).getTime();
+    if (b > a) leaveForm.value.leave_hours = (b - a) / (1000 * 60 * 60);
+  },
+  { deep: true }
+);
+
 function openLeave() {
   leaveForm.value = { employee_id: '', reason: '', start_at: null, end_at: null, leave_hours: null };
   leaveVisible.value = true;
@@ -327,7 +354,7 @@ function openLeave() {
 
 async function submitLeave() {
   await leaveFormRef.value?.validate().catch(() => {});
-  if (!leaveForm.value.employee_id || !leaveForm.value.reason || !leaveForm.value.start_at || !leaveForm.value.end_at) return;
+  if (!leaveForm.value.employee_id || !leaveForm.value.reason || !leaveForm.value.start_at) return;
   saving.value = true;
   try {
     await createLeaveRecord({
@@ -341,6 +368,7 @@ async function submitLeave() {
     ElMessage.success('请假已登记');
     leaveVisible.value = false;
     await loadLeave();
+    /* 刷新请假列表后员工休假状态会更新，列表已是最新 */
   } catch (e: any) {
     ElMessage.error(e?.message || '提交失败');
   } finally {
@@ -386,4 +414,5 @@ onMounted(async () => {
 .erp-card-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
 .title { font-size: 16px; font-weight: 600; }
 .subtitle { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+.leave-duration-text { margin-right: 8px; font-size: 13px; color: var(--el-text-color-secondary); }
 </style>

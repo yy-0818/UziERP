@@ -96,7 +96,12 @@ export async function createEmployee(params: Partial<CnEmployee>): Promise<CnEmp
     })
     .select()
     .single();
-  if (error) throw error;
+  if (error) {
+    if (error.code === '23505' && /employee_no|unique|duplicate/i.test(error.message || '')) {
+      throw new Error('工号已存在，请更换工号');
+    }
+    throw error;
+  }
   const emp = data as CnEmployee;
   try {
     await logOperation({
@@ -118,7 +123,12 @@ export async function updateEmployee(id: string, params: Partial<CnEmployee>): P
     .eq('id', id)
     .select()
     .single();
-  if (error) throw error;
+  if (error) {
+    if (error.code === '23505' && /employee_no|unique|duplicate/i.test(error.message || '')) {
+      throw new Error('工号已存在，请更换工号');
+    }
+    throw error;
+  }
   return data as CnEmployee;
 }
 
@@ -308,7 +318,7 @@ export async function fetchVisaHandleByApplicationId(applicationId: string): Pro
   return data as VisaHandle | null;
 }
 
-/** 查询该员工有效签证：cn_visa_handles 表。有效 = 未过期（expiry_date>=今天或 null）且 remaining_times>0 或 -1；不要求生效日已到（办理后未生效的签证也可用于申请机票） */
+/** 查询该员工有效签证：cn_visa_handles 表。有效 = 未过期（expiry_date>=今天或 null）且优先判定 visa_times/remaining_times（总次数>0或-1，剩余次数>0或-1） */
 export async function fetchValidVisasForEmployee(employeeId: string): Promise<VisaHandle[]> {
   const today = new Date().toISOString().slice(0, 10);
   const { data: apps, error: eApps } = await supabase
@@ -326,8 +336,9 @@ export async function fetchValidVisasForEmployee(employeeId: string): Promise<Vi
   const list = (handles || []) as VisaHandle[];
   return list.filter((h) => {
     const notExpired = h.expiry_date == null || h.expiry_date >= today;
-    const hasTimes = h.remaining_times === null || h.remaining_times === -1 || h.remaining_times > 0;
-    return notExpired && hasTimes;
+    const hasVisaTimes = h.visa_times === null || h.visa_times === -1 || h.visa_times > 0;
+    const hasRemainingTimes = h.remaining_times === null || h.remaining_times === -1 || h.remaining_times > 0;
+    return notExpired && hasVisaTimes && hasRemainingTimes;
   });
 }
 
@@ -881,13 +892,38 @@ export async function fetchLeaveRecords(employeeId?: string): Promise<LeaveRecor
   return (data || []) as LeaveRecord[];
 }
 
-/** 判断员工当前是否在休假（以本机时间为准，结束时间已过则自动结束休假状态） */
+/**
+ * 判断员工当前是否在休假（基于数据库返回的 ISO 时间：start_at/end_at，如 2026-02-24T11:12:26+00:00）
+ * - 当前时间在 [start_at, end_at] 内视为休假中
+ * - 无 end_at 或空字符串视为归期未知，只要已开始即视为休假中
+ */
 export function isOnLeaveToday(records: LeaveRecord[]): boolean {
   const now = Date.now();
+
+  // DB 返回形如 2026-02-24T11:12:26+00:00（带时区）。
+  // 业务侧通常按“本地时间”填写/理解，因此这里优先按本地时间解析（去掉时区后再 new Date）。
+  // 若解析失败，再回退用原字符串解析（按绝对时间）。
+  const toLocalMs = (iso: string | null): number => {
+    if (iso == null) return NaN;
+    const s = String(iso).trim();
+    if (!s) return NaN;
+    const noTz = s.replace(/([+-]\d{2}:\d{2}|Z)$/i, '');
+    const msLocal = new Date(noTz).getTime();
+    if (!Number.isNaN(msLocal)) return msLocal;
+    return new Date(s).getTime();
+  };
+
   return records.some((r) => {
-    const start = r.start_at ? new Date(r.start_at).getTime() : 0;
-    const end = r.end_at ? new Date(r.end_at).getTime() : Infinity;
-    return start <= now && now <= end;
+    const startAt = r.start_at != null && String(r.start_at).trim() !== '' ? r.start_at : null;
+    const startMs = toLocalMs(startAt);
+    if (Number.isNaN(startMs) || startMs > now) return false;
+
+    const endAt = r.end_at != null && String(r.end_at).trim() !== '' ? r.end_at : null;
+    if (endAt == null) return true;
+    const endMs = toLocalMs(endAt);
+    // end_at 若异常（NaN），按“归期未知”处理
+    if (Number.isNaN(endMs)) return true;
+    return now <= endMs;
   });
 }
 
@@ -1171,4 +1207,155 @@ export async function fetchEmployeesForExport(): Promise<Record<string, unknown>
     });
     return row;
   });
+}
+
+/** 按工号导出档案：返回多 sheet 数据（邀请函、签证、机票、劳动许可、调岗调薪、请假、奖惩） */
+export async function fetchArchiveForExportByEmployeeNos(
+  employeeNos: string[]
+): Promise<{ sheetName: string; data: Record<string, unknown>[] }[]> {
+  const nos = [...new Set(employeeNos.map((n) => String(n).trim()).filter(Boolean))];
+  if (!nos.length) return [];
+
+  const employees: CnEmployee[] = [];
+  for (const no of nos) {
+    const e = await fetchEmployeeByNo(no);
+    if (e) employees.push(e);
+  }
+  if (!employees.length) return [];
+
+  const empMap = new Map(employees.map((e) => [e.id, e]));
+  const ids = employees.map((e) => e.id);
+
+  const [invApps, visaApps, flightApps, laborApps, transferRecs, leaveRecs, rewardRecs] = await Promise.all([
+    Promise.all(ids.map((id) => supabase.from('cn_invitation_applications').select('*').eq('employee_id', id))).then((r) => r.flatMap((x) => x.data || [])),
+    Promise.all(ids.map((id) => supabase.from('cn_visa_applications').select('*').eq('employee_id', id))).then((r) => r.flatMap((x) => x.data || [])),
+    Promise.all(ids.map((id) => supabase.from('cn_flight_applications').select('*').eq('employee_id', id))).then((r) => r.flatMap((x) => x.data || [])),
+    Promise.all(ids.map((id) => supabase.from('cn_labor_permit_applications').select('*').eq('employee_id', id))).then((r) => r.flatMap((x) => x.data || [])),
+    Promise.all(ids.map((id) => supabase.from('cn_transfer_records').select('*').eq('employee_id', id))).then((r) => r.flatMap((x) => x.data || [])),
+    Promise.all(ids.map((id) => supabase.from('cn_leave_records').select('*').eq('employee_id', id))).then((r) => r.flatMap((x) => x.data || [])),
+    Promise.all(ids.map((id) => supabase.from('cn_reward_discipline_records').select('*').eq('employee_id', id))).then((r) => r.flatMap((x) => x.data || [])),
+  ]);
+
+  const toRow = (empId: string, rest: Record<string, unknown>) => {
+    const e = empMap.get(empId);
+    return { 工号: e?.employee_no ?? '', 姓名: e?.name ?? '', ...rest };
+  };
+
+  const sheets: { sheetName: string; data: Record<string, unknown>[] }[] = [];
+
+  sheets.push({
+    sheetName: '员工',
+    data: employees.map((e) => {
+      const row: Record<string, unknown> = {};
+      EMPLOYEE_EXPORT_KEYS.forEach((k) => {
+        row[EMPLOYEE_EXPORT_LABELS[k] ?? k] = e[k] ?? '';
+      });
+      return row;
+    }),
+  });
+
+  sheets.push({
+    sheetName: '邀请函',
+    data: (invApps as any[]).map((r) =>
+      toRow(r.employee_id, {
+        提交时间: r.submitted_at ?? r.created_at ?? '',
+        状态: r.status === 'done' ? '已办理' : '待办理',
+      })
+    ),
+  });
+
+  sheets.push({
+    sheetName: '签证',
+    data: (visaApps as any[]).map((r) =>
+      toRow(r.employee_id, {
+        申请类型: r.application_type ?? '',
+        预计出发: r.expected_departure_at ?? '',
+        创建时间: r.created_at ?? '',
+        状态: r.status === 'done' ? '已办理' : '待办理',
+      })
+    ),
+  });
+
+  sheets.push({
+    sheetName: '机票',
+    data: (flightApps as any[]).map((r) =>
+      toRow(r.employee_id, {
+        出发城市: r.depart_city ?? '',
+        到达城市: r.arrive_city ?? '',
+        预计出发: r.expected_departure_at ?? '',
+        备注: r.remark ?? '',
+        创建时间: r.created_at ?? '',
+        状态: r.status === 'done' ? '已办理' : '待办理',
+      })
+    ),
+  });
+
+  sheets.push({
+    sheetName: '劳动许可',
+    data: (laborApps as any[]).map((r) =>
+      toRow(r.employee_id, {
+        申请日期: r.application_date ?? '',
+        申请内容: r.application_content ?? '',
+        申请人: r.applicant ?? '',
+        创建时间: r.created_at ?? '',
+        状态: r.status === 'done' ? '已办理' : '待办理',
+      })
+    ),
+  });
+
+  sheets.push({
+    sheetName: '调岗调薪',
+    data: (transferRecs as any[]).map((r) =>
+      toRow(r.employee_id, {
+        调岗日期: r.transfer_date ?? '',
+        原部门: r.from_department ?? '',
+        原岗位: r.from_position ?? '',
+        新部门: r.to_department ?? '',
+        新岗位: r.to_position ?? '',
+        操作人: r.operator ?? '',
+      })
+    ),
+  });
+  const salaryRecs = await Promise.all(
+    ids.map((id) => supabase.from('cn_salary_change_records').select('*').eq('employee_id', id))
+  ).then((r) => r.flatMap((x) => x.data || []));
+  sheets.push({
+    sheetName: '调薪',
+    data: (salaryRecs as any[]).map((r) =>
+      toRow(r.employee_id, {
+        调整日期: r.change_date ?? '',
+        调整前: r.salary_before ?? '',
+        调整后: r.salary_after ?? '',
+        操作人: r.operator ?? '',
+      })
+    ),
+  });
+
+  sheets.push({
+    sheetName: '请假',
+    data: (leaveRecs as any[]).map((r) =>
+      toRow(r.employee_id, {
+        开始时间: r.start_at ?? '',
+        结束时间: r.end_at ?? '',
+        事由: r.reason ?? '',
+        时长小时: r.leave_hours ?? '',
+        操作人: r.operator ?? '',
+      })
+    ),
+  });
+
+  sheets.push({
+    sheetName: '奖惩',
+    data: (rewardRecs as any[]).map((r) =>
+      toRow(r.employee_id, {
+        类型: r.record_type === 'reward' ? '奖励' : '违纪',
+        原因: r.reason ?? '',
+        金额: r.amount ?? '',
+        创建时间: r.created_at ?? '',
+        操作人: r.operator ?? '',
+      })
+    ),
+  });
+
+  return sheets;
 }

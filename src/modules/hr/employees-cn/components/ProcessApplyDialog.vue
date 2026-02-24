@@ -37,9 +37,12 @@
         </el-form-item>
       </el-form>
     </template>
-    <!-- 机票：根据 cn_visa_handles 的 visa_times/remaining_times 校验，无有效签证则不可提交 -->
+    <!-- 机票：根据 cn_visa_handles 的 visa_times/remaining_times 校验，无有效签证则不可提交；校验中不展示阻断提示，避免闪烁 -->
     <template v-else-if="tab === 'flight'">
-      <el-alert v-if="flightVisaBlocked" type="warning" :closable="false" style="margin-bottom: 12px">
+      <el-alert v-if="flightVisaChecking" type="info" :closable="false" style="margin-bottom: 12px">
+        正在校验签证…
+      </el-alert>
+      <el-alert v-else-if="flightVisaBlocked" type="warning" :closable="false" style="margin-bottom: 12px">
         该员工当前无有效签证或剩余次数为0，请先办理签证。
       </el-alert>
       <el-form ref="flightFormRef" :model="flightForm" label-width="100px">
@@ -148,8 +151,15 @@ const laborForm = ref({
 });
 
 const flightValidVisas = ref<VisaHandle[]>([]);
+const flightVisaChecking = ref(false);
 const flightEmployeeId = computed(() => flightForm.value.employee_id);
-const flightVisaBlocked = computed(() => props.tab === 'flight' && !!flightForm.value.employee_id && !flightValidVisas.value.length);
+const flightVisaBlocked = computed(
+  () =>
+    props.tab === 'flight' &&
+    !!flightForm.value.employee_id &&
+    !flightVisaChecking.value &&
+    !flightValidVisas.value.length
+);
 const loading = ref(false);
 
 const dialogTitle = computed(() => {
@@ -176,6 +186,7 @@ watch(
         applicant: '',
       };
       flightValidVisas.value = [];
+      flightVisaChecking.value = false;
     }
   }
 );
@@ -183,13 +194,17 @@ watch(
 async function onFlightEmployeeChange(employeeId: string) {
   if (!employeeId) {
     flightValidVisas.value = [];
+    flightVisaChecking.value = false;
     return;
   }
+  flightVisaChecking.value = true;
   try {
     const visas = await fetchValidVisasForEmployee(employeeId);
     flightValidVisas.value = visas;
   } catch {
     flightValidVisas.value = [];
+  } finally {
+    flightVisaChecking.value = false;
   }
 }
 

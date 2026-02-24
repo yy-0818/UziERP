@@ -133,16 +133,14 @@
       </div>
     </el-card>
 
-    <!-- 详情抽屉：带淡入淡出 -->
+    <!-- 详情抽屉：不销毁内容以缓存 tab 数据，提升再次打开速度 -->
     <el-drawer
       v-model="detailVisible"
       title="员工详情"
       size="880"
-      destroy-on-close
       append-to-body
       class="hr-detail-drawer hr-detail-drawer--animated"
       :show-close="true"
-      @close="detailEmployeeId = null"
     >
       <template v-if="detailEmployee">
         <div class="hr-detail-drawer-body hr-detail-drawer-body--fade">
@@ -205,13 +203,19 @@
         <el-tabs v-model="detailTab" class="detail-tabs">
           <el-tab-pane label="流程时间线" name="timeline">
             <div class="hr-timeline-wrap">
-              <el-timeline v-if="timelineItems.length">
+              <el-timeline v-if="timelineDisplayItems.length">
                 <el-timeline-item
-                  v-for="item in timelineItems"
+                  v-for="item in timelineDisplayItems"
                   :key="item.id"
                   :timestamp="formatTimelineDate(item.date)"
                   placement="top"
+                  :color="timelineTypeConfig[item.type]?.color ?? '#909399'"
                 >
+                  <template #dot>
+                    <span class="hr-timeline-dot" :style="{ backgroundColor: timelineTypeConfig[item.type]?.color ?? '#909399' }">
+                      <el-icon v-if="timelineTypeConfig[item.type]?.icon" :component="timelineTypeConfig[item.type].icon" class="hr-timeline-dot-icon" />
+                    </span>
+                  </template>
                   <div class="hr-timeline-title">{{ item.title }}</div>
                   <div v-if="item.status" class="hr-timeline-meta">
                     <el-tag size="small" :type="item.status === '已办理' ? 'success' : 'warning'">{{ item.status }}</el-tag>
@@ -220,7 +224,11 @@
                   <div v-if="item.operator" class="hr-timeline-operator">操作人：{{ item.operator }}</div>
                 </el-timeline-item>
               </el-timeline>
-              <el-empty v-else description="暂无流程记录" />
+              <div v-if="timelineItems.length && timelineHasMore" class="hr-timeline-more">
+                <el-button v-if="timelineFolded" type="primary" link @click="timelineFolded = false">查看更多历史记录</el-button>
+                <el-button v-else type="primary" link @click="timelineFolded = true">收起</el-button>
+              </div>
+              <el-empty v-else-if="!timelineItems.length" description="暂无流程记录" />
             </div>
           </el-tab-pane>
           <el-tab-pane label="邀请函" name="invitation">
@@ -526,11 +534,12 @@
         <el-form-item label="开始时间" prop="start_at">
           <el-date-picker v-model="leaveForm.start_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="结束时间" prop="end_at">
-          <el-date-picker v-model="leaveForm.end_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width: 100%" />
+        <el-form-item label="结束时间">
+          <el-date-picker v-model="leaveForm.end_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" placeholder="选填，归期未知可不填" style="width: 100%" />
         </el-form-item>
         <el-form-item label="请假时长">
-          <el-input-number v-model="leaveForm.leave_hours" :min="0" :precision="2" style="width: 80%" />
+          <span v-if="leaveDurationText" class="leave-duration-text">{{ leaveDurationText }}</span>
+          <el-input-number v-model="leaveForm.leave_hours" :min="0" :precision="2" style="width: 80%" placeholder="可自动计算或手动填写" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -573,13 +582,13 @@
 import { ref, computed, watch, onMounted, nextTick, defineAsyncComponent } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
-import { Refresh, View, Edit, Finished, Avatar, FolderAdd, Download } from '@element-plus/icons-vue';
+import { Refresh, View, Edit, Finished, Avatar, FolderAdd, Download, Document, Stamp, Ticket, Notebook, Sort, Calendar, Medal } from '@element-plus/icons-vue';
 import { useAuthStore } from '../../../stores/auth';
 import {
   fetchEmployees,
   fetchEmployeeById,
   fetchLeaveRecords,
-  fetchEmployeesForExport,
+  fetchArchiveForExportByEmployeeNos,
   createEmployee,
   updateEmployee,
   setEmployeeResigned,
@@ -590,11 +599,11 @@ import {
   getSignedUrl,
   uploadEmployeeFile,
   fetchEmployeeTimeline,
+  isOnLeaveToday
 } from './api';
-import { exportToExcel } from '../../../composables/useExport';
+import { exportToExcelMultiSheet } from '../../../composables/useExport';
 import './employees-cn.css';
 import { formatDateOnly } from './types';
-import { isOnLeaveToday } from './api';
 import type { CnEmployee, CnEmployeeWithStatus, EmployeeTimelineItem } from './types';
 
 const noPhotoUrl = 'https://cube.elemecdn.com/9/c2/f0ee8a3c7c9638a54940382568c9dpng.png';
@@ -789,16 +798,24 @@ async function fetchData() {
   }
 }
 
+/** 导出档案：按工号导出全部员工及其关联数据（邀请函、签证、机票、劳动许可、调岗调薪、请假、奖惩） */
 async function exportArchives() {
   exporting.value = true;
   try {
-    const data = await fetchEmployeesForExport();
+    const employees = await fetchEmployees();
+    const nos = employees.map((e) => e.employee_no).filter(Boolean);
+    if (!nos.length) {
+      ElMessage.warning('暂无可导出的员工');
+      return;
+    }
+    const sheets = await fetchArchiveForExportByEmployeeNos(nos);
+    const data = sheets.filter((s) => s.data.length).map((s) => ({ name: s.sheetName, data: s.data }));
     if (!data.length) {
       ElMessage.warning('暂无可导出的数据');
       return;
     }
-    exportToExcel(data, undefined, '员工档案');
-    ElMessage.success(`已导出 ${data.length} 条记录`);
+    exportToExcelMultiSheet(data, '员工档案');
+    ElMessage.success('导出成功');
   } catch (e: any) {
     ElMessage.error(e?.message || '导出失败');
   } finally {
@@ -832,6 +849,35 @@ const detailPhotoUrl = computed(() =>
   detailEmployeeId.value ? (photoUrlMap.value[detailEmployeeId.value] ?? '') : ''
 );
 const timelineItems = ref<EmployeeTimelineItem[]>([]);
+const timelineFolded = ref(true);
+const TIMELINE_DEFAULT_COUNT = 10;
+const TIMELINE_DAYS = 30;
+
+const timelineTypeConfig: Record<string, { color: string; icon: any }> = {
+  invitation: { color: '#409EFF', icon: Document },
+  visa: { color: '#67C23A', icon: Stamp },
+  flight: { color: '#E6A23C', icon: Ticket },
+  labor: { color: '#909399', icon: Notebook },
+  transfer: { color: '#F56C6C', icon: Sort },
+  leave: { color: '#9B59B6', icon: Calendar },
+  reward: { color: '#00B894', icon: Medal },
+};
+
+const timelineDisplayItems = computed(() => {
+  const items = timelineItems.value;
+  if (!timelineFolded.value) return items;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - TIMELINE_DAYS);
+  const cutoffStr = cutoff.toISOString();
+  const inRange = items.filter((i) => (i.date || '') >= cutoffStr);
+  if (inRange.length >= TIMELINE_DEFAULT_COUNT) return inRange;
+  return items.slice(0, TIMELINE_DEFAULT_COUNT);
+});
+
+const timelineHasMore = computed(
+  () => timelineItems.value.length > timelineDisplayItems.value.length
+);
+
 const detailEmployee = computed(() => {
   if (!detailEmployeeId.value) return null;
   return list.value.find((e) => e.id === detailEmployeeId.value) ?? null;
@@ -857,6 +903,7 @@ watch(
   [detailEmployeeId, detailTab],
   async ([id, tab]) => {
     if (id && tab === 'timeline') {
+      timelineFolded.value = true;
       try {
         timelineItems.value = await fetchEmployeeTimeline(id);
       } catch {
@@ -898,7 +945,7 @@ async function loadDetailPhoto() {
 function openDetail(row: CnEmployeeWithStatus) {
   detailEmployeeId.value = row.id;
   detailVisible.value = true;
-  /* 头像已用 photoUrlMap[row.id]，无需再请求 */
+  /* 头像已用 photoUrlMap[row.id]，无需再请求；不销毁抽屉内容，再次打开同员工时无需重新拉取 tab 数据 */
 }
 
 async function confirmOnboard() {
@@ -1176,14 +1223,37 @@ const leaveForm = ref({
 const leaveRules: FormRules = {
   reason: [{ required: true, message: '请输入事由', trigger: 'blur' }],
   start_at: [{ required: true, message: '请选择开始时间', trigger: 'change' }],
-  end_at: [{ required: true, message: '请选择结束时间', trigger: 'change' }],
+  /* 结束时间非必填，支持归期未知场景 */
 };
+
+const leaveDurationText = computed(() => {
+  const start = leaveForm.value.start_at;
+  const end = leaveForm.value.end_at;
+  if (!start || !end) return '';
+  const a = new Date(start).getTime();
+  const b = new Date(end).getTime();
+  if (b <= a) return '';
+  const hours = (b - a) / (1000 * 60 * 60);
+  if (hours >= 24) return `约 ${(hours / 24).toFixed(1)} 天`;
+  return `约 ${hours.toFixed(1)} 小时`;
+});
 
 function openLeave(row: CnEmployeeWithStatus) {
   leaveEmployee.value = row;
   leaveForm.value = { reason: '', start_at: null, end_at: null, leave_hours: null };
   leaveVisible.value = true;
 }
+
+watch(
+  () => [leaveForm.value.start_at, leaveForm.value.end_at],
+  ([start, end]) => {
+    if (!start || !end) return;
+    const a = new Date(start as string).getTime();
+    const b = new Date(end as string).getTime();
+    if (b > a) leaveForm.value.leave_hours = (b - a) / (1000 * 60 * 60);
+  },
+  { deep: true }
+);
 
 async function submitLeave() {
   await leaveFormRef.value?.validate().catch(() => {});
@@ -1288,7 +1358,7 @@ watch(
 onMounted(async () => {
   restoreUiState();
   await fetchData();
-});
+})
 </script>
 
 <style scoped>
@@ -1316,6 +1386,30 @@ onMounted(async () => {
 }
 .detail-tabs {
   margin-top: 8px;
+}
+.hr-timeline-wrap {
+  padding: 8px 0;
+}
+.hr-timeline-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: #fff;
+}
+.hr-timeline-dot-icon {
+  font-size: 12px;
+}
+.hr-timeline-more {
+  margin-top: 12px;
+  padding-left: 32px;
+}
+.leave-duration-text {
+  margin-right: 8px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
 }
 .ml-2 {
   margin-left: 8px;
