@@ -56,34 +56,42 @@
 import { ref, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import { useAuthStore } from '../stores/auth';
-import { listProducts, upsertProduct } from '../modules/master-data/api';
+import { hasAnyRole } from '../utils/permissions';
+import {
+  listProducts,
+  upsertProduct,
+  type ProductRecord,
+} from '../modules/master-data/api';
 
 const auth = useAuthStore();
 const keyword = ref('');
-const rows = ref<any[]>([]);
+const rows = ref<ProductRecord[]>([]);
 const loading = ref(false);
 
 const editVisible = ref(false);
 const editTitle = ref('');
-const editForm = ref<any>({});
+const editForm = ref<{ id?: string; name: string; category: string; spec: string; unit: string }>({
+  name: '',
+  category: '',
+  spec: '',
+  unit: '',
+});
 const saving = ref(false);
 
-const canEdit = computed(() =>
-  ['super_admin', 'manager'].includes(auth.role || '')
-);
+const canEdit = computed(() => hasAnyRole(auth.role, ['super_admin', 'manager']));
 
 async function fetchData() {
   loading.value = true;
   try {
     rows.value = await listProducts(keyword.value);
-  } catch (error: any) {
-    ElMessage.error(error.message || '查询失败');
+  } catch (error: unknown) {
+    ElMessage.error(error instanceof Error ? error.message : '查询失败');
   } finally {
     loading.value = false;
   }
 }
 
-function openEdit(row: any | null) {
+function openEdit(row: ProductRecord | null) {
   if (row) {
     editTitle.value = '编辑产品';
     editForm.value = { ...row };
@@ -117,8 +125,8 @@ async function saveData() {
     ElMessage.success('保存成功');
     editVisible.value = false;
     await fetchData();
-  } catch (error: any) {
-    ElMessage.error(error.message || '保存失败');
+  } catch (error: unknown) {
+    ElMessage.error(error instanceof Error ? error.message : '保存失败');
   } finally {
     saving.value = false;
   }
