@@ -3,7 +3,8 @@
     <el-card class="erp-card">
       <el-tabs v-model="activeTab" @tab-change="onTabChange">
         <!-- ==================== 销售数据 ==================== -->
-        <el-tab-pane label="销售数据" name="sales">
+        <el-tab-pane label="销售数据" name="sales" lazy>
+          <template v-if="activeTab === 'sales'">
           <div class="erp-toolbar">
             <el-input
               v-model="salesFilters.keyword"
@@ -90,10 +91,12 @@
               @size-change="onSalesPageSizeChange"
             />
           </div>
+          </template>
         </el-tab-pane>
 
         <!-- ==================== 收款数据 ==================== -->
-        <el-tab-pane label="收款数据" name="receipts">
+        <el-tab-pane label="收款数据" name="receipts" lazy>
+          <template v-if="activeTab === 'receipts'">
           <div class="erp-toolbar">
             <el-input
               v-model="receiptFilters.keyword"
@@ -166,6 +169,7 @@
               @size-change="onReceiptPageSizeChange"
             />
           </div>
+          </template>
         </el-tab-pane>
       </el-tabs>
     </el-card>
@@ -526,6 +530,7 @@ const salesPage = ref(1);
 const salesPageSize = ref(200);
 const receiptPage = ref(1);
 const receiptPageSize = ref(200);
+const tabLoaded = ref<Record<TabName, boolean>>({ sales: false, receipts: false });
 
 const canEdit = computed(() => hasAnyRole(auth.role, ['super_admin', 'manager', 'sales']));
 const canExport = computed(() => !hasRole(auth.role, 'viewer'));
@@ -727,6 +732,7 @@ async function fetchSalesData() {
     });
     salesRows.value = res.rows;
     salesTotalCount.value = res.total;
+    tabLoaded.value.sales = true;
   } catch (error: unknown) {
     ElMessage.error(getErrorMessage(error, '销售数据加载失败'));
     salesRows.value = [];
@@ -752,6 +758,7 @@ async function fetchReceiptData() {
     });
     receiptRows.value = res.rows;
     receiptTotalCount.value = res.total;
+    tabLoaded.value.receipts = true;
   } catch (error: unknown) {
     ElMessage.error(getErrorMessage(error, '收款数据加载失败'));
     receiptRows.value = [];
@@ -775,7 +782,8 @@ function onReceiptFilterChange(filters: Record<string, string[]>) {
   fetchReceiptData();
 }
 
-function fetchActiveTabData(_force = false) {
+function fetchActiveTabData(force = false) {
+  if (!force && tabLoaded.value[activeTab.value]) return;
   if (activeTab.value === 'sales') return fetchSalesData();
   return fetchReceiptData();
 }
