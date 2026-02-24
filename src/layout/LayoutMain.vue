@@ -35,7 +35,8 @@ function mainViewKey(route: RouteLocationNormalizedLoaded): string {
 .erp-main {
   flex: 1;
   overflow: auto;
-  padding: var(--page-padding);
+  /* padding: var(--page-padding); */
+  padding: 2px;
   background: var(--page-bg);
   /* 主内容区独立渲染层，减少侧边栏折叠触发的重绘 */
   contain: layout;

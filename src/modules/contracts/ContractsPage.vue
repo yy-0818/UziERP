@@ -5,7 +5,6 @@
         <div class="erp-card-header">
           <div>
             <div class="title">合同与附件管理</div>
-            <div class="subtitle">一客户一合同；合同与附件均区分乌兹国内/出口；支持上传合同或为指定合同上传附件</div>
           </div>
           <div class="header-actions">
             <el-button v-if="canManage" type="primary" @click="openUpload('contract')">上传合同</el-button>

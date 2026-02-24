@@ -215,7 +215,7 @@ addView(route);
   align-items: center;
   gap: 8px;
   min-height: 40px;
-  padding: 4px 12px;
+  padding-left: 10px;
   border-bottom: 1px solid var(--header-border);
   background: var(--header-bg);
   overflow: hidden;
