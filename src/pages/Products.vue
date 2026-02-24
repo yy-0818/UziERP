@@ -94,7 +94,13 @@ async function fetchData() {
 function openEdit(row: ProductRecord | null) {
   if (row) {
     editTitle.value = '编辑产品';
-    editForm.value = { ...row };
+    editForm.value = {
+      id: row.id,
+      name: row.name,
+      category: row.category ?? '',
+      spec: row.spec ?? '',
+      unit: row.unit ?? '',
+    };
   } else {
     editTitle.value = '新增产品';
     editForm.value = {

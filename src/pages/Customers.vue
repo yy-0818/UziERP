@@ -94,7 +94,12 @@ async function fetchData() {
 function openEdit(row: CustomerRecord | null) {
   if (row) {
     editTitle.value = '编辑客户';
-    editForm.value = { ...row };
+    editForm.value = {
+      id: row.id,
+      name: row.name,
+      level: row.level ?? '',
+      region: row.region ?? '',
+    };
   } else {
     editTitle.value = '新增客户';
     editForm.value = { name: '', level: '', region: '' };

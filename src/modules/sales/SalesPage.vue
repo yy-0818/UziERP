@@ -546,11 +546,11 @@ const modifierEmail = computed(() => {
 
 /* ==================== 列筛选选项（从当前页收集，限制条数防卡顿；筛选由服务端执行） ==================== */
 const FILTER_OPTIONS_MAX = 150;
-function collectFilterOptions(rows: Array<Record<string, unknown>>, field: string): { text: string; value: string }[] {
+function collectFilterOptions(rows: object[], field: string): { text: string; value: string }[] {
   const seen = new Set<string>();
   const result: { text: string; value: string }[] = [];
   for (const row of rows) {
-    const val = String(row[field] ?? '').trim();
+    const val = String((row as Record<string, unknown>)[field] ?? '').trim();
     if (val && !seen.has(val)) {
       seen.add(val);
       result.push({ text: val, value: val });
@@ -663,7 +663,7 @@ async function saveSalesBatch() {
   try {
     const payload = rows.map((r) => ({
       ...r,
-      document_date: normalizeDateForDb(r.document_date) || dayjs().format('YYYY-MM-DD'),
+      document_date: normalizeDateForDb(r.document_date as string | null | undefined) || dayjs().format('YYYY-MM-DD'),
       source_type: 'paste',
     }));
     const norm = normalizeImportRows(payload, 'sales');
@@ -693,7 +693,7 @@ async function saveReceiptBatch() {
   try {
     const payload = rows.map((r) => ({
       ...r,
-      receipt_date: normalizeDateForDb(r.receipt_date) || dayjs().format('YYYY-MM-DD'),
+      receipt_date: normalizeDateForDb(r.receipt_date as string | null | undefined) || dayjs().format('YYYY-MM-DD'),
       source_type: 'paste',
     }));
     const norm = normalizeImportRows(payload, 'receipt');
@@ -923,7 +923,7 @@ async function saveSales() {
       ElMessage.success('新增成功');
     } else {
       await updateSalesRecord({
-        id: salesForm.value.id,
+        id: salesForm.value.id!,
         modifierEmail: modifierEmail.value || undefined,
         modifierUserId: auth.user?.id || undefined,
         payload,
@@ -1020,7 +1020,7 @@ async function saveReceipt() {
       await createReceiptRecord(payload);
       ElMessage.success('新增成功');
     } else {
-      await updateReceiptRecord(f.id, payload);
+      await updateReceiptRecord(f.id!, payload);
       ElMessage.success('保存成功');
     }
     receiptDialogVisible.value = false;
