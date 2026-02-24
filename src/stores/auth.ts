@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia';
 import { ref, computed, onScopeDispose } from 'vue';
+import type { User } from '@supabase/supabase-js';
 import { supabase } from '../supabase';
 
 export const useAuthStore = defineStore('auth', () => {
-  const user = ref<any | null>(null);
+  const user = ref<User | null>(null);
   const role = ref<string | null>(null);
   const initialized = ref(false);
   const authReady = ref(false);

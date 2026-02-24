@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
+import { hasAnyRole } from '../utils/permissions';
 
 // 认证模块
 const Login = () => import('../pages/Login.vue');
@@ -172,7 +173,7 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   const needRoles = to.meta.requiresRole as string[] | undefined;
-  if (needRoles && !needRoles.includes(auth.role || '')) {
+  if (needRoles && !hasAnyRole(auth.role, needRoles)) {
     return next('/business/pricing');
   }
 

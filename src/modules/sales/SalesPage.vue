@@ -463,10 +463,9 @@
 
 <script setup lang="ts">
 import { Search, RefreshRight, ArrowDown, Plus, Upload, Download } from '@element-plus/icons-vue';
-import { computed, onMounted, ref, shallowRef, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance } from 'element-plus';
-import * as XLSX from 'xlsx';
 import dayjs from 'dayjs';
 import { exportToExcel } from '../../composables/useExport';
 import { useAuthStore } from '../../stores/auth';
@@ -484,9 +483,26 @@ import {
 } from './api';
 import type { SalesRow, ReceiptRow } from './types';
 import { querySales, queryReceipts } from './composables/useSalesPageQueries';
+import {
+  getErrorMessage,
+  normalizeDateForDb,
+  normalizeImportRows,
+  parseExcelPasteRows,
+  parseRowsFromFile,
+  type ImportMode,
+  type ImportRow,
+} from './composables/salesImportUtils';
+import { hasAnyRole, hasRole } from '../../utils/permissions';
 
-type ImportMode = 'sales' | 'receipt';
 type TabName = 'sales' | 'receipts';
+
+interface SalesFormModel extends Omit<SalesRow, 'id'> {
+  id: string | null;
+}
+
+interface ReceiptFormModel extends Omit<ReceiptRow, 'id'> {
+  id: string | null;
+}
 
 const auth = useAuthStore();
 const activeTab = ref<TabName>('sales');
@@ -511,9 +527,9 @@ const salesPageSize = ref(200);
 const receiptPage = ref(1);
 const receiptPageSize = ref(200);
 
-const canEdit = computed(() => ['super_admin', 'manager', 'sales'].includes(auth.role || ''));
-const canExport = computed(() => (auth.role || '') !== 'viewer');
-const canDelete = computed(() => auth.role === 'super_admin');
+const canEdit = computed(() => hasAnyRole(auth.role, ['super_admin', 'manager', 'sales']));
+const canExport = computed(() => !hasRole(auth.role, 'viewer'));
+const canDelete = computed(() => hasRole(auth.role, 'super_admin'));
 
 const modifierEmail = computed(() => {
   try {
@@ -525,11 +541,11 @@ const modifierEmail = computed(() => {
 
 /* ==================== 列筛选选项（从当前页收集，限制条数防卡顿；筛选由服务端执行） ==================== */
 const FILTER_OPTIONS_MAX = 150;
-function collectFilterOptions(rows: any[], field: string): { text: string; value: string }[] {
+function collectFilterOptions(rows: Array<Record<string, unknown>>, field: string): { text: string; value: string }[] {
   const seen = new Set<string>();
   const result: { text: string; value: string }[] = [];
   for (const row of rows) {
-    const val = String((row as any)[field] ?? '').trim();
+    const val = String(row[field] ?? '').trim();
     if (val && !seen.has(val)) {
       seen.add(val);
       result.push({ text: val, value: val });
@@ -560,7 +576,7 @@ const importMode = ref<ImportMode>('sales');
 const importText = ref('');
 const importing = ref(false);
 const fileInputRef = ref<HTMLInputElement | null>(null);
-const parsedImportRows = ref<Record<string, any>[] | null>(null);
+const parsedImportRows = ref<ImportRow[] | null>(null);
 
 const importProgress = ref({ total: 0, done: 0, written: 0 });
 const importProgressPercent = computed(() => {
@@ -576,11 +592,11 @@ const salesEntryMode = ref<'single' | 'batch'>('batch');
 const salesBatchPasteText = ref('');
 const saving = ref(false);
 const salesFormRef = ref<FormInstance>();
-const salesForm = ref<any>({});
+const salesForm = ref<SalesFormModel>(getEmptySalesForm());
 
 const salesBatchParsedCount = computed(() => parseExcelPasteRows(salesBatchPasteText.value, 'sales').length);
 
-function getEmptySalesForm() {
+function getEmptySalesForm(): SalesFormModel {
   return {
     id: null,
     document_date: dayjs().format('YYYY-MM-DD'),
@@ -618,11 +634,11 @@ const receiptDialogIsCreate = ref(false);
 const receiptEntryMode = ref<'single' | 'batch'>('batch');
 const receiptBatchPasteText = ref('');
 const receiptFormRef = ref<FormInstance>();
-const receiptForm = ref<any>({});
+const receiptForm = ref<ReceiptFormModel>(getEmptyReceiptForm());
 
 const receiptBatchParsedCount = computed(() => parseExcelPasteRows(receiptBatchPasteText.value, 'receipt').length);
 
-function getEmptyReceiptForm() {
+function getEmptyReceiptForm(): ReceiptFormModel {
   return {
     id: null,
     receipt_date: dayjs().format('YYYY-MM-DD'),
@@ -632,118 +648,6 @@ function getEmptyReceiptForm() {
     amount_uzs: null,
     note: '',
   };
-}
-
-/* ==================== Excel 粘贴解析（Tab 分隔；发货人后顺序：订单号→备注→司机税号→物流税号→车型→合同编号） ==================== */
-const SALES_PASTE_KEYS = ['document_date', 'document_no', 'payment_method', 'customer_name', 'product_name', 'color_code', 'spec_model', 'category', 'grade', 'box_count', 'area_sqm', 'unit_price_usd', 'amount_usd', 'exchange_rate', 'amount_uzs', 'refund_uzs', 'vehicle_no', 'export_country', 'dealer_name', 'shipper_name', 'order_no', 'note', 'driver_tax_no', 'logistics_tax_no', 'vehicle_type', 'contract_no'];
-const RECEIPT_PASTE_KEYS = ['receipt_date', 'account_name', 'customer_name', 'amount_usd', 'amount_uzs', 'note'];
-const HEADER_HINTS = ['日期', '单据', '客户', '账户', '商品', '美金', '苏姆', '备注', 'document', 'receipt', 'customer', 'account'];
-
-function toNum(v: string): number | null {
-  if (v == null || v === '') return null;
-  const s = String(v).trim().replace(/\s/g, '').replace(/,/g, '');
-  const n = parseFloat(s);
-  return Number.isNaN(n) ? null : n;
-}
-
-/** Excel 日期格式转 YYYY-MM-DD（支持 2026年2月16日、2026/2/16、2026-2-16 等） */
-function normalizeDateForDb(v: string | null | undefined): string | null {
-  if (v == null) return null;
-  let s = String(v).trim();
-  if (!s) return null;
-  const cnMatch = s.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日?/);
-  if (cnMatch) {
-    const [, y, m, d] = cnMatch;
-    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-  }
-  const parsed = dayjs(s, ['YYYY-MM-DD', 'YYYY/M/D', 'YYYY-M-D', 'M/D/YYYY', 'DD.MM.YYYY', 'YYYY.MM.DD', 'MM/DD/YYYY'], true);
-  if (parsed.isValid()) return parsed.format('YYYY-MM-DD');
-  return null;
-}
-
-/** 解析 TSV 行：仅按 Tab 分列，保留空列（\t\t 产生空单元格）；支持引号内换行。
- * 不做“多空格当分隔符”，避免“2账户 E2客户  CORONA”等单元格内空格被误拆。 */
-function parseTsvLine(line: string): string[] {
-  const cells: string[] = [];
-  let cell = '';
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-    if (c === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        cell += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (inQuotes) {
-      cell += c;
-    } else if (c === '\t') {
-      cells.push(cell);
-      cell = '';
-    } else {
-      cell += c;
-    }
-  }
-  cells.push(cell);
-  return cells;
-}
-
-/** 按行解析 TSV（每行可能因引号内的 \n 跨多行） */
-function parseTsvRows(txt: string): string[][] {
-  const rows: string[][] = [];
-  let line = '';
-  let inQuotes = false;
-  for (let i = 0; i < txt.length; i++) {
-    const c = txt[i];
-    if (c === '"') {
-      if (inQuotes && txt[i + 1] === '"') {
-        line += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-        line += c;
-      }
-    } else if (!inQuotes && (c === '\n' || c === '\r')) {
-      if (c === '\r' && txt[i + 1] === '\n') i++;
-      rows.push(parseTsvLine(line));
-      line = '';
-    } else {
-      line += c;
-    }
-  }
-  if (line) rows.push(parseTsvLine(line));
-  return rows;
-}
-
-function parseExcelPasteRows(text: string, mode: 'sales' | 'receipt'): Record<string, any>[] {
-  const txt = String(text || '').trim();
-  if (!txt) return [];
-  const keys = mode === 'sales' ? SALES_PASTE_KEYS : RECEIPT_PASTE_KEYS;
-  const lines = parseTsvRows(txt);
-  const rows: Record<string, any>[] = [];
-  let startIdx = 0;
-  if (lines.length > 0 && lines[0].length > 0) {
-    const firstCell = String(lines[0][0] || '').trim().replace(/^"|"$/g, '');
-    if (HEADER_HINTS.some((h) => firstCell.includes(h))) startIdx = 1;
-  }
-  for (let i = startIdx; i < lines.length; i++) {
-    const cells = lines[i];
-    const row: Record<string, any> = {};
-    for (let j = 0; j < keys.length; j++) {
-      let val = cells[j] != null ? String(cells[j]).trim() : '';
-      val = val.replace(/^"|"$/g, '').replace(/""/g, '"');
-      const k = keys[j];
-      if (['box_count', 'area_sqm', 'unit_price_usd', 'amount_usd', 'exchange_rate', 'amount_uzs', 'refund_uzs'].includes(k)) {
-        row[k] = toNum(val);
-      } else {
-        row[k] = val || null;
-      }
-    }
-    if (mode === 'sales' && (row.document_no || row.customer_name || row.product_name)) rows.push(row);
-    else if (mode === 'receipt' && row.customer_name) rows.push(row);
-  }
-  return rows;
 }
 
 async function saveSalesBatch() {
@@ -769,8 +673,8 @@ async function saveSalesBatch() {
     salesBatchPasteText.value = '';
     salesDialogVisible.value = false;
     await fetchSalesData();
-  } catch (e: any) {
-    ElMessage.error(e?.message || '批量添加失败');
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '批量添加失败'));
   } finally {
     saving.value = false;
   }
@@ -799,8 +703,8 @@ async function saveReceiptBatch() {
     receiptBatchPasteText.value = '';
     receiptDialogVisible.value = false;
     await fetchReceiptData();
-  } catch (e: any) {
-    ElMessage.error(e?.message || '批量添加失败');
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '批量添加失败'));
   } finally {
     saving.value = false;
   }
@@ -823,8 +727,8 @@ async function fetchSalesData() {
     });
     salesRows.value = res.rows;
     salesTotalCount.value = res.total;
-  } catch (e: any) {
-    ElMessage.error(e?.message || '销售数据加载失败');
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '销售数据加载失败'));
     salesRows.value = [];
     salesTotalCount.value = 0;
   } finally {
@@ -848,8 +752,8 @@ async function fetchReceiptData() {
     });
     receiptRows.value = res.rows;
     receiptTotalCount.value = res.total;
-  } catch (e: any) {
-    ElMessage.error(e?.message || '收款数据加载失败');
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '收款数据加载失败'));
     receiptRows.value = [];
     receiptTotalCount.value = 0;
   } finally {
@@ -1020,8 +924,8 @@ async function saveSales() {
     }
     salesDialogVisible.value = false;
     await fetchSalesData();
-  } catch (e: any) {
-    ElMessage.error(e?.message || '操作失败');
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '操作失败'));
   } finally {
     saving.value = false;
   }
@@ -1045,8 +949,8 @@ async function saveSalesAndContinue() {
       exchange_rate: prev.exchange_rate,
     };
     await fetchSalesData();
-  } catch (e: any) {
-    ElMessage.error(e?.message || '新增失败');
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '新增失败'));
   } finally {
     saving.value = false;
   }
@@ -1113,8 +1017,8 @@ async function saveReceipt() {
     }
     receiptDialogVisible.value = false;
     await fetchReceiptData();
-  } catch (e: any) {
-    ElMessage.error(e?.message || '操作失败');
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '操作失败'));
   } finally {
     saving.value = false;
   }
@@ -1142,8 +1046,8 @@ async function saveReceiptAndContinue() {
       account_name: prev.account_name,
     };
     await fetchReceiptData();
-  } catch (e: any) {
-    ElMessage.error(e?.message || '新增失败');
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '新增失败'));
   } finally {
     saving.value = false;
   }
@@ -1216,9 +1120,9 @@ async function exportSales() {
     }
     exportToExcel(
       allRows.map((r) => {
-        const row: Record<string, any> = {};
+        const row: ImportRow = {};
         for (const col of SALES_EXPORT_COLS) {
-          row[col.key] = (r as any)[col.key] ?? '';
+          row[col.key] = r[col.key as keyof typeof r] ?? '';
         }
         return row;
       }),
@@ -1226,8 +1130,8 @@ async function exportSales() {
       'sales_export'
     );
     ElMessage.success(`已导出 ${allRows.length} 条销售记录`);
-  } catch (e: any) {
-    ElMessage.error(e?.message || '导出失败');
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '导出失败'));
   } finally {
     exporting.value = false;
   }
@@ -1248,9 +1152,9 @@ async function exportReceipts() {
     }
     exportToExcel(
       allRows.map((r) => {
-        const row: Record<string, any> = {};
+        const row: ImportRow = {};
         for (const col of RECEIPT_EXPORT_COLS) {
-          row[col.key] = (r as any)[col.key] ?? '';
+          row[col.key] = r[col.key as keyof typeof r] ?? '';
         }
         return row;
       }),
@@ -1258,125 +1162,14 @@ async function exportReceipts() {
       'sales_receipts_export'
     );
     ElMessage.success(`已导出 ${allRows.length} 条收款记录`);
-  } catch (e: any) {
-    ElMessage.error(e?.message || '导出失败');
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '导出失败'));
   } finally {
     exporting.value = false;
   }
 }
 
 /* ==================== 导入逻辑 ==================== */
-function normalizeKey(k: string) {
-  return String(k || '').trim().toLowerCase().replace(/\s+/g, '');
-}
-
-const LEGACY_KEY_ALIASES: Record<string, string> = {
-  '单据日期датадокумента': '单据日期 Дата документа',
-  '单据编号номердокумента': '单据编号 Номер документа',
-  '客户分类способоплаты': '客户分类 способ  оплаты',
-  '客户名称названиеклиента': '客户名称 Название клиента',
-  '商品名称названиетовара': '商品名称 Название товара',
-  '色号партия': '色号 партия',
-  '规格型号спецификация': '规格型号 спецификация',
-  '类别категория': '类别 Категория',
-  '等级класс': '等级 Класс',
-  '箱数количествокоробок': '箱数 Количество  коробок',
-  '平方数квадратныеметры': '平方数 Квадратные метры',
-  '单价$ценазаединицу': '单价$ цена за единицу',
-  '合计$итог': '合计$ итог',
-  '汇率курсвалют': '汇率 Курс валют',
-  '苏姆合计суммавсумах': '苏姆合计 Сумма в сумах',
-  '订单号номерзаказа': '订单号 Номер заказа',
-  '车号номеравтомобиля': '车号 Номер  автомобиля',
-  '出口国страна': '出口国 Страна',
-  '经销商дилер': '经销商 Дилер',
-  '发货人отправитель': '发货人 Отправитель',
-  '司机税号': '司机税号',
-  '物流税号': '物流税号',
-  '车型': '车型',
-  '合同编号': '合同编号',
-  '整单备注': '备注',
-  '日期датадокумента': '日期 Дата документа',
-  '美金金额$итог': '美金金额 $ итог',
-  '苏姆金额somсуммавсумах': '苏姆金额 som Сумма в сумах',
-  '备注': '备注',
-  /* Excel 无列名时 xlsx 会生成 __EMPTY, __EMPTY_1...，收款表第2列为账户、第6列为备注 */
-  '__empty': '账户',
-  '__empty_1': '备注',
-};
-
-function normalizeImportRowKeys(row: Record<string, any>) {
-  const out: Record<string, any> = {};
-  for (const [k, v] of Object.entries(row || {})) {
-    const original = String(k || '').trim();
-    if (!original) continue;
-    out[original] = v;
-    const alias = LEGACY_KEY_ALIASES[normalizeKey(original)];
-    if (alias && out[alias] == null) out[alias] = v;
-  }
-  return out;
-}
-
-function normalizeNumericValue(v: any): string {
-  if (v == null) return '';
-  let s = String(v).trim();
-  if (!s) return '';
-  s = s.replace(/\u00a0/g, ' ').replace(/[，]/g, ',');
-  s = s.replace(/\s+/g, '');
-  s = s.replace(/[^\d\.\-,]/g, '');
-  if (s.includes(',') && s.includes('.')) {
-    s = s.replace(/,/g, '');
-  } else if (s.includes(',') && !s.includes('.')) {
-    const parts = s.split(',');
-    if (parts.length === 2 && parts[1].length > 0 && parts[1].length <= 4) {
-      s = `${parts[0]}.${parts[1]}`;
-    } else {
-      s = parts.join('');
-    }
-  }
-  const dot = s.indexOf('.');
-  if (dot !== -1) {
-    s = s.slice(0, dot + 1) + s.slice(dot + 1).replace(/\./g, '');
-  }
-  return s;
-}
-
-function normalizeImportRows(rows: Record<string, any>[], mode: ImportMode): Record<string, any>[] {
-  return rows.map((r) => {
-    const out = normalizeImportRowKeys(r || {});
-    const numericKeys = mode === 'sales'
-      ? ['box_count', 'area_sqm', 'unit_price_usd', 'amount_usd', 'exchange_rate', 'amount_uzs', 'refund_uzs',
-         '箱数 Количество  коробок', '平方数 Квадратные метры', '单价$ цена за единицу', '合计$ итог',
-         '汇率 Курс валют', '苏姆合计 Сумма в сумах', '退货苏姆']
-      : ['amount_usd', 'amount_uzs', '美金金额 $ итог', '苏姆金额 som Сумма в сумах'];
-    numericKeys.forEach((k) => { if (k in out) out[k] = normalizeNumericValue(out[k]); });
-    /* 收款导入：将 Excel 无列名 __EMPTY/__EMPTY_1 及中文列 账户/备注 统一映射为后端字段 account_name / note */
-    if (mode === 'receipt') {
-      const accountVal = out['__EMPTY'] ?? out['账户'];
-      if (accountVal != null && String(accountVal).trim() !== '') out['account_name'] = String(accountVal).trim();
-      const noteVal = out['__EMPTY_1'] ?? out['备注'];
-      if (noteVal != null && String(noteVal).trim() !== '') out['note'] = String(noteVal).trim();
-    }
-    return out;
-  });
-}
-
-async function parseRowsFromFile(file: File): Promise<Record<string, any>[]> {
-  const lower = file.name.toLowerCase();
-  if (lower.endsWith('.json')) {
-    const parsed = JSON.parse(await file.text());
-    if (!Array.isArray(parsed)) throw new Error('JSON 文件内容必须是数组');
-    return parsed.map((r) => normalizeImportRowKeys(r || {}));
-  }
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: 'array' });
-  const sheetName = wb.SheetNames[0];
-  if (!sheetName) return [];
-  const sheet = wb.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: '', raw: false });
-  return rows.map((r) => normalizeImportRowKeys(r || {}));
-}
-
 function openImportDialog(mode: ImportMode) {
   if (!canEdit.value) return;
   importMode.value = mode;
@@ -1396,8 +1189,8 @@ async function onPickImportFile(event: Event) {
     parsedImportRows.value = rows;
     importText.value = JSON.stringify(rows.slice(0, 50), null, 2);
     ElMessage.success(`已解析 ${rows.length} 行数据（文本框仅预览前 50 行，提交会导入全部）`);
-  } catch (e: any) {
-    ElMessage.error(e?.message || '读取文件失败');
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '读取文件失败'));
   }
 }
 
@@ -1411,7 +1204,7 @@ async function submitImport() {
   importing.value = true;
   importProgress.value = { total: 0, done: 0, written: 0 };
   try {
-    let payload: Record<string, any>[];
+    let payload: ImportRow[];
     if (parsedImportRows.value && parsedImportRows.value.length > 0) {
       payload = parsedImportRows.value;
     } else {
@@ -1437,10 +1230,8 @@ async function submitImport() {
     ElMessage.success(`导入完成：共 ${payload.length} 行，已写入 ${written} 行`);
     importVisible.value = false;
     await fetchActiveTabData(true);
-  } catch (e: any) {
-    console.error('import failed', e);
-    const msg = e?.message || e?.error_description || e?.details || (typeof e === 'string' ? e : '') || '导入失败';
-    ElMessage.error(msg);
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '导入失败'));
   } finally {
     importing.value = false;
   }
@@ -1498,6 +1289,13 @@ watch(
 onMounted(() => {
   restoreUiState();
   fetchActiveTabData(true);
+});
+
+onUnmounted(() => {
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
 });
 </script>
 

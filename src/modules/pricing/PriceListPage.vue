@@ -67,10 +67,11 @@ import PricingFilterBar from './components/PricingFilterBar.vue';
 import PricingTableSection from './components/PricingTableSection.vue';
 import { usePricingData } from './composables/usePricingData';
 import { usePricingEditFlow } from './composables/usePricingEditFlow';
+import { hasAnyRole } from '../../utils/permissions';
 
 const auth = useAuthStore();
 const filters = ref({ keyword: '', level: [], region: [], price_type: [], product_ids: [] as number[] });
-const canEdit = computed(() => ['super_admin', 'manager', 'sales'].includes(auth.role || ''));
+const canEdit = computed(() => hasAnyRole(auth.role, ['super_admin', 'manager', 'sales']));
 const modifierEmail = computed(() => auth.email || '');
 
 const {

@@ -114,6 +114,7 @@ import dayjs from 'dayjs';
 import { ElMessage } from 'element-plus';
 import { supabase } from '../supabase';
 import { useAuthStore } from '../stores/auth';
+import { hasAnyRole } from '../utils/permissions';
 
 const auth = useAuthStore();
 const keyword = ref('');
@@ -136,9 +137,7 @@ const saving = ref(false);
 const customers = ref<any[]>([]);
 const products = ref<any[]>([]);
 
-const canEdit = computed(() =>
-  ['super_admin', 'manager', 'sales'].includes(auth.role || '')
-);
+const canEdit = computed(() => hasAnyRole(auth.role, ['super_admin', 'manager', 'sales']));
 
 function formatTime(v: string | null) {
   if (!v) return '';
@@ -184,8 +183,7 @@ async function fetchData() {
 
   const { data, error } = await query;
   if (error) {
-    console.error(error);
-    ElMessage.error('查询失败');
+    ElMessage.error(error?.message || '查询失败');
   } else {
     rows.value =
       data?.map((r: any) => ({
@@ -265,8 +263,7 @@ async function savePrice() {
     valid_from: now,
   });
   if (error) {
-    console.error(error);
-    ElMessage.error('保存失败');
+    ElMessage.error(error?.message || '保存失败');
   } else {
     ElMessage.success('保存成功');
     editVisible.value = false;
