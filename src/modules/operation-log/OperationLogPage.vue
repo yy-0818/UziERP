@@ -5,7 +5,6 @@
         <div class="erp-card-header">
           <div>
             <div class="title">操作日志</div>
-            <div class="subtitle">按分类查看新增员工、各类事件办理等操作记录</div>
           </div>
           <div class="header-actions">
             <el-button :icon="Printer" type="success" :loading="exporting" @click="exportData">

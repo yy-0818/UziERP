@@ -5,7 +5,6 @@
         <div class="erp-card-header">
           <div>
             <div class="title">考勤与人事</div>
-            <div class="subtitle">请假记录（自动判断休假状态）、奖励/违纪记录；调岗、调薪请在档案管理页操作</div>
           </div>
           <div class="header-actions">
             <el-button v-if="canManage && activeTab === 'leave'" type="primary" @click="openLeave">登记请假</el-button>

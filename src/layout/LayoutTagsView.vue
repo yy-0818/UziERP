@@ -2,6 +2,7 @@
   <div class="erp-tags-view">
     <el-tabs
       :model-value="activeTab"
+      type="card"
       class="erp-tabs"
       @tab-click="onTabClick"
       @tab-remove="onTabRemove"
@@ -24,7 +25,7 @@
     <el-dropdown v-if="tabActions.refresh || tabActions.closeAll" trigger="click" @command="onActionCommand">
       <el-button text class="erp-tabs-more-btn">
         <el-icon><Setting /></el-icon>
-        <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+        <!-- <el-icon class="el-icon--right"><ArrowDown /></el-icon> -->
       </el-button>
       <template #dropdown>
         <el-dropdown-menu>
@@ -238,6 +239,20 @@ addView(route);
   transition: all var(--transition-fast);
 }
 
+/* 与官方 card 示例一致：关闭按钮默认隐藏，仅悬浮时展示（官方 card 用 width 过渡，当前页签也改为仅 hover 显示） */
+.erp-tabs :deep(.el-tabs__item .is-icon-close) {
+  transition: all var(--el-transition-duration) var(--el-transition-function-ease-in-out-bezier);
+}
+.erp-tabs :deep(.el-tabs__item.is-active.is-closable .is-icon-close) {
+  width: 0;
+  opacity: 0;
+}
+.erp-tabs :deep(.el-tabs__item.is-closable:hover .is-icon-close),
+.erp-tabs :deep(.el-tabs__item .is-icon-close:focus) {
+  width: 14px;
+  opacity: 1;
+}
+
 .erp-tab-label {
   display: inline-flex;
   align-items: center;
@@ -247,5 +262,6 @@ addView(route);
 .erp-tabs-more-btn {
   color: var(--text-secondary);
   flex-shrink: 0;
+  margin-right: 5px;
 }
 </style>

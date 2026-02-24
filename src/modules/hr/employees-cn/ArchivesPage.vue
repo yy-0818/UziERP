@@ -5,7 +5,6 @@
         <div class="erp-card-header">
           <div>
             <div class="title">员工档案</div>
-            <div class="subtitle">在职/离职、部门岗位、工资标准由调岗/调薪/离职自动更新</div>
           </div>
           <div class="header-actions">
             <el-button v-if="canManage" type="success" plain :icon="Download" :loading="exporting" @click="exportArchives">导出档案</el-button>

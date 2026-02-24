@@ -9,7 +9,6 @@
       :collapse="layout.sidebarCollapsed"
       :collapse-transition="false"
       router
-      unique-opened
       class="erp-menu"
       background-color="var(--sidebar-bg)"
       text-color="var(--sidebar-text)"

@@ -5,7 +5,6 @@
         <div class="erp-card-header">
           <div>
             <div class="title">产品价格查询与维护</div>
-            <div class="subtitle">页面只负责状态编排，查询/缓存/编辑流程已拆分到 composables</div>
           </div>
           <div style="display:flex;gap:10px;align-items:center;">
             <el-button v-if="canEdit" type="success" @click="openEdit">新增价格</el-button>

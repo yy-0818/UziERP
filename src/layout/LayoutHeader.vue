@@ -24,7 +24,7 @@
       <el-dropdown trigger="click" @command="onCommand">
         <el-button type="primary" link>
           <el-icon><UserFilled /></el-icon>
-          <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          <!-- <el-icon class="el-icon--right"><ArrowDown /></el-icon> -->
         </el-button>
         <template #dropdown>
           <el-dropdown-menu>
