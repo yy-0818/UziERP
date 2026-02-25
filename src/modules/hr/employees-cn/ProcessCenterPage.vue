@@ -34,10 +34,13 @@
             <el-table-column prop="status" label="状态" width="90">
               <template #default="{ row }">{{ row.status === 'done' ? '已办理' : '待办理' }}</template>
             </el-table-column>
-            <el-table-column v-if="canManage" label="操作" width="140" fixed="right">
+            <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button v-if="row.status === 'pending'" link type="primary" size="small" @click="openHandleDialog('invitation', row)">办理</el-button>
-                <el-button v-if="row.status === 'done'" link type="primary" size="small" @click="openEditDialog('invitation', row)">编辑</el-button>
+                <el-button v-if="row.status === 'pending' && canManage" link type="primary" size="small" @click="openHandleDialog('invitation', row)">办理</el-button>
+                <template v-if="row.status === 'done'">
+                  <el-button link type="primary" size="small" @click="viewHandleDetail('invitation', row)">查看</el-button>
+                  <el-button v-if="canManage" link type="primary" size="small" @click="openEditDialog('invitation', row)">编辑</el-button>
+                </template>
               </template>
             </el-table-column>
           </el-table>
@@ -65,10 +68,13 @@
             <el-table-column prop="status" label="状态" width="90">
               <template #default="{ row }">{{ row.status === 'done' ? '已办理' : '待办理' }}</template>
             </el-table-column>
-            <el-table-column v-if="canManage" label="操作" width="140" fixed="right">
+            <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button v-if="row.status === 'pending'" link type="primary" size="small" @click="openHandleDialog('visa', row)">办理</el-button>
-                <el-button v-if="row.status === 'done'" link type="primary" size="small" @click="openEditDialog('visa', row)">编辑</el-button>
+                <el-button v-if="row.status === 'pending' && canManage" link type="primary" size="small" @click="openHandleDialog('visa', row)">办理</el-button>
+                <template v-if="row.status === 'done'">
+                  <el-button link type="primary" size="small" @click="viewHandleDetail('visa', row)">查看</el-button>
+                  <el-button v-if="canManage" link type="primary" size="small" @click="openEditDialog('visa', row)">编辑</el-button>
+                </template>
               </template>
             </el-table-column>
           </el-table>
@@ -97,10 +103,13 @@
             <el-table-column prop="status" label="状态" width="90">
               <template #default="{ row }">{{ row.status === 'done' ? '已办理' : '待办理' }}</template>
             </el-table-column>
-            <el-table-column v-if="canManage" label="操作" width="140" fixed="right">
+            <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button v-if="row.status === 'pending'" link type="primary" size="small" @click="openHandleDialog('flight', row)">办理</el-button>
-                <el-button v-if="row.status === 'done'" link type="primary" size="small" @click="openEditDialog('flight', row)">编辑</el-button>
+                <el-button v-if="row.status === 'pending' && canManage" link type="primary" size="small" @click="openHandleDialog('flight', row)">办理</el-button>
+                <template v-if="row.status === 'done'">
+                  <el-button link type="primary" size="small" @click="viewHandleDetail('flight', row)">查看</el-button>
+                  <el-button v-if="canManage" link type="primary" size="small" @click="openEditDialog('flight', row)">编辑</el-button>
+                </template>
               </template>
             </el-table-column>
           </el-table>
@@ -128,10 +137,13 @@
             <el-table-column prop="status" label="状态" width="90">
               <template #default="{ row }">{{ row.status === 'done' ? '已办理' : '待办理' }}</template>
             </el-table-column>
-            <el-table-column v-if="canManage" label="操作" width="140" fixed="right">
+            <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button v-if="row.status === 'pending'" link type="primary" size="small" @click="openHandleDialog('labor', row)">办理</el-button>
-                <el-button v-if="row.status === 'done'" link type="primary" size="small" @click="openEditDialog('labor', row)">编辑</el-button>
+                <el-button v-if="row.status === 'pending' && canManage" link type="primary" size="small" @click="openHandleDialog('labor', row)">办理</el-button>
+                <template v-if="row.status === 'done'">
+                  <el-button link type="primary" size="small" @click="viewHandleDetail('labor', row)">查看</el-button>
+                  <el-button v-if="canManage" link type="primary" size="small" @click="openEditDialog('labor', row)">编辑</el-button>
+                </template>
               </template>
             </el-table-column>
           </el-table>
@@ -235,17 +247,20 @@
                 <el-input-number v-model="flightHandleForm.entry_count" :min="1" style="width: 100%" />
               </el-form-item>
             </template>
-            <el-form-item label="实际起飞">
+            <el-form-item label="实际出发日期">
               <el-date-picker v-model="flightHandleForm.actual_departure_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width: 100%" />
             </el-form-item>
-            <el-form-item label="抵达时间">
+            <el-form-item label="实际抵达时间">
               <el-date-picker v-model="flightHandleForm.arrival_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width: 100%" />
             </el-form-item>
             <el-form-item label="机票金额">
               <el-input-number v-model="flightHandleForm.ticket_amount" :min="0" :precision="2" style="width: 100%" />
             </el-form-item>
-            <el-form-item label="出票公司">
-              <el-input v-model="flightHandleForm.issuer_company" />
+            <el-form-item label="出票方">
+              <el-select v-model="flightHandleForm.issuer_company" placeholder="请选择" style="width: 100%">
+                <el-option label="个人" value="个人" />
+                <el-option label="公司" value="公司" />
+              </el-select>
             </el-form-item>
             <el-form-item label="机票附件">
               <div class="form-attachment-upload">
@@ -665,6 +680,37 @@ async function openEditDialog(
     handleDialogVisible.value = true;
   } catch (e: any) {
     ElMessage.error(e?.message || '加载办理记录失败');
+  }
+}
+
+async function viewHandleDetail(
+  type: 'invitation' | 'visa' | 'flight' | 'labor',
+  row: HandleRow
+) {
+  try {
+    if (type === 'invitation') {
+      const h = await fetchInvitationHandleByApplicationId(row.id);
+      if (h?.letter_image_url) {
+        const url = await getSignedUrl(h.letter_image_url);
+        window.open(url, '_blank');
+      } else {
+        ElMessage.info('暂无邀请函附件');
+      }
+    } else if (type === 'visa') {
+      const h = await fetchVisaHandleByApplicationId(row.id);
+      if (!h) { ElMessage.warning('未找到办理记录'); return; }
+      ElMessage.info(`签证详情：生效${h.effective_date || '—'} 失效${h.expiry_date || '—'} 剩余${h.remaining_times === -1 ? '无限' : h.remaining_times ?? '—'}次`);
+    } else if (type === 'flight') {
+      const h = await fetchFlightHandleByApplicationId(row.id);
+      if (!h) { ElMessage.warning('未找到办理记录'); return; }
+      ElMessage.info(`机票详情：出发${h.actual_departure_at || '—'} 到达${h.arrival_at || '—'} 金额${h.ticket_amount ?? '—'}`);
+    } else if (type === 'labor') {
+      const h = await fetchLaborPermitHandleByApplicationId(row.id);
+      if (!h) { ElMessage.warning('未找到办理记录'); return; }
+      ElMessage.info(`劳动许可详情：生效${h.effective_date || '—'} 失效${h.expiry_date || '—'} 费用${h.fee_amount ?? '—'}`);
+    }
+  } catch (e: any) {
+    ElMessage.error(e?.message || '加载详情失败');
   }
 }
 

@@ -1,5 +1,33 @@
 <template>
   <div class="page-container dashboard">
+    <!-- 预警提醒 -->
+    <el-card class="erp-card alert-card" shadow="hover">
+      <template #header>
+        <div class="erp-card-header">
+          <span class="alert-header-title">预警提醒</span>
+          <el-tag v-if="alertItems.length" size="small" type="danger">{{ alertItems.length }} 条</el-tag>
+          <el-tag v-else size="small" type="success">无预警</el-tag>
+        </div>
+      </template>
+      <el-table v-if="alertItems.length || alertLoading" :data="alertItems" size="small" stripe border v-loading="alertLoading">
+        <el-table-column prop="employeeName" label="员工" width="100" />
+        <el-table-column prop="employeeNo" label="工号" width="100" />
+        <el-table-column prop="typeLabel" label="事件类型" width="140">
+          <template #default="{ row }">
+            <el-tag :type="alertTagType(row.type)" size="small">{{ row.typeLabel }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="triggerDate" label="日期" width="120" />
+        <el-table-column prop="description" label="详情" min-width="280" show-overflow-tooltip />
+        <el-table-column label="操作" width="100" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" size="small" @click="goToEmployee(row)">查看详情</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty v-else description="暂无预警事件" :image-size="60" />
+    </el-card>
+
     <el-row :gutter="16">
       <el-col :xs="24" :sm="12" :lg="6" v-for="card in cards" :key="card.title">
         <el-card class="erp-card stat-card" v-loading="card.loading" shadow="hover">
@@ -88,6 +116,7 @@
 
 <script setup lang="ts">
 import { ref, nextTick, onMounted, onActivated, onBeforeUnmount, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import * as echarts from 'echarts';
 import type { ECharts } from 'echarts';
 import { supabase } from '../../supabase';
@@ -99,8 +128,42 @@ import {
 } from '../sales/api';
 import type { SalesRow, ReceiptRow } from '../sales/types';
 import { useTheme } from '../../composables/useTheme';
+import { fetchDashboardAlerts } from '../hr/employees-cn/api';
+import type { DashboardAlertItem } from '../hr/employees-cn/types';
+
+const router = useRouter();
 
 const { isDark } = useTheme();
+
+const alertItems = ref<DashboardAlertItem[]>([]);
+const alertLoading = ref(false);
+
+function alertTagType(type: string): 'danger' | 'warning' | 'info' {
+  if (type === 'visa_expiry') return 'danger';
+  if (type === 'visa_free_warning') return 'warning';
+  if (type === 'address_slip_missing') return 'warning';
+  return 'info';
+}
+
+function goToEmployee(row: DashboardAlertItem) {
+  const tab = row.type === 'labor_permit_reminder' ? 'labor' : 'visa';
+  router.push({
+    name: 'hr-employees-cn-archives',
+    query: { detail: row.employeeId, tab },
+  });
+}
+
+async function loadAlerts() {
+  alertLoading.value = true;
+  try {
+    alertItems.value = await fetchDashboardAlerts();
+  } catch (e) {
+    console.error('加载预警失败', e);
+    alertItems.value = [];
+  } finally {
+    alertLoading.value = false;
+  }
+}
 
 const recentContractCount = ref<number | null>(null);
 const recentAttachmentCount = ref<number | null>(null);
@@ -442,6 +505,7 @@ function refreshDashboard() {
   loadRecentSales();
   loadRecentReceipts();
   loadChartData();
+  loadAlerts();
 }
 
 onMounted(refreshDashboard);
@@ -513,5 +577,15 @@ onActivated(refreshDashboard);
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.alert-card {
+  margin-bottom: 20px;
+  border-left: 4px solid var(--el-color-danger);
+}
+
+.alert-header-title {
+  font-weight: 600;
+  color: var(--el-color-danger);
 }
 </style>

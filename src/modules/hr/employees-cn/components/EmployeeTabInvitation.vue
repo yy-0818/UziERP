@@ -10,18 +10,21 @@
       <el-table-column prop="status" label="状态" width="90">
         <template #default="{ row }">{{ row.status === 'done' ? '已办理' : '待办理' }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="100">
+      <el-table-column label="操作" width="180">
         <template #default="{ row }">
           <template v-if="row.status === 'pending' && canManage">
             <el-button link type="primary" size="small" @click="openHandle(row)">办理</el-button>
           </template>
-          <template v-else-if="row.status === 'done'">
+          <template v-if="row.status === 'done'">
             <el-button link type="primary" size="small" @click="viewHandle(row)">查看</el-button>
+            <el-button v-if="canManage" link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
           </template>
         </template>
       </el-table-column>
     </el-table>
     <el-empty v-if="!loading && list.length === 0" description="暂无邀请函记录" />
+
+    <!-- 申请邀请函 -->
     <el-dialog v-model="applyVisible" title="申请邀请函" width="400px" append-to-body>
       <p>确认为该员工提交邀请函申请？</p>
       <template #footer>
@@ -29,6 +32,8 @@
         <el-button type="primary" :loading="saving" @click="submitApply">提交</el-button>
       </template>
     </el-dialog>
+
+    <!-- 办理邀请函 -->
     <el-dialog v-model="handleVisible" title="办理邀请函" width="500px" append-to-body>
       <el-form ref="handleFormRef" :model="handleForm" label-width="100px">
         <el-form-item label="出函时间">
@@ -37,18 +42,44 @@
         <el-form-item label="费用金额">
           <el-input-number v-model="handleForm.fee_amount" :min="0" :precision="2" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="邀请函附件">
+        <el-form-item label="邀请函附件" required>
           <div class="form-attachment-upload">
             <input ref="fileRef" type="file" style="display: none" @change="onFileChange" />
             <el-button size="small" @click="fileRef?.click()">上传附件</el-button>
             <el-button v-if="handleForm.letter_image_url" type="danger" link size="small" @click="handleForm.letter_image_url = null">清除</el-button>
             <span v-if="handleForm.letter_image_url" class="attachment-hint">已选文件</span>
           </div>
+          <div v-if="!handleForm.letter_image_url" class="form-hint form-hint--required">必须上传邀请函附件</div>
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="handleVisible = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="submitHandle">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 编辑邀请函（独立弹窗） -->
+    <el-dialog v-model="editVisible" title="编辑邀请函" width="500px" append-to-body>
+      <el-form :model="editForm" label-width="100px">
+        <el-form-item label="出函时间">
+          <el-date-picker v-model="editForm.letter_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="费用金额">
+          <el-input-number v-model="editForm.fee_amount" :min="0" :precision="2" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="邀请函附件" required>
+          <div class="form-attachment-upload">
+            <input ref="editFileRef" type="file" style="display: none" @change="onEditFileChange" />
+            <el-button size="small" @click="editFileRef?.click()">上传附件</el-button>
+            <el-button v-if="editForm.letter_image_url" type="danger" link size="small" @click="editForm.letter_image_url = null">清除</el-button>
+            <span v-if="editForm.letter_image_url" class="attachment-hint">已选文件</span>
+          </div>
+          <div v-if="!editForm.letter_image_url" class="form-hint form-hint--required">必须上传邀请函附件</div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="submitEdit">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -63,6 +94,7 @@ import {
   fetchInvitationHandleByApplicationId,
   createInvitationApplication,
   createInvitationHandle,
+  updateInvitationHandle,
   uploadEmployeeFile,
   getSignedUrl,
 } from '../api';
@@ -78,6 +110,8 @@ const loading = ref(false);
 const applyVisible = ref(false);
 const saving = ref(false);
 const handleVisible = ref(false);
+const editVisible = ref(false);
+const currentEditHandleId = ref<string | null>(null);
 const handleFormRef = ref<FormInstance>();
 const handleForm = ref({
   letter_date: null as string | null,
@@ -127,9 +161,73 @@ async function submitApply() {
 }
 
 function openHandle(row: InvitationApplication) {
+  isEditMode.value = false;
+  currentEditHandleId.value = null;
   currentApply.value = row;
   handleForm.value = { letter_date: null, fee_amount: null, letter_image_url: null };
   handleVisible.value = true;
+}
+
+const editForm = ref({
+  letter_date: null as string | null,
+  fee_amount: null as number | null,
+  letter_image_url: null as string | null,
+});
+const editFileRef = ref<HTMLInputElement | null>(null);
+
+async function openEdit(row: InvitationApplication) {
+  const h = await fetchInvitationHandleByApplicationId(row.id);
+  if (!h) {
+    ElMessage.warning('未找到办理记录');
+    return;
+  }
+  currentEditHandleId.value = h.id;
+  editForm.value = {
+    letter_date: h.letter_date,
+    fee_amount: h.fee_amount,
+    letter_image_url: h.letter_image_url,
+  };
+  editVisible.value = true;
+}
+
+async function onEditFileChange(ev: Event) {
+  const input = ev.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  try {
+    const path = await uploadEmployeeFile('invitation', file.name, file);
+    editForm.value.letter_image_url = path;
+    ElMessage.success('附件已选择');
+  } catch (e: any) {
+    ElMessage.error(e?.message || '上传失败');
+  }
+  input.value = '';
+}
+
+async function submitEdit() {
+  if (!editForm.value.letter_image_url) {
+    ElMessage.warning('请上传邀请函附件，附件为必传项');
+    return;
+  }
+  if (!currentEditHandleId.value) return;
+  saving.value = true;
+  try {
+    await updateInvitationHandle(currentEditHandleId.value, {
+      letter_date: editForm.value.letter_date,
+      letter_image_url: editForm.value.letter_image_url,
+      fee_amount: editForm.value.fee_amount,
+      operator: submittedBy.value,
+    });
+    ElMessage.success('已保存');
+    editVisible.value = false;
+    currentEditHandleId.value = null;
+    await load();
+    emit('refresh');
+  } catch (e: any) {
+    ElMessage.error(e?.message || '保存失败');
+  } finally {
+    saving.value = false;
+  }
 }
 
 async function onFileChange(ev: Event) {
@@ -147,6 +245,11 @@ async function onFileChange(ev: Event) {
 }
 
 async function submitHandle() {
+  if (!handleForm.value.letter_image_url) {
+    ElMessage.warning('请上传邀请函附件，附件为必传项');
+    return;
+  }
+
   if (!currentApply.value) return;
   saving.value = true;
   try {
@@ -189,4 +292,6 @@ async function viewHandle(row: InvitationApplication) {
 .tab-actions { margin-bottom: 0; display: flex; gap: 8px; }
 .form-attachment-upload { display: flex; align-items: center; gap: 8px; }
 .attachment-hint { font-size: 12px; color: var(--el-text-color-secondary); }
+.form-hint { font-size: 12px; color: var(--el-text-color-placeholder); margin-top: 4px; }
+.form-hint--required { color: var(--el-color-danger); }
 </style>

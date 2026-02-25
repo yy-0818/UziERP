@@ -34,25 +34,26 @@
       <el-table-column prop="status" label="状态" width="90">
         <template #default="{ row }">{{ row.status === 'done' ? '已办理' : '待办理' }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="100">
+      <el-table-column label="操作" width="160">
         <template #default="{ row }">
           <template v-if="row.status === 'pending' && canManage">
             <el-button link type="primary" size="small" @click="openHandle(row)">办理</el-button>
           </template>
-          <template v-else-if="row.status === 'done'">
+          <template v-if="row.status === 'done'">
             <el-button link type="primary" size="small" @click="viewHandle(row)">查看</el-button>
+            <el-button v-if="canManage" link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
           </template>
         </template>
       </el-table-column>
     </el-table>
     <el-empty v-if="!loading && list.length === 0" description="暂无签证记录" />
+
+    <!-- 申请签证 -->
     <el-dialog v-model="applyVisible" title="申请签证" width="440px" append-to-body>
       <el-form ref="applyFormRef" :model="applyForm" label-width="100px">
         <el-form-item label="申请类型">
           <el-select v-model="applyForm.application_type" filterable allow-create placeholder="请选择或输入" style="width: 100%">
-            <el-option label="工作签" value="工作签" />
-            <el-option label="商务签" value="商务签" />
-            <el-option label="落地签" value="落地签" />
+            <el-option v-for="opt in VISA_TYPE_OPTIONS" :key="opt" :label="opt" :value="opt" />
           </el-select>
         </el-form-item>
         <el-form-item label="预计出发时间">
@@ -64,6 +65,8 @@
         <el-button type="primary" :loading="saving" @click="submitApply">提交</el-button>
       </template>
     </el-dialog>
+
+    <!-- 办理签证 -->
     <el-dialog v-model="handleVisible" title="办理签证" width="520px" append-to-body>
       <el-form ref="handleFormRef" :model="handleForm" label-width="100px">
         <el-form-item label="生效日期">
@@ -93,12 +96,57 @@
             <span v-if="handleForm.visa_image_url" class="attachment-hint">已选文件</span>
           </div>
         </el-form-item>
+        <el-form-item label="小白条地址">
+          <el-input v-model="handleForm.address_slip" type="textarea" :rows="2" placeholder="落地塔什干后3天内需填写地址信息" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="handleVisible = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="submitHandle">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 编辑签证（独立弹窗） -->
+    <el-dialog v-model="editVisible" title="编辑签证" width="520px" append-to-body>
+      <el-form :model="editForm" label-width="100px">
+        <el-form-item label="生效日期">
+          <el-date-picker v-model="editForm.effective_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="失效日期">
+          <el-date-picker v-model="editForm.expiry_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="签证次数">
+          <el-input-number v-model="editForm.visa_times" :min="1" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="剩余次数">
+          <el-input-number v-model="editForm.remaining_times" :min="-1" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="费用">
+          <el-input-number v-model="editForm.fee_amount" :min="0" :precision="2" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="出证公司">
+          <el-input v-model="editForm.issuer_company" />
+        </el-form-item>
+        <el-form-item label="签证附件">
+          <div class="form-attachment-upload">
+            <el-upload :show-file-list="false" :http-request="handleEditVisaAttachmentUpload">
+              <el-button type="primary" plain size="small">上传附件</el-button>
+            </el-upload>
+            <el-button v-if="editForm.visa_image_url" type="danger" link size="small" @click="editForm.visa_image_url = null">清除</el-button>
+            <span v-if="editForm.visa_image_url" class="attachment-hint">已选文件</span>
+          </div>
+        </el-form-item>
+        <el-form-item label="小白条地址">
+          <el-input v-model="editForm.address_slip" type="textarea" :rows="2" placeholder="落地塔什干后3天内需填写地址信息" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="submitEdit">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 查看详情 -->
     <el-dialog v-model="viewDialogVisible" title="签证办理详情" width="480px" append-to-body @close="viewHandleData = null">
       <template v-if="viewHandleData">
         <el-descriptions :column="1" border size="small">
@@ -109,10 +157,11 @@
           <el-descriptions-item label="已消耗次数">{{ viewHandleData.remaining_times === -1 ? '—' : ((viewHandleData.visa_times ?? 0) - (viewHandleData.remaining_times ?? 0)) }}</el-descriptions-item>
           <el-descriptions-item label="费用">{{ viewHandleData.fee_amount != null ? viewHandleData.fee_amount : '—' }}</el-descriptions-item>
           <el-descriptions-item label="出证公司">{{ viewHandleData.issuer_company || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="附件">
-            <el-button v-if="viewHandleData.visa_image_url" link type="primary" size="small" @click="openVisaAttachment(viewHandleData.visa_image_url)">查看/下载</el-button>
+          <el-descriptions-item label="签证附件">
+            <el-button v-if="viewHandleData.visa_image_url" link type="primary" size="small" @click="openAttachment(viewHandleData.visa_image_url!)">查看/下载</el-button>
             <span v-else>—</span>
           </el-descriptions-item>
+          <el-descriptions-item label="小白条地址">{{ viewHandleData.address_slip || '—' }}</el-descriptions-item>
         </el-descriptions>
       </template>
     </el-dialog>
@@ -128,12 +177,14 @@ import {
   fetchVisaHandleByApplicationId,
   createVisaApplication,
   createVisaHandle,
+  updateVisaHandle,
   hasInvitationHandled,
   fetchValidVisasForEmployee,
   uploadEmployeeFile,
   getSignedUrl,
 } from '../api';
 import type { VisaApplication, VisaHandle } from '../types';
+import { VISA_TYPE_OPTIONS } from '../types';
 
 const props = defineProps<{ employeeId: string; canManage: boolean }>();
 const auth = useAuthStore();
@@ -145,6 +196,8 @@ const loading = ref(false);
 const applyVisible = ref(false);
 const saving = ref(false);
 const handleVisible = ref(false);
+const editVisible = ref(false);
+const currentEditHandleId = ref<string | null>(null);
 const applyForm = ref({ application_type: '', expected_departure_at: null as string | null });
 const handleForm = ref({
   effective_date: null as string | null,
@@ -154,6 +207,7 @@ const handleForm = ref({
   fee_amount: null as number | null,
   issuer_company: null as string | null,
   visa_image_url: null as string | null,
+  address_slip: null as string | null,
 });
 const currentApply = ref<VisaApplication | null>(null);
 
@@ -204,6 +258,8 @@ async function submitApply() {
 }
 
 function openHandle(row: VisaApplication) {
+  isEditMode.value = false;
+  currentEditHandleId.value = null;
   currentApply.value = row;
   handleForm.value = {
     effective_date: null,
@@ -213,8 +269,75 @@ function openHandle(row: VisaApplication) {
     fee_amount: null,
     issuer_company: null,
     visa_image_url: null,
+    address_slip: null,
   };
   handleVisible.value = true;
+}
+
+const editForm = ref({
+  effective_date: null as string | null,
+  expiry_date: null as string | null,
+  visa_times: null as number | null,
+  remaining_times: null as number | null,
+  fee_amount: null as number | null,
+  issuer_company: null as string | null,
+  visa_image_url: null as string | null,
+  address_slip: null as string | null,
+});
+
+async function openEdit(row: VisaApplication) {
+  const h = await fetchVisaHandleByApplicationId(row.id);
+  if (!h) {
+    ElMessage.warning('未找到办理记录');
+    return;
+  }
+  currentEditHandleId.value = h.id;
+  editForm.value = {
+    effective_date: h.effective_date,
+    expiry_date: h.expiry_date,
+    visa_times: h.visa_times,
+    remaining_times: h.remaining_times,
+    fee_amount: h.fee_amount,
+    issuer_company: h.issuer_company,
+    visa_image_url: h.visa_image_url,
+    address_slip: h.address_slip ?? null,
+  };
+  editVisible.value = true;
+}
+
+async function handleEditVisaAttachmentUpload(options: { file: File }) {
+  try {
+    const path = await uploadEmployeeFile('visa', options.file.name, options.file);
+    editForm.value.visa_image_url = path;
+  } catch (e: any) {
+    ElMessage.error(e?.message || '上传失败');
+  }
+}
+
+async function submitEdit() {
+  if (!currentEditHandleId.value) return;
+  saving.value = true;
+  try {
+    await updateVisaHandle(currentEditHandleId.value, {
+      effective_date: editForm.value.effective_date,
+      expiry_date: editForm.value.expiry_date,
+      visa_times: editForm.value.visa_times,
+      remaining_times: editForm.value.remaining_times,
+      fee_amount: editForm.value.fee_amount,
+      issuer_company: editForm.value.issuer_company,
+      visa_image_url: editForm.value.visa_image_url,
+      address_slip: editForm.value.address_slip,
+      operator: submittedBy.value,
+    });
+    ElMessage.success('已保存');
+    editVisible.value = false;
+    currentEditHandleId.value = null;
+    await load();
+  } catch (e: any) {
+    ElMessage.error(e?.message || '保存失败');
+  } finally {
+    saving.value = false;
+  }
 }
 
 async function submitHandle() {
@@ -236,6 +359,7 @@ async function submitHandle() {
       visa_image_url: handleForm.value.visa_image_url,
       fee_amount: handleForm.value.fee_amount,
       issuer_company: handleForm.value.issuer_company,
+      address_slip: handleForm.value.address_slip,
       operator: submittedBy.value,
     });
     ElMessage.success('办理完成');
@@ -271,7 +395,7 @@ async function handleVisaAttachmentUpload(options: { file: File }) {
   }
 }
 
-async function openVisaAttachment(path: string) {
+async function openAttachment(path: string) {
   try {
     const url = await getSignedUrl(path);
     window.open(url, '_blank');
@@ -288,4 +412,5 @@ async function openVisaAttachment(path: string) {
 .visa-summary-title { font-weight: 600; margin-bottom: 8px; color: var(--el-text-color-primary); }
 .form-attachment-upload { display: flex; align-items: center; gap: 8px; }
 .attachment-hint { font-size: 12px; color: var(--el-text-color-secondary); }
+.form-hint { font-size: 12px; color: var(--el-text-color-placeholder); margin-top: 4px; }
 </style>

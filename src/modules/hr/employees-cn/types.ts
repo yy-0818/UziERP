@@ -1,5 +1,20 @@
 /**
  * 中国员工管理 - 类型定义（与数据表结构对应）
+ *
+ * ==================== 数据库迁移 SQL ====================
+ * 请在 Supabase SQL Editor 中执行以下语句以添加新字段：
+ *
+ * -- 签证办理表：小白条地址
+ * ALTER TABLE cn_visa_handles ADD COLUMN IF NOT EXISTS address_slip text;
+ *
+ * -- 机票申请表：计划返回日期
+ * ALTER TABLE cn_flight_applications ADD COLUMN IF NOT EXISTS planned_return_at date;
+ *
+ * -- 机票办理表：航班信息、费用承担方、审批人
+ * ALTER TABLE cn_flight_handles ADD COLUMN IF NOT EXISTS flight_info text;
+ * ALTER TABLE cn_flight_handles ADD COLUMN IF NOT EXISTS cost_bearer text;
+ * ALTER TABLE cn_flight_handles ADD COLUMN IF NOT EXISTS approver text;
+ * ========================================================
  */
 
 /** 员工主表 */
@@ -79,6 +94,8 @@ export interface VisaHandle {
   fee_amount: number | null;
   issuer_company: string | null;
   operator: string | null;
+  /** 小白条地址信息（落地塔什干后3天内需填写的地址） */
+  address_slip: string | null;
   created_at: string;
 }
 
@@ -89,6 +106,8 @@ export interface FlightApplication {
   depart_city: string | null;
   arrive_city: string | null;
   expected_departure_at: string | null;
+  /** 计划返回日期 */
+  planned_return_at: string | null;
   remark: string | null;
   submitted_by: string | null;
   status: ApplicationStatus;
@@ -101,12 +120,21 @@ export interface FlightHandle {
   application_id: string;
   actual_departure_at: string | null;
   arrival_at: string | null;
+  /** 实际返回日期 */
+  actual_return_at: string | null;
   depart_city: string | null;
   arrive_city: string | null;
   entry_count: number | null;
+  /** 航班信息（航班号等） */
+  flight_info: string | null;
   ticket_amount: number | null;
   ticket_image_url: string | null;
+  /** 出票方：个人 / 公司 */
   issuer_company: string | null;
+  /** 费用承担方 */
+  cost_bearer: string | null;
+  /** 审批人签字记录 */
+  approver: string | null;
   operator: string | null;
   created_at: string;
 }
@@ -233,6 +261,27 @@ export const REWARD_DISCIPLINE_LABELS: Record<RewardDisciplineType, string> = {
   reward: '奖励',
   discipline: '违纪',
 };
+
+/** 签证类型选项 */
+export const VISA_TYPE_OPTIONS = ['免签', '商务签'] as const;
+
+/** 城市选项（含塔什干） */
+export const CITY_OPTIONS = ['塔什干', '北京', '上海', '广州', '深圳', '成都', '乌鲁木齐'] as const;
+
+/** 出票方选项 */
+export const ISSUER_TYPE_OPTIONS = ['个人', '公司'] as const;
+
+/** 仪表盘预警事件 */
+export interface DashboardAlertItem {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  employeeNo: string;
+  type: 'visa_expiry' | 'visa_free_warning' | 'address_slip_missing' | 'labor_permit_reminder';
+  typeLabel: string;
+  triggerDate: string;
+  description: string;
+}
 
 /** 格式化日期为 YYYY-MM-DD 显示 */
 export function formatDateOnly(d: string | null | undefined): string {

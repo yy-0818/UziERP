@@ -28,6 +28,27 @@ import type {
 const BUCKET = 'employees-cn';
 const SIGNED_URL_EXPIRES = 3600;
 
+/**
+ * 尝试更新扩展字段（数据库列可能尚未创建）。
+ * 若列不存在或更新失败，静默忽略，不影响主流程。
+ */
+async function tryUpdateExtFields(
+  table: string,
+  id: string,
+  fields: Record<string, unknown>
+): Promise<void> {
+  const payload: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(fields)) {
+    if (v !== undefined) payload[k] = v;
+  }
+  if (!Object.keys(payload).length) return;
+  try {
+    await supabase.from(table).update(payload).eq('id', id);
+  } catch {
+    /* 列可能尚未创建，静默忽略 */
+  }
+}
+
 function safePath(s: string): string {
   return s.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '') || 'file';
 }
@@ -386,6 +407,7 @@ export async function createVisaHandle(params: {
   fee_amount: number | null;
   issuer_company: string | null;
   operator?: string | null;
+  address_slip?: string | null;
 }): Promise<VisaHandle> {
   const now = getLocalIsoString();
   const { data: handle, error: eHandle } = await supabase
@@ -424,6 +446,12 @@ export async function createVisaHandle(params: {
       detail: { application_id: params.application_id, ...brief },
     });
   } catch (_) { /* 日志失败不影响主流程 */ }
+  // 扩展字段（列可能尚未创建）
+  if (params.address_slip != null) {
+    await tryUpdateExtFields('cn_visa_handles', (handle as VisaHandle).id, {
+      address_slip: params.address_slip,
+    });
+  }
   return handle as VisaHandle;
 }
 
@@ -439,6 +467,7 @@ export async function updateVisaHandle(
     fee_amount?: number | null;
     issuer_company?: string | null;
     operator?: string | null;
+    address_slip?: string | null;
   }
 ): Promise<VisaHandle> {
   const { data, error } = await supabase
@@ -457,6 +486,10 @@ export async function updateVisaHandle(
     .select()
     .single();
   if (error) throw error;
+  // 扩展字段（列可能尚未创建）
+  if (params.address_slip !== undefined) {
+    await tryUpdateExtFields('cn_visa_handles', id, { address_slip: params.address_slip });
+  }
   try {
     const { data: row } = await supabase.from('cn_visa_handles').select('application_id').eq('id', id).single();
     const appId = (row as { application_id?: string })?.application_id;
@@ -499,6 +532,7 @@ export async function createFlightApplication(params: {
   depart_city: string | null;
   arrive_city: string | null;
   expected_departure_at: string | null;
+  planned_return_at?: string | null;
   remark: string | null;
   submitted_by: string | null;
 }): Promise<FlightApplication> {
@@ -533,6 +567,12 @@ export async function createFlightApplication(params: {
       detail: { employee_id: app.employee_id, ...brief },
     });
   } catch (_) { /* 日志失败不影响主流程 */ }
+  // 扩展字段（列可能尚未创建）
+  if (params.planned_return_at != null) {
+    await tryUpdateExtFields('cn_flight_applications', app.id, {
+      planned_return_at: params.planned_return_at,
+    });
+  }
   return app;
 }
 
@@ -600,11 +640,15 @@ export async function updateFlightHandle(
   params: {
     actual_departure_at?: string | null;
     arrival_at?: string | null;
+    actual_return_at?: string | null;
     depart_city?: string | null;
     arrive_city?: string | null;
+    flight_info?: string | null;
     ticket_amount?: number | null;
     ticket_image_url?: string | null;
     issuer_company?: string | null;
+    cost_bearer?: string | null;
+    approver?: string | null;
     operator?: string | null;
   }
 ): Promise<FlightHandle> {
@@ -624,6 +668,15 @@ export async function updateFlightHandle(
     .select()
     .single();
   if (error) throw error;
+  // 扩展字段（列可能尚未创建）
+  const extFields: Record<string, unknown> = {};
+  if (params.actual_return_at !== undefined) extFields.actual_return_at = params.actual_return_at;
+  if (params.flight_info !== undefined) extFields.flight_info = params.flight_info;
+  if (params.cost_bearer !== undefined) extFields.cost_bearer = params.cost_bearer;
+  if (params.approver !== undefined) extFields.approver = params.approver;
+  if (Object.keys(extFields).length) {
+    await tryUpdateExtFields('cn_flight_handles', id, extFields);
+  }
   try {
     const { data: row } = await supabase.from('cn_flight_handles').select('application_id').eq('id', id).single();
     const appId = (row as { application_id?: string })?.application_id;
@@ -1178,6 +1231,193 @@ export async function fetchEmployeeTimeline(employeeId: string): Promise<Employe
 
   items.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   return items;
+}
+
+// ==================== 仪表盘预警 ====================
+
+import type { DashboardAlertItem } from './types';
+
+/**
+ * 获取仪表盘预警事件：
+ * 1. 签证到期预警（提前3周，含已过期7天内）
+ * 2. 免签预警（机票到达塔什干后3周内到期）
+ * 3. 小白条地址未填写提醒（落地塔什干后签证记录缺少地址信息）
+ * 4. 劳动许可提醒（每年3月后，员工在塔什干累计时间达阈值）
+ */
+export async function fetchDashboardAlerts(): Promise<DashboardAlertItem[]> {
+  const alerts: DashboardAlertItem[] = [];
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+
+  let employees: CnEmployee[];
+  try {
+    employees = await fetchEmployees();
+  } catch {
+    return alerts;
+  }
+  const activeEmployees = employees.filter(e => !e.resigned_at);
+  if (!activeEmployees.length) return alerts;
+
+  const empMap = new Map(activeEmployees.map(e => [e.id, e]));
+  const empIds = activeEmployees.map(e => e.id);
+
+  let visaApps: { id: string; employee_id: string; application_type: string | null; status: string }[] = [];
+  let flightApps: { id: string; employee_id: string; status: string }[] = [];
+
+  try {
+    const [visaAppsRes, flightAppsRes] = await Promise.all([
+      supabase.from('cn_visa_applications').select('id, employee_id, application_type, status').in('employee_id', empIds),
+      supabase.from('cn_flight_applications').select('id, employee_id, status').in('employee_id', empIds),
+    ]);
+    visaApps = (visaAppsRes.data || []) as typeof visaApps;
+    flightApps = (flightAppsRes.data || []) as typeof flightApps;
+  } catch {
+    return alerts;
+  }
+
+  const doneVisaAppIds = visaApps.filter(a => a.status === 'done').map(a => a.id);
+  const doneFlightAppIds = flightApps.filter(a => a.status === 'done').map(a => a.id);
+
+  let visaHandles: VisaHandle[] = [];
+  let flightHandles: FlightHandle[] = [];
+
+  try {
+    const [visaHandlesRes, flightHandlesRes] = await Promise.all([
+      doneVisaAppIds.length
+        ? supabase.from('cn_visa_handles').select('*').in('application_id', doneVisaAppIds)
+        : { data: [] },
+      doneFlightAppIds.length
+        ? supabase.from('cn_flight_handles').select('*').in('application_id', doneFlightAppIds)
+        : { data: [] },
+    ]);
+    visaHandles = (visaHandlesRes.data || []) as VisaHandle[];
+    flightHandles = (flightHandlesRes.data || []) as FlightHandle[];
+  } catch {
+    return alerts;
+  }
+
+  const visaAppMap = new Map(visaApps.map(a => [a.id, a]));
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const threeWeeksMs = 21 * DAY_MS;
+
+  // ---- 1. 签证到期预警 & 2. 免签预警 & 3. 小白条缺失 ----
+  for (const vh of visaHandles) {
+    const visaApp = visaAppMap.get(vh.application_id);
+    if (!visaApp) continue;
+    const emp = empMap.get(visaApp.employee_id);
+    if (!emp) continue;
+
+    const isFreeVisa = visaApp.application_type === '免签';
+
+    // 小白条地址缺失提醒：已办理签证但未填写小白条地址
+    if (!vh.address_slip) {
+      alerts.push({
+        id: `addr-slip-${vh.id}`,
+        employeeId: emp.id,
+        employeeName: emp.name,
+        employeeNo: emp.employee_no,
+        type: 'address_slip_missing',
+        typeLabel: '小白条未填写',
+        triggerDate: todayStr,
+        description: `签证已办理但小白条地址信息尚未填写，请及时补充`,
+      });
+    }
+
+    if (isFreeVisa) {
+      // 免签：到达塔什干后3周到期预警
+      const relatedFlights = flightHandles.filter(fh => {
+        const fa = flightApps.find(a => a.id === fh.application_id);
+        return fa && fa.employee_id === visaApp.employee_id;
+      });
+      for (const fh of relatedFlights) {
+        const arrivedTashkent = fh.arrive_city === '塔什干' || (fh.arrive_city && fh.arrive_city.includes('塔什干'));
+        if (fh.arrival_at && arrivedTashkent) {
+          const arrivalDate = new Date(fh.arrival_at);
+          const deadlineDate = new Date(arrivalDate.getTime() + threeWeeksMs);
+          const deadlineStr = deadlineDate.toISOString().slice(0, 10);
+          const daysLeft = Math.ceil((deadlineDate.getTime() - today.getTime()) / DAY_MS);
+          // 到期前21天到过期后7天都提醒
+          if (daysLeft <= 21 && daysLeft >= -7) {
+            alerts.push({
+              id: `visa-free-${vh.id}-${fh.id}`,
+              employeeId: emp.id,
+              employeeName: emp.name,
+              employeeNo: emp.employee_no,
+              type: 'visa_free_warning',
+              typeLabel: '免签到期预警',
+              triggerDate: deadlineStr,
+              description: daysLeft < 0
+                ? `免签已于 ${deadlineStr} 到期（到达塔什干后3周）`
+                : `免签将于 ${deadlineStr} 到期（剩余${daysLeft}天）`,
+            });
+          }
+        }
+      }
+    } else if (vh.expiry_date) {
+      // 非免签：按失效日期提前3周预警
+      const expiryDate = new Date(vh.expiry_date);
+      const daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / DAY_MS);
+      // 到期前21天到过期后7天都提醒
+      if (daysUntilExpiry <= 21 && daysUntilExpiry >= -7) {
+        alerts.push({
+          id: `visa-expiry-${vh.id}`,
+          employeeId: emp.id,
+          employeeName: emp.name,
+          employeeNo: emp.employee_no,
+          type: 'visa_expiry',
+          typeLabel: '签证到期预警',
+          triggerDate: vh.expiry_date,
+          description: daysUntilExpiry < 0
+            ? `签证已于 ${vh.expiry_date} 过期`
+            : daysUntilExpiry === 0
+              ? `签证今天到期！`
+              : `签证将于 ${vh.expiry_date} 到期（剩余${daysUntilExpiry}天）`,
+        });
+      }
+    }
+  }
+
+  // ---- 4. 劳动许可提醒（每年3月后） ----
+  const currentMonth = today.getMonth() + 1;
+  if (currentMonth >= 3) {
+    const currentYear = today.getFullYear();
+    const yearStart = `${currentYear}-01-01`;
+
+    for (const emp of activeEmployees) {
+      const empFlights = flightHandles.filter(fh => {
+        const fa = flightApps.find(a => a.id === fh.application_id);
+        return fa && fa.employee_id === emp.id;
+      });
+
+      let daysInTashkent = 0;
+      for (const fh of empFlights) {
+        const arrivedTashkent = fh.arrive_city === '塔什干' || (fh.arrive_city && fh.arrive_city.includes('塔什干'));
+        if (arrivedTashkent && fh.arrival_at) {
+          const arrDate = new Date(fh.arrival_at);
+          if (arrDate.toISOString().slice(0, 10) >= yearStart) {
+            const departDate = fh.actual_return_at ? new Date(fh.actual_return_at) : today;
+            daysInTashkent += Math.max(0, (departDate.getTime() - arrDate.getTime()) / DAY_MS);
+          }
+        }
+      }
+
+      if (daysInTashkent >= 60) {
+        alerts.push({
+          id: `labor-permit-${emp.id}-${currentYear}`,
+          employeeId: emp.id,
+          employeeName: emp.name,
+          employeeNo: emp.employee_no,
+          type: 'labor_permit_reminder',
+          typeLabel: '劳动许可提醒',
+          triggerDate: todayStr,
+          description: `${currentYear}年在塔什干累计约${Math.round(daysInTashkent)}天，请关注劳动许可办理`,
+        });
+      }
+    }
+  }
+
+  alerts.sort((a, b) => a.triggerDate.localeCompare(b.triggerDate));
+  return alerts;
 }
 
 // ==================== 员工档案导出（仅 cn_employees 表） ====================
