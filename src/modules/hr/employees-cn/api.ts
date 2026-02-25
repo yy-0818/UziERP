@@ -386,6 +386,7 @@ export async function createVisaHandle(params: {
   fee_amount: number | null;
   issuer_company: string | null;
   operator?: string | null;
+  address_slip?: string | null;
 }): Promise<VisaHandle> {
   const now = getLocalIsoString();
   const { data: handle, error: eHandle } = await supabase
@@ -400,6 +401,7 @@ export async function createVisaHandle(params: {
       fee_amount: params.fee_amount,
       issuer_company: params.issuer_company,
       operator: params.operator ?? null,
+      ...(params.address_slip !== undefined && { address_slip: params.address_slip }),
       created_at: now,
     })
     .select()
@@ -439,6 +441,7 @@ export async function updateVisaHandle(
     fee_amount?: number | null;
     issuer_company?: string | null;
     operator?: string | null;
+    address_slip?: string | null;
   }
 ): Promise<VisaHandle> {
   const { data, error } = await supabase
@@ -452,6 +455,7 @@ export async function updateVisaHandle(
       ...(params.fee_amount !== undefined && { fee_amount: params.fee_amount }),
       ...(params.issuer_company !== undefined && { issuer_company: params.issuer_company }),
       ...(params.operator !== undefined && { operator: params.operator }),
+      ...(params.address_slip !== undefined && { address_slip: params.address_slip }),
     })
     .eq('id', id)
     .select()
@@ -499,6 +503,7 @@ export async function createFlightApplication(params: {
   depart_city: string | null;
   arrive_city: string | null;
   expected_departure_at: string | null;
+  planned_return_at?: string | null;
   remark: string | null;
   submitted_by: string | null;
 }): Promise<FlightApplication> {
@@ -514,6 +519,7 @@ export async function createFlightApplication(params: {
       depart_city: params.depart_city,
       arrive_city: params.arrive_city,
       expected_departure_at: params.expected_departure_at,
+      ...(params.planned_return_at !== undefined && { planned_return_at: params.planned_return_at }),
       remark: params.remark,
       submitted_by: params.submitted_by,
       status: 'pending',
@@ -600,11 +606,15 @@ export async function updateFlightHandle(
   params: {
     actual_departure_at?: string | null;
     arrival_at?: string | null;
+    actual_return_at?: string | null;
     depart_city?: string | null;
     arrive_city?: string | null;
+    flight_info?: string | null;
     ticket_amount?: number | null;
     ticket_image_url?: string | null;
     issuer_company?: string | null;
+    cost_bearer?: string | null;
+    approver?: string | null;
     operator?: string | null;
   }
 ): Promise<FlightHandle> {
@@ -613,11 +623,15 @@ export async function updateFlightHandle(
     .update({
       ...(params.actual_departure_at !== undefined && { actual_departure_at: params.actual_departure_at }),
       ...(params.arrival_at !== undefined && { arrival_at: params.arrival_at }),
+      ...(params.actual_return_at !== undefined && { actual_return_at: params.actual_return_at }),
       ...(params.depart_city !== undefined && { depart_city: params.depart_city }),
       ...(params.arrive_city !== undefined && { arrive_city: params.arrive_city }),
+      ...(params.flight_info !== undefined && { flight_info: params.flight_info }),
       ...(params.ticket_amount !== undefined && { ticket_amount: params.ticket_amount }),
       ...(params.ticket_image_url !== undefined && { ticket_image_url: params.ticket_image_url }),
       ...(params.issuer_company !== undefined && { issuer_company: params.issuer_company }),
+      ...(params.cost_bearer !== undefined && { cost_bearer: params.cost_bearer }),
+      ...(params.approver !== undefined && { approver: params.approver }),
       ...(params.operator !== undefined && { operator: params.operator }),
     })
     .eq('id', id)
@@ -1178,6 +1192,193 @@ export async function fetchEmployeeTimeline(employeeId: string): Promise<Employe
 
   items.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   return items;
+}
+
+// ==================== 仪表盘预警 ====================
+
+import type { DashboardAlertItem } from './types';
+
+/**
+ * 获取仪表盘预警事件：
+ * 1. 签证到期预警（提前3周，含已过期7天内）
+ * 2. 免签预警（机票到达塔什干后3周内到期）
+ * 3. 小白条地址未填写提醒（落地塔什干后签证记录缺少地址信息）
+ * 4. 劳动许可提醒（每年3月后，员工在塔什干累计时间达阈值）
+ */
+export async function fetchDashboardAlerts(): Promise<DashboardAlertItem[]> {
+  const alerts: DashboardAlertItem[] = [];
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+
+  let employees: CnEmployee[];
+  try {
+    employees = await fetchEmployees();
+  } catch {
+    return alerts;
+  }
+  const activeEmployees = employees.filter(e => !e.resigned_at);
+  if (!activeEmployees.length) return alerts;
+
+  const empMap = new Map(activeEmployees.map(e => [e.id, e]));
+  const empIds = activeEmployees.map(e => e.id);
+
+  let visaApps: { id: string; employee_id: string; application_type: string | null; status: string }[] = [];
+  let flightApps: { id: string; employee_id: string; status: string }[] = [];
+
+  try {
+    const [visaAppsRes, flightAppsRes] = await Promise.all([
+      supabase.from('cn_visa_applications').select('id, employee_id, application_type, status').in('employee_id', empIds),
+      supabase.from('cn_flight_applications').select('id, employee_id, status').in('employee_id', empIds),
+    ]);
+    visaApps = (visaAppsRes.data || []) as typeof visaApps;
+    flightApps = (flightAppsRes.data || []) as typeof flightApps;
+  } catch {
+    return alerts;
+  }
+
+  const doneVisaAppIds = visaApps.filter(a => a.status === 'done').map(a => a.id);
+  const doneFlightAppIds = flightApps.filter(a => a.status === 'done').map(a => a.id);
+
+  let visaHandles: VisaHandle[] = [];
+  let flightHandles: FlightHandle[] = [];
+
+  try {
+    const [visaHandlesRes, flightHandlesRes] = await Promise.all([
+      doneVisaAppIds.length
+        ? supabase.from('cn_visa_handles').select('*').in('application_id', doneVisaAppIds)
+        : { data: [] },
+      doneFlightAppIds.length
+        ? supabase.from('cn_flight_handles').select('*').in('application_id', doneFlightAppIds)
+        : { data: [] },
+    ]);
+    visaHandles = (visaHandlesRes.data || []) as VisaHandle[];
+    flightHandles = (flightHandlesRes.data || []) as FlightHandle[];
+  } catch {
+    return alerts;
+  }
+
+  const visaAppMap = new Map(visaApps.map(a => [a.id, a]));
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const threeWeeksMs = 21 * DAY_MS;
+
+  // ---- 1. 签证到期预警 & 2. 免签预警 & 3. 小白条缺失 ----
+  for (const vh of visaHandles) {
+    const visaApp = visaAppMap.get(vh.application_id);
+    if (!visaApp) continue;
+    const emp = empMap.get(visaApp.employee_id);
+    if (!emp) continue;
+
+    const isFreeVisa = visaApp.application_type === '免签';
+
+    // 小白条地址缺失提醒：已办理签证但未填写小白条地址
+    if (!vh.address_slip) {
+      alerts.push({
+        id: `addr-slip-${vh.id}`,
+        employeeId: emp.id,
+        employeeName: emp.name,
+        employeeNo: emp.employee_no,
+        type: 'address_slip_missing',
+        typeLabel: '小白条未填写',
+        triggerDate: todayStr,
+        description: `签证已办理但小白条地址信息尚未填写，请及时补充`,
+      });
+    }
+
+    if (isFreeVisa) {
+      // 免签：到达塔什干后3周到期预警
+      const relatedFlights = flightHandles.filter(fh => {
+        const fa = flightApps.find(a => a.id === fh.application_id);
+        return fa && fa.employee_id === visaApp.employee_id;
+      });
+      for (const fh of relatedFlights) {
+        const arrivedTashkent = fh.arrive_city === '塔什干' || (fh.arrive_city && fh.arrive_city.includes('塔什干'));
+        if (fh.arrival_at && arrivedTashkent) {
+          const arrivalDate = new Date(fh.arrival_at);
+          const deadlineDate = new Date(arrivalDate.getTime() + threeWeeksMs);
+          const deadlineStr = deadlineDate.toISOString().slice(0, 10);
+          const daysLeft = Math.ceil((deadlineDate.getTime() - today.getTime()) / DAY_MS);
+          // 到期前21天到过期后7天都提醒
+          if (daysLeft <= 21 && daysLeft >= -7) {
+            alerts.push({
+              id: `visa-free-${vh.id}-${fh.id}`,
+              employeeId: emp.id,
+              employeeName: emp.name,
+              employeeNo: emp.employee_no,
+              type: 'visa_free_warning',
+              typeLabel: '免签到期预警',
+              triggerDate: deadlineStr,
+              description: daysLeft < 0
+                ? `免签已于 ${deadlineStr} 到期（到达塔什干后3周）`
+                : `免签将于 ${deadlineStr} 到期（剩余${daysLeft}天）`,
+            });
+          }
+        }
+      }
+    } else if (vh.expiry_date) {
+      // 非免签：按失效日期提前3周预警
+      const expiryDate = new Date(vh.expiry_date);
+      const daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / DAY_MS);
+      // 到期前21天到过期后7天都提醒
+      if (daysUntilExpiry <= 21 && daysUntilExpiry >= -7) {
+        alerts.push({
+          id: `visa-expiry-${vh.id}`,
+          employeeId: emp.id,
+          employeeName: emp.name,
+          employeeNo: emp.employee_no,
+          type: 'visa_expiry',
+          typeLabel: '签证到期预警',
+          triggerDate: vh.expiry_date,
+          description: daysUntilExpiry < 0
+            ? `签证已于 ${vh.expiry_date} 过期`
+            : daysUntilExpiry === 0
+              ? `签证今天到期！`
+              : `签证将于 ${vh.expiry_date} 到期（剩余${daysUntilExpiry}天）`,
+        });
+      }
+    }
+  }
+
+  // ---- 4. 劳动许可提醒（每年3月后） ----
+  const currentMonth = today.getMonth() + 1;
+  if (currentMonth >= 3) {
+    const currentYear = today.getFullYear();
+    const yearStart = `${currentYear}-01-01`;
+
+    for (const emp of activeEmployees) {
+      const empFlights = flightHandles.filter(fh => {
+        const fa = flightApps.find(a => a.id === fh.application_id);
+        return fa && fa.employee_id === emp.id;
+      });
+
+      let daysInTashkent = 0;
+      for (const fh of empFlights) {
+        const arrivedTashkent = fh.arrive_city === '塔什干' || (fh.arrive_city && fh.arrive_city.includes('塔什干'));
+        if (arrivedTashkent && fh.arrival_at) {
+          const arrDate = new Date(fh.arrival_at);
+          if (arrDate.toISOString().slice(0, 10) >= yearStart) {
+            const departDate = fh.actual_return_at ? new Date(fh.actual_return_at) : today;
+            daysInTashkent += Math.max(0, (departDate.getTime() - arrDate.getTime()) / DAY_MS);
+          }
+        }
+      }
+
+      if (daysInTashkent >= 60) {
+        alerts.push({
+          id: `labor-permit-${emp.id}-${currentYear}`,
+          employeeId: emp.id,
+          employeeName: emp.name,
+          employeeNo: emp.employee_no,
+          type: 'labor_permit_reminder',
+          typeLabel: '劳动许可提醒',
+          triggerDate: todayStr,
+          description: `${currentYear}年在塔什干累计约${Math.round(daysInTashkent)}天，请关注劳动许可办理`,
+        });
+      }
+    }
+  }
+
+  alerts.sort((a, b) => a.triggerDate.localeCompare(b.triggerDate));
+  return alerts;
 }
 
 // ==================== 员工档案导出（仅 cn_employees 表） ====================

@@ -27,9 +27,8 @@
         </el-form-item>
         <el-form-item label="申请类型">
           <el-select v-model="visaForm.application_type" filterable allow-create placeholder="请选择或输入" style="width: 100%">
-            <el-option label="工作签" value="工作签" />
+            <el-option label="免签" value="免签" />
             <el-option label="商务签" value="商务签" />
-            <el-option label="落地签" value="落地签" />
           </el-select>
         </el-form-item>
         <el-form-item label="预计出发">
@@ -52,10 +51,14 @@
           </el-select>
         </el-form-item>
         <el-form-item label="出发城市">
-          <el-input v-model="flightForm.depart_city" />
+          <el-select v-model="flightForm.depart_city" filterable allow-create placeholder="请选择或输入" style="width: 100%">
+            <el-option v-for="c in cityOptions" :key="c" :label="c" :value="c" />
+          </el-select>
         </el-form-item>
         <el-form-item label="到达城市">
-          <el-input v-model="flightForm.arrive_city" />
+          <el-select v-model="flightForm.arrive_city" filterable allow-create placeholder="请选择或输入" style="width: 100%">
+            <el-option v-for="c in cityOptions" :key="c" :label="c" :value="c" />
+          </el-select>
         </el-form-item>
         <el-form-item label="预计出发">
           <el-date-picker v-model="flightForm.expected_departure_at" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
@@ -111,6 +114,9 @@ import {
   fetchValidVisasForEmployee,
 } from '../api';
 import type { CnEmployee, VisaHandle } from '../types';
+import { CITY_OPTIONS } from '../types';
+
+const cityOptions = CITY_OPTIONS;
 
 const props = defineProps<{
   visible: boolean;
