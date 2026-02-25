@@ -43,9 +43,25 @@
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
+            <el-button v-if="canDelete" type="danger" :disabled="!selectedSalesRows.length" @click="confirmBatchDeleteSales">
+              批量删除 ({{ selectedSalesRows.length }})
+            </el-button>
           </div>
 
-          <el-table :data="salesRows" v-loading="loading" stripe border row-key="id" style="width: 100%" height="62vh" @filter-change="onSalesFilterChange">
+          <el-table
+            ref="salesTableRef"
+            :data="salesRows"
+            v-loading="loading"
+            stripe
+            border
+            row-key="id"
+            style="width: 100%"
+            height="62vh"
+            highlight-current-row
+            @selection-change="onSalesSelectionChange"
+            @filter-change="onSalesFilterChange"
+          >
+            <el-table-column type="selection" width="48" :reserve-selection="true" />
             <el-table-column prop="document_date" label="单据日期" width="120" sortable :filters="salesDateFilters" :filtered-value="(salesColumnFilters.document_date || [])" column-key="document_date" />
             <el-table-column prop="document_no" label="单据编号" min-width="170" show-overflow-tooltip sortable :filters="salesDocumentNoFilters" :filtered-value="(salesColumnFilters.document_no || [])" column-key="document_no" />
             <el-table-column prop="payment_method" label="客户分类" min-width="120" show-overflow-tooltip sortable :filters="salesPaymentFilters" :filtered-value="(salesColumnFilters.payment_method || [])" column-key="payment_method" />
@@ -135,9 +151,25 @@
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
+            <el-button v-if="canDelete" type="danger" :disabled="!selectedReceiptRows.length" @click="confirmBatchDeleteReceipt">
+              批量删除 ({{ selectedReceiptRows.length }})
+            </el-button>
           </div>
 
-          <el-table :data="receiptRows" v-loading="loading" stripe border row-key="id" style="width: 100%" height="62vh" @filter-change="onReceiptFilterChange">
+          <el-table
+            ref="receiptTableRef"
+            :data="receiptRows"
+            v-loading="loading"
+            stripe
+            border
+            row-key="id"
+            style="width: 100%"
+            height="62vh"
+            highlight-current-row
+            @selection-change="onReceiptSelectionChange"
+            @filter-change="onReceiptFilterChange"
+          >
+            <el-table-column type="selection" width="48" :reserve-selection="true" />
             <el-table-column type="expand">
               <template #default="{ row }">
                 <div v-if="row.note" class="receipt-expand-note">{{ row.note }}</div>
@@ -470,6 +502,7 @@ import { Search, RefreshRight, ArrowDown, Plus, Upload, Download } from '@elemen
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance } from 'element-plus';
+import type { TableInstance } from 'element-plus';
 import dayjs from 'dayjs';
 import { exportToExcel } from '../../composables/useExport';
 import { useAuthStore } from '../../stores/auth';
@@ -515,6 +548,11 @@ const exporting = ref(false);
 const STATE_KEY = 'sales.module.ui_state.v3';
 
 /* ==================== 服务端分页数据 ==================== */
+const salesTableRef = ref<TableInstance>();
+const receiptTableRef = ref<TableInstance>();
+const selectedSalesRows = ref<SalesRow[]>([]);
+const selectedReceiptRows = ref<ReceiptRow[]>([]);
+
 const salesRows = shallowRef<SalesRow[]>([]);
 const salesTotalCount = ref(0);
 const receiptRows = shallowRef<ReceiptRow[]>([]);
@@ -733,6 +771,8 @@ async function fetchSalesData() {
     salesRows.value = res.rows;
     salesTotalCount.value = res.total;
     tabLoaded.value.sales = true;
+    selectedSalesRows.value = [];
+    salesTableRef.value?.clearSelection();
   } catch (error: unknown) {
     ElMessage.error(getErrorMessage(error, '销售数据加载失败'));
     salesRows.value = [];
@@ -759,6 +799,8 @@ async function fetchReceiptData() {
     receiptRows.value = res.rows;
     receiptTotalCount.value = res.total;
     tabLoaded.value.receipts = true;
+    selectedReceiptRows.value = [];
+    receiptTableRef.value?.clearSelection();
   } catch (error: unknown) {
     ElMessage.error(getErrorMessage(error, '收款数据加载失败'));
     receiptRows.value = [];
@@ -964,6 +1006,14 @@ async function saveSalesAndContinue() {
   }
 }
 
+function onSalesSelectionChange(rows: SalesRow[]) {
+  selectedSalesRows.value = rows;
+}
+
+function onReceiptSelectionChange(rows: ReceiptRow[]) {
+  selectedReceiptRows.value = rows;
+}
+
 async function confirmDeleteSales(row: SalesRow) {
   try {
     await ElMessageBox.confirm(
@@ -973,8 +1023,38 @@ async function confirmDeleteSales(row: SalesRow) {
     );
     await deleteSalesRecord(row.id);
     ElMessage.success('已删除');
+    selectedSalesRows.value = selectedSalesRows.value.filter((r) => r.id !== row.id);
     await fetchSalesData();
   } catch { /* cancelled */ }
+}
+
+async function confirmBatchDeleteSales() {
+  const rows = selectedSalesRows.value;
+  if (!rows.length || !canDelete.value) return;
+  try {
+    await ElMessageBox.confirm(
+      `确定删除选中的 ${rows.length} 条销售记录？`,
+      '批量删除确认',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+    );
+    loading.value = true;
+    let deleted = 0;
+    for (const row of rows) {
+      try {
+        await deleteSalesRecord(row.id);
+        deleted++;
+      } catch (e) {
+        ElMessage.error(getErrorMessage(e, `删除失败：${row.document_no || row.id}`));
+      }
+    }
+    ElMessage.success(`已删除 ${deleted} 条`);
+    selectedSalesRows.value = [];
+    salesTableRef.value?.clearSelection();
+    await fetchSalesData();
+  } catch { /* cancelled */ }
+  finally {
+    loading.value = false;
+  }
 }
 
 /* ==================== 新增/编辑 收款数据 ==================== */
@@ -1070,8 +1150,38 @@ async function confirmDeleteReceipt(row: ReceiptRow) {
     );
     await deleteReceiptRecord(row.id);
     ElMessage.success('已删除');
+    selectedReceiptRows.value = selectedReceiptRows.value.filter((r) => r.id !== row.id);
     await fetchReceiptData();
   } catch { /* cancelled */ }
+}
+
+async function confirmBatchDeleteReceipt() {
+  const rows = selectedReceiptRows.value;
+  if (!rows.length || !canDelete.value) return;
+  try {
+    await ElMessageBox.confirm(
+      `确定删除选中的 ${rows.length} 条收款记录？`,
+      '批量删除确认',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+    );
+    loading.value = true;
+    let deleted = 0;
+    for (const row of rows) {
+      try {
+        await deleteReceiptRecord(row.id);
+        deleted++;
+      } catch (e) {
+        ElMessage.error(getErrorMessage(e, `删除失败：${row.customer_name || row.id}`));
+      }
+    }
+    ElMessage.success(`已删除 ${deleted} 条`);
+    selectedReceiptRows.value = [];
+    receiptTableRef.value?.clearSelection();
+    await fetchReceiptData();
+  } catch { /* cancelled */ }
+  finally {
+    loading.value = false;
+  }
 }
 
 /* ==================== 导出（拉取全部数据） ==================== */
