@@ -1,5 +1,20 @@
 /**
  * 中国员工管理 - 类型定义（与数据表结构对应）
+ *
+ * ==================== 数据库迁移 SQL ====================
+ * 请在 Supabase SQL Editor 中执行以下语句以添加新字段：
+ *
+ * -- 签证办理表：小白条地址
+ * ALTER TABLE cn_visa_handles ADD COLUMN IF NOT EXISTS address_slip text;
+ *
+ * -- 机票申请表：计划返回日期
+ * ALTER TABLE cn_flight_applications ADD COLUMN IF NOT EXISTS planned_return_at date;
+ *
+ * -- 机票办理表：航班信息、费用承担方、审批人
+ * ALTER TABLE cn_flight_handles ADD COLUMN IF NOT EXISTS flight_info text;
+ * ALTER TABLE cn_flight_handles ADD COLUMN IF NOT EXISTS cost_bearer text;
+ * ALTER TABLE cn_flight_handles ADD COLUMN IF NOT EXISTS approver text;
+ * ========================================================
  */
 
 /** 员工主表 */

@@ -28,6 +28,27 @@ import type {
 const BUCKET = 'employees-cn';
 const SIGNED_URL_EXPIRES = 3600;
 
+/**
+ * 尝试更新扩展字段（数据库列可能尚未创建）。
+ * 若列不存在或更新失败，静默忽略，不影响主流程。
+ */
+async function tryUpdateExtFields(
+  table: string,
+  id: string,
+  fields: Record<string, unknown>
+): Promise<void> {
+  const payload: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(fields)) {
+    if (v !== undefined) payload[k] = v;
+  }
+  if (!Object.keys(payload).length) return;
+  try {
+    await supabase.from(table).update(payload).eq('id', id);
+  } catch {
+    /* 列可能尚未创建，静默忽略 */
+  }
+}
+
 function safePath(s: string): string {
   return s.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '') || 'file';
 }
@@ -401,7 +422,6 @@ export async function createVisaHandle(params: {
       fee_amount: params.fee_amount,
       issuer_company: params.issuer_company,
       operator: params.operator ?? null,
-      ...(params.address_slip !== undefined && { address_slip: params.address_slip }),
       created_at: now,
     })
     .select()
@@ -426,6 +446,12 @@ export async function createVisaHandle(params: {
       detail: { application_id: params.application_id, ...brief },
     });
   } catch (_) { /* 日志失败不影响主流程 */ }
+  // 扩展字段（列可能尚未创建）
+  if (params.address_slip != null) {
+    await tryUpdateExtFields('cn_visa_handles', (handle as VisaHandle).id, {
+      address_slip: params.address_slip,
+    });
+  }
   return handle as VisaHandle;
 }
 
@@ -455,12 +481,15 @@ export async function updateVisaHandle(
       ...(params.fee_amount !== undefined && { fee_amount: params.fee_amount }),
       ...(params.issuer_company !== undefined && { issuer_company: params.issuer_company }),
       ...(params.operator !== undefined && { operator: params.operator }),
-      ...(params.address_slip !== undefined && { address_slip: params.address_slip }),
     })
     .eq('id', id)
     .select()
     .single();
   if (error) throw error;
+  // 扩展字段（列可能尚未创建）
+  if (params.address_slip !== undefined) {
+    await tryUpdateExtFields('cn_visa_handles', id, { address_slip: params.address_slip });
+  }
   try {
     const { data: row } = await supabase.from('cn_visa_handles').select('application_id').eq('id', id).single();
     const appId = (row as { application_id?: string })?.application_id;
@@ -519,7 +548,6 @@ export async function createFlightApplication(params: {
       depart_city: params.depart_city,
       arrive_city: params.arrive_city,
       expected_departure_at: params.expected_departure_at,
-      ...(params.planned_return_at !== undefined && { planned_return_at: params.planned_return_at }),
       remark: params.remark,
       submitted_by: params.submitted_by,
       status: 'pending',
@@ -539,6 +567,12 @@ export async function createFlightApplication(params: {
       detail: { employee_id: app.employee_id, ...brief },
     });
   } catch (_) { /* 日志失败不影响主流程 */ }
+  // 扩展字段（列可能尚未创建）
+  if (params.planned_return_at != null) {
+    await tryUpdateExtFields('cn_flight_applications', app.id, {
+      planned_return_at: params.planned_return_at,
+    });
+  }
   return app;
 }
 
@@ -623,21 +657,26 @@ export async function updateFlightHandle(
     .update({
       ...(params.actual_departure_at !== undefined && { actual_departure_at: params.actual_departure_at }),
       ...(params.arrival_at !== undefined && { arrival_at: params.arrival_at }),
-      ...(params.actual_return_at !== undefined && { actual_return_at: params.actual_return_at }),
       ...(params.depart_city !== undefined && { depart_city: params.depart_city }),
       ...(params.arrive_city !== undefined && { arrive_city: params.arrive_city }),
-      ...(params.flight_info !== undefined && { flight_info: params.flight_info }),
       ...(params.ticket_amount !== undefined && { ticket_amount: params.ticket_amount }),
       ...(params.ticket_image_url !== undefined && { ticket_image_url: params.ticket_image_url }),
       ...(params.issuer_company !== undefined && { issuer_company: params.issuer_company }),
-      ...(params.cost_bearer !== undefined && { cost_bearer: params.cost_bearer }),
-      ...(params.approver !== undefined && { approver: params.approver }),
       ...(params.operator !== undefined && { operator: params.operator }),
     })
     .eq('id', id)
     .select()
     .single();
   if (error) throw error;
+  // 扩展字段（列可能尚未创建）
+  const extFields: Record<string, unknown> = {};
+  if (params.actual_return_at !== undefined) extFields.actual_return_at = params.actual_return_at;
+  if (params.flight_info !== undefined) extFields.flight_info = params.flight_info;
+  if (params.cost_bearer !== undefined) extFields.cost_bearer = params.cost_bearer;
+  if (params.approver !== undefined) extFields.approver = params.approver;
+  if (Object.keys(extFields).length) {
+    await tryUpdateExtFields('cn_flight_handles', id, extFields);
+  }
   try {
     const { data: row } = await supabase.from('cn_flight_handles').select('application_id').eq('id', id).single();
     const appId = (row as { application_id?: string })?.application_id;

@@ -247,10 +247,10 @@
                 <el-input-number v-model="flightHandleForm.entry_count" :min="1" style="width: 100%" />
               </el-form-item>
             </template>
-            <el-form-item label="实际起飞">
+            <el-form-item label="实际出发日期">
               <el-date-picker v-model="flightHandleForm.actual_departure_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width: 100%" />
             </el-form-item>
-            <el-form-item label="抵达时间">
+            <el-form-item label="实际抵达时间">
               <el-date-picker v-model="flightHandleForm.arrival_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width: 100%" />
             </el-form-item>
             <el-form-item label="机票金额">

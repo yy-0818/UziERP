@@ -66,8 +66,8 @@
       </template>
     </el-dialog>
 
-    <!-- 办理/编辑签证 -->
-    <el-dialog v-model="handleVisible" :title="isEditMode ? '编辑签证' : '办理签证'" width="520px" append-to-body @close="isEditMode = false; currentEditHandleId = null">
+    <!-- 办理签证 -->
+    <el-dialog v-model="handleVisible" title="办理签证" width="520px" append-to-body>
       <el-form ref="handleFormRef" :model="handleForm" label-width="100px">
         <el-form-item label="生效日期">
           <el-date-picker v-model="handleForm.effective_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
@@ -103,6 +103,46 @@
       <template #footer>
         <el-button @click="handleVisible = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="submitHandle">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 编辑签证（独立弹窗） -->
+    <el-dialog v-model="editVisible" title="编辑签证" width="520px" append-to-body>
+      <el-form :model="editForm" label-width="100px">
+        <el-form-item label="生效日期">
+          <el-date-picker v-model="editForm.effective_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="失效日期">
+          <el-date-picker v-model="editForm.expiry_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="签证次数">
+          <el-input-number v-model="editForm.visa_times" :min="1" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="剩余次数">
+          <el-input-number v-model="editForm.remaining_times" :min="-1" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="费用">
+          <el-input-number v-model="editForm.fee_amount" :min="0" :precision="2" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="出证公司">
+          <el-input v-model="editForm.issuer_company" />
+        </el-form-item>
+        <el-form-item label="签证附件">
+          <div class="form-attachment-upload">
+            <el-upload :show-file-list="false" :http-request="handleEditVisaAttachmentUpload">
+              <el-button type="primary" plain size="small">上传附件</el-button>
+            </el-upload>
+            <el-button v-if="editForm.visa_image_url" type="danger" link size="small" @click="editForm.visa_image_url = null">清除</el-button>
+            <span v-if="editForm.visa_image_url" class="attachment-hint">已选文件</span>
+          </div>
+        </el-form-item>
+        <el-form-item label="小白条地址">
+          <el-input v-model="editForm.address_slip" type="textarea" :rows="2" placeholder="落地塔什干后3天内需填写地址信息" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="submitEdit">保存</el-button>
       </template>
     </el-dialog>
 
@@ -156,7 +196,7 @@ const loading = ref(false);
 const applyVisible = ref(false);
 const saving = ref(false);
 const handleVisible = ref(false);
-const isEditMode = ref(false);
+const editVisible = ref(false);
 const currentEditHandleId = ref<string | null>(null);
 const applyForm = ref({ application_type: '', expected_departure_at: null as string | null });
 const handleForm = ref({
@@ -234,16 +274,25 @@ function openHandle(row: VisaApplication) {
   handleVisible.value = true;
 }
 
+const editForm = ref({
+  effective_date: null as string | null,
+  expiry_date: null as string | null,
+  visa_times: null as number | null,
+  remaining_times: null as number | null,
+  fee_amount: null as number | null,
+  issuer_company: null as string | null,
+  visa_image_url: null as string | null,
+  address_slip: null as string | null,
+});
+
 async function openEdit(row: VisaApplication) {
   const h = await fetchVisaHandleByApplicationId(row.id);
   if (!h) {
     ElMessage.warning('未找到办理记录');
     return;
   }
-  isEditMode.value = true;
   currentEditHandleId.value = h.id;
-  currentApply.value = row;
-  handleForm.value = {
+  editForm.value = {
     effective_date: h.effective_date,
     expiry_date: h.expiry_date,
     visa_times: h.visa_times,
@@ -253,37 +302,45 @@ async function openEdit(row: VisaApplication) {
     visa_image_url: h.visa_image_url,
     address_slip: h.address_slip ?? null,
   };
-  handleVisible.value = true;
+  editVisible.value = true;
+}
+
+async function handleEditVisaAttachmentUpload(options: { file: File }) {
+  try {
+    const path = await uploadEmployeeFile('visa', options.file.name, options.file);
+    editForm.value.visa_image_url = path;
+  } catch (e: any) {
+    ElMessage.error(e?.message || '上传失败');
+  }
+}
+
+async function submitEdit() {
+  if (!currentEditHandleId.value) return;
+  saving.value = true;
+  try {
+    await updateVisaHandle(currentEditHandleId.value, {
+      effective_date: editForm.value.effective_date,
+      expiry_date: editForm.value.expiry_date,
+      visa_times: editForm.value.visa_times,
+      remaining_times: editForm.value.remaining_times,
+      fee_amount: editForm.value.fee_amount,
+      issuer_company: editForm.value.issuer_company,
+      visa_image_url: editForm.value.visa_image_url,
+      address_slip: editForm.value.address_slip,
+      operator: submittedBy.value,
+    });
+    ElMessage.success('已保存');
+    editVisible.value = false;
+    currentEditHandleId.value = null;
+    await load();
+  } catch (e: any) {
+    ElMessage.error(e?.message || '保存失败');
+  } finally {
+    saving.value = false;
+  }
 }
 
 async function submitHandle() {
-  if (isEditMode.value && currentEditHandleId.value) {
-    saving.value = true;
-    try {
-      await updateVisaHandle(currentEditHandleId.value, {
-        effective_date: handleForm.value.effective_date,
-        expiry_date: handleForm.value.expiry_date,
-        visa_times: handleForm.value.visa_times,
-        remaining_times: handleForm.value.remaining_times,
-        fee_amount: handleForm.value.fee_amount,
-        issuer_company: handleForm.value.issuer_company,
-        visa_image_url: handleForm.value.visa_image_url,
-        address_slip: handleForm.value.address_slip,
-        operator: submittedBy.value,
-      });
-      ElMessage.success('已保存');
-      handleVisible.value = false;
-      isEditMode.value = false;
-      currentEditHandleId.value = null;
-      await load();
-    } catch (e: any) {
-      ElMessage.error(e?.message || '保存失败');
-    } finally {
-      saving.value = false;
-    }
-    return;
-  }
-
   if (!currentApply.value) return;
   const hasInv = await hasInvitationHandled(props.employeeId);
   if (!hasInv) {

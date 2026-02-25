@@ -44,8 +44,8 @@
       </template>
     </el-dialog>
 
-    <!-- 办理/编辑劳动许可 -->
-    <el-dialog v-model="handleVisible" :title="isEditMode ? '编辑劳动许可' : '办理劳动许可'" width="480px" append-to-body @close="isEditMode = false; currentEditHandleId = null">
+    <!-- 办理劳动许可 -->
+    <el-dialog v-model="handleVisible" title="办理劳动许可" width="480px" append-to-body>
       <el-form ref="handleFormRef" :model="handleForm" label-width="100px">
         <el-form-item label="出证时间">
           <el-date-picker v-model="handleForm.permit_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
@@ -72,6 +72,37 @@
       <template #footer>
         <el-button @click="handleVisible = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="submitHandle">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 编辑劳动许可（独立弹窗） -->
+    <el-dialog v-model="editVisible" title="编辑劳动许可" width="480px" append-to-body>
+      <el-form :model="editForm" label-width="100px">
+        <el-form-item label="出证时间">
+          <el-date-picker v-model="editForm.permit_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="生效日期">
+          <el-date-picker v-model="editForm.effective_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="失效日期">
+          <el-date-picker v-model="editForm.expiry_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="费用">
+          <el-input-number v-model="editForm.fee_amount" :min="0" :precision="2" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="劳动许可附件">
+          <div class="form-attachment-upload">
+            <el-upload :show-file-list="false" :http-request="handleEditAttachmentUpload">
+              <el-button type="primary" plain size="small">上传附件</el-button>
+            </el-upload>
+            <el-button v-if="editForm.image_url" type="danger" link size="small" @click="editForm.image_url = null">清除</el-button>
+            <span v-if="editForm.image_url" class="attachment-hint">已选文件</span>
+          </div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="submitEdit">保存</el-button>
       </template>
     </el-dialog>
 
@@ -118,7 +149,7 @@ const loading = ref(false);
 const applyVisible = ref(false);
 const saving = ref(false);
 const handleVisible = ref(false);
-const isEditMode = ref(false);
+const editVisible = ref(false);
 const currentEditHandleId = ref<string | null>(null);
 const applyForm = ref({
   application_date: null as string | null,
@@ -194,23 +225,61 @@ function openHandle(row: LaborPermitApplication) {
   handleVisible.value = true;
 }
 
+const editForm = ref({
+  permit_date: null as string | null,
+  effective_date: null as string | null,
+  expiry_date: null as string | null,
+  fee_amount: null as number | null,
+  image_url: null as string | null,
+});
+
 async function openEdit(row: LaborPermitApplication) {
   const h = await fetchLaborPermitHandleByApplicationId(row.id);
   if (!h) {
     ElMessage.warning('未找到办理记录');
     return;
   }
-  isEditMode.value = true;
   currentEditHandleId.value = h.id;
-  currentApply.value = row;
-  handleForm.value = {
+  editForm.value = {
     permit_date: h.permit_date,
     effective_date: h.effective_date,
     expiry_date: h.expiry_date,
     fee_amount: h.fee_amount,
     image_url: h.image_url,
   };
-  handleVisible.value = true;
+  editVisible.value = true;
+}
+
+async function handleEditAttachmentUpload(options: { file: File }) {
+  try {
+    const path = await uploadEmployeeFile('labor', options.file.name, options.file);
+    editForm.value.image_url = path;
+  } catch (e: any) {
+    ElMessage.error(e?.message || '上传失败');
+  }
+}
+
+async function submitEdit() {
+  if (!currentEditHandleId.value) return;
+  saving.value = true;
+  try {
+    await updateLaborPermitHandle(currentEditHandleId.value, {
+      permit_date: editForm.value.permit_date,
+      effective_date: editForm.value.effective_date,
+      expiry_date: editForm.value.expiry_date,
+      fee_amount: editForm.value.fee_amount,
+      image_url: editForm.value.image_url,
+      operator: auth.user?.email ?? auth.email ?? null,
+    });
+    ElMessage.success('已保存');
+    editVisible.value = false;
+    currentEditHandleId.value = null;
+    await load();
+  } catch (e: any) {
+    ElMessage.error(e?.message || '保存失败');
+  } finally {
+    saving.value = false;
+  }
 }
 
 const viewDialogVisible = ref(false);
@@ -245,30 +314,6 @@ async function openAttachment(path: string) {
 }
 
 async function submitHandle() {
-  if (isEditMode.value && currentEditHandleId.value) {
-    saving.value = true;
-    try {
-      await updateLaborPermitHandle(currentEditHandleId.value, {
-        permit_date: handleForm.value.permit_date,
-        effective_date: handleForm.value.effective_date,
-        expiry_date: handleForm.value.expiry_date,
-        fee_amount: handleForm.value.fee_amount,
-        image_url: handleForm.value.image_url,
-        operator: auth.user?.email ?? auth.email ?? null,
-      });
-      ElMessage.success('已保存');
-      handleVisible.value = false;
-      isEditMode.value = false;
-      currentEditHandleId.value = null;
-      await load();
-    } catch (e: any) {
-      ElMessage.error(e?.message || '保存失败');
-    } finally {
-      saving.value = false;
-    }
-    return;
-  }
-
   if (!currentApply.value) return;
   saving.value = true;
   try {

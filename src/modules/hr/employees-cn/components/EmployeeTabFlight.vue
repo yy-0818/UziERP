@@ -61,8 +61,8 @@
       </template>
     </el-dialog>
 
-    <!-- 办理/编辑机票 -->
-    <el-dialog v-model="handleVisible" :title="isEditMode ? '编辑机票办理' : '办理机票'" width="560px" append-to-body @close="isEditMode = false; currentEditHandleId = null">
+    <!-- 办理机票 -->
+    <el-dialog v-model="handleVisible" title="办理机票" width="560px" append-to-body>
       <el-form ref="handleFormRef" :model="handleForm" label-width="110px">
         <template v-if="!isEditMode">
           <el-form-item label="使用签证">
@@ -82,11 +82,8 @@
         <el-form-item label="实际出发日期">
           <el-date-picker v-model="handleForm.actual_departure_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="抵达时间">
+        <el-form-item label="实际抵达时间">
           <el-date-picker v-model="handleForm.arrival_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width: 100%" />
-        </el-form-item>
-        <el-form-item label="实际返回日期">
-          <el-date-picker v-model="handleForm.actual_return_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width: 100%" />
         </el-form-item>
         <el-form-item label="航班信息">
           <el-input v-model="handleForm.flight_info" placeholder="航班号等信息" />
@@ -124,13 +121,57 @@
       </template>
     </el-dialog>
 
+    <!-- 编辑机票（独立弹窗） -->
+    <el-dialog v-model="editVisible" title="编辑机票办理" width="560px" append-to-body>
+      <el-form :model="editForm" label-width="110px">
+        <el-form-item label="实际出发日期">
+          <el-date-picker v-model="editForm.actual_departure_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="实际抵达时间">
+          <el-date-picker v-model="editForm.arrival_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="航班信息">
+          <el-input v-model="editForm.flight_info" placeholder="航班号等信息" />
+        </el-form-item>
+        <el-form-item label="机票票价">
+          <el-input-number v-model="editForm.ticket_amount" :min="0" :precision="2" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="费用承担方">
+          <el-select v-model="editForm.cost_bearer" filterable allow-create placeholder="请选择或输入" style="width: 100%">
+            <el-option label="公司" value="公司" />
+            <el-option label="个人" value="个人" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="出票方">
+          <el-select v-model="editForm.issuer_company" placeholder="请选择" style="width: 100%">
+            <el-option v-for="opt in ISSUER_TYPE_OPTIONS" :key="opt" :label="opt" :value="opt" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="审批人">
+          <el-input v-model="editForm.approver" placeholder="审批人签字记录" />
+        </el-form-item>
+        <el-form-item label="机票附件">
+          <div class="form-attachment-upload">
+            <el-upload :show-file-list="false" :http-request="handleEditAttachmentUpload">
+              <el-button type="primary" plain size="small">上传附件</el-button>
+            </el-upload>
+            <el-button v-if="editForm.ticket_image_url" type="danger" link size="small" @click="editForm.ticket_image_url = null">清除</el-button>
+            <span v-if="editForm.ticket_image_url" class="attachment-hint">已选文件</span>
+          </div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="submitEdit">保存</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 查看机票办理详情 -->
     <el-dialog v-model="viewDialogVisible" title="机票办理详情" width="520px" append-to-body>
       <template v-if="viewHandleData">
         <el-descriptions :column="1" border size="small">
           <el-descriptions-item label="实际出发日期">{{ formatDateTime(viewHandleData.actual_departure_at) }}</el-descriptions-item>
-          <el-descriptions-item label="抵达时间">{{ formatDateTime(viewHandleData.arrival_at) }}</el-descriptions-item>
-          <el-descriptions-item label="实际返回日期">{{ formatDateTime(viewHandleData.actual_return_at) }}</el-descriptions-item>
+          <el-descriptions-item label="实际抵达时间">{{ formatDateTime(viewHandleData.arrival_at) }}</el-descriptions-item>
           <el-descriptions-item label="出发城市">{{ viewHandleData.depart_city || '—' }}</el-descriptions-item>
           <el-descriptions-item label="到达城市">{{ viewHandleData.arrive_city || '—' }}</el-descriptions-item>
           <el-descriptions-item label="航班信息">{{ viewHandleData.flight_info || '—' }}</el-descriptions-item>
@@ -179,7 +220,7 @@ const loading = ref(false);
 const applyVisible = ref(false);
 const saving = ref(false);
 const handleVisible = ref(false);
-const isEditMode = ref(false);
+const editVisible = ref(false);
 const currentEditHandleId = ref<string | null>(null);
 const applyForm = ref({
   depart_city: '',
@@ -285,23 +326,27 @@ function openHandle(row: FlightApplication) {
   handleVisible.value = true;
 }
 
+const editForm = ref({
+  actual_departure_at: null as string | null,
+  arrival_at: null as string | null,
+  flight_info: null as string | null,
+  ticket_amount: null as number | null,
+  ticket_image_url: null as string | null,
+  issuer_company: null as string | null,
+  cost_bearer: null as string | null,
+  approver: null as string | null,
+});
+
 async function openEdit(row: FlightApplication) {
   const h = await fetchFlightHandleByApplicationId(row.id);
   if (!h) {
     ElMessage.warning('未找到办理记录');
     return;
   }
-  currentApply.value = row;
   currentEditHandleId.value = h.id;
-  isEditMode.value = true;
-  handleForm.value = {
-    visa_handle_id: '',
-    entry_count: 1,
+  editForm.value = {
     actual_departure_at: h.actual_departure_at,
     arrival_at: h.arrival_at,
-    actual_return_at: h.actual_return_at ?? null,
-    depart_city: null,
-    arrive_city: null,
     flight_info: h.flight_info ?? null,
     ticket_amount: h.ticket_amount,
     ticket_image_url: h.ticket_image_url,
@@ -309,7 +354,42 @@ async function openEdit(row: FlightApplication) {
     cost_bearer: h.cost_bearer ?? null,
     approver: h.approver ?? null,
   };
-  handleVisible.value = true;
+  editVisible.value = true;
+}
+
+async function handleEditAttachmentUpload(options: { file: File }) {
+  try {
+    const path = await uploadEmployeeFile('flight', options.file.name, options.file);
+    editForm.value.ticket_image_url = path;
+  } catch (e: any) {
+    ElMessage.error(e?.message || '上传失败');
+  }
+}
+
+async function submitEdit() {
+  if (!currentEditHandleId.value) return;
+  saving.value = true;
+  try {
+    await updateFlightHandle(currentEditHandleId.value, {
+      actual_departure_at: editForm.value.actual_departure_at,
+      arrival_at: editForm.value.arrival_at,
+      flight_info: editForm.value.flight_info,
+      ticket_amount: editForm.value.ticket_amount,
+      ticket_image_url: editForm.value.ticket_image_url,
+      issuer_company: editForm.value.issuer_company,
+      cost_bearer: editForm.value.cost_bearer,
+      approver: editForm.value.approver,
+      operator: auth.user?.email ?? auth.email ?? null,
+    });
+    ElMessage.success('已保存');
+    editVisible.value = false;
+    currentEditHandleId.value = null;
+    await load();
+  } catch (e: any) {
+    ElMessage.error(e?.message || '保存失败');
+  } finally {
+    saving.value = false;
+  }
 }
 
 const viewDialogVisible = ref(false);
@@ -344,35 +424,6 @@ async function openAttachment(path: string) {
 }
 
 async function submitHandle() {
-  const handleId = currentEditHandleId.value;
-  if (isEditMode.value && handleId) {
-    saving.value = true;
-    try {
-      await updateFlightHandle(handleId, {
-        actual_departure_at: handleForm.value.actual_departure_at,
-        arrival_at: handleForm.value.arrival_at,
-        actual_return_at: handleForm.value.actual_return_at,
-        flight_info: handleForm.value.flight_info,
-        ticket_amount: handleForm.value.ticket_amount,
-        ticket_image_url: handleForm.value.ticket_image_url,
-        issuer_company: handleForm.value.issuer_company,
-        cost_bearer: handleForm.value.cost_bearer,
-        approver: handleForm.value.approver,
-        operator: auth.user?.email ?? auth.email ?? null,
-      });
-      ElMessage.success('已保存');
-      handleVisible.value = false;
-      currentApply.value = null;
-      currentEditHandleId.value = null;
-      isEditMode.value = false;
-      await load();
-    } catch (e: any) {
-      ElMessage.error(e?.message || '保存失败');
-    } finally {
-      saving.value = false;
-    }
-    return;
-  }
   if (!currentApply.value || !handleForm.value.visa_handle_id) {
     ElMessage.warning('请选择使用签证');
     return;
