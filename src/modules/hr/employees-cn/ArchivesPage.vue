@@ -331,6 +331,19 @@
                   </el-form-item>
                 </div>
               </div>
+              <el-form-item label="护照附件">
+                <div class="form-passport-upload">
+                  <el-upload class="passport-upload-btn" :show-file-list="false" accept="image/*,.pdf" :http-request="handlePassportUpload">
+                    <el-button size="small" type="primary" plain>上传护照附件</el-button>
+                  </el-upload>
+                  <template v-if="form.passport_photo_url">
+                    <el-button link type="primary" size="small" @click="previewPassport">查看</el-button>
+                    <el-button link type="danger" size="small" @click="clearPassportPhoto">清除</el-button>
+                    <span class="passport-upload-hint">已上传</span>
+                  </template>
+                  <span v-else class="passport-upload-hint">支持图片或 PDF</span>
+                </div>
+              </el-form-item>
               <div class="hr-form-row">
                 <div class="hr-form-cell">
                   <el-form-item label="性别">
@@ -973,6 +986,7 @@ const form = ref<Partial<CnEmployee>>({
   employee_no: '',
   name: '',
   passport_no: null,
+  passport_photo_url: null,
   birth_date: null,
   photo_url: null,
   department: null,
@@ -1001,6 +1015,7 @@ function openOnboard() {
     employee_no: '',
     name: '',
     passport_no: null,
+    passport_photo_url: null,
     birth_date: null,
     photo_url: null,
     department: null,
@@ -1028,6 +1043,7 @@ function openEdit(row: CnEmployeeWithStatus) {
     employee_no: row.employee_no,
     name: row.name,
     passport_no: row.passport_no,
+    passport_photo_url: row.passport_photo_url ?? null,
     birth_date: row.birth_date ?? null,
     photo_url: row.photo_url ?? null,
     department: row.department,
@@ -1062,6 +1078,30 @@ async function handlePhotoUpload(options: { file: File }) {
 function clearFormPhoto() {
   form.value.photo_url = null;
   formPhotoPreview.value = '';
+}
+
+async function handlePassportUpload(options: { file: File }) {
+  try {
+    const path = await uploadEmployeeFile('passport', options.file.name, options.file);
+    form.value.passport_photo_url = path;
+    ElMessage.success('护照附件已上传');
+  } catch (e: any) {
+    ElMessage.error(e?.message || '上传失败');
+  }
+}
+
+async function previewPassport() {
+  if (!form.value.passport_photo_url) return;
+  try {
+    const url = await getSignedUrl(form.value.passport_photo_url);
+    window.open(url, '_blank');
+  } catch {
+    ElMessage.warning('无法打开护照附件');
+  }
+}
+
+function clearPassportPhoto() {
+  form.value.passport_photo_url = null;
 }
 
 async function submitForm() {
@@ -1661,6 +1701,17 @@ onMounted(async () => {
 }
 .form-avatar-clear {
   margin-left: 4px;
+}
+
+.form-passport-upload {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.passport-upload-hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
 
