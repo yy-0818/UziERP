@@ -499,10 +499,9 @@
 
 <script setup lang="ts">
 import { Search, RefreshRight, ArrowDown, Plus, Upload, Download } from '@element-plus/icons-vue';
-import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import type { FormInstance } from 'element-plus';
-import type { TableInstance } from 'element-plus';
+import type { FormInstance, TableInstance } from 'element-plus';
 import dayjs from 'dayjs';
 import { exportToExcel } from '../../composables/useExport';
 import { useAuthStore } from '../../stores/auth';
@@ -520,12 +519,14 @@ import {
 } from './api';
 import type { SalesRow, ReceiptRow } from './types';
 import { querySales, queryReceipts } from './composables/useSalesPageQueries';
+import { usePagedTabData } from './composables/usePagedTabData';
+import { useBatchImport } from './composables/useBatchImport';
+import { useUiStatePersistence } from './composables/useUiStatePersistence';
 import {
   getErrorMessage,
   normalizeDateForDb,
   normalizeImportRows,
   parseExcelPasteRows,
-  parseRowsFromFile,
   type ImportMode,
   type ImportRow,
 } from './composables/salesImportUtils';
@@ -543,32 +544,32 @@ interface ReceiptFormModel extends Omit<ReceiptRow, 'id'> {
 
 const auth = useAuthStore();
 const activeTab = ref<TabName>('sales');
-const loading = ref(false);
 const exporting = ref(false);
-const STATE_KEY = 'sales.module.ui_state.v3';
 
-/* ==================== 服务端分页数据 ==================== */
+/* ==================== 分页数据（独立loading+防竞态） ==================== */
+const salesTab = usePagedTabData<SalesRow>(querySales);
+const receiptTab = usePagedTabData<ReceiptRow>(queryReceipts);
+
+const salesRows = salesTab.rows;
+const salesTotalCount = salesTab.total;
+const salesFilters = salesTab.filters;
+const salesPage = salesTab.page;
+const salesPageSize = salesTab.pageSize;
+const salesColumnFilters = salesTab.columnFilters;
+
+const receiptRows = receiptTab.rows;
+const receiptTotalCount = receiptTab.total;
+const receiptFilters = receiptTab.filters;
+const receiptPage = receiptTab.page;
+const receiptPageSize = receiptTab.pageSize;
+const receiptColumnFilters = receiptTab.columnFilters;
+
+const loading = computed(() => salesTab.loading.value || receiptTab.loading.value);
+
 const salesTableRef = ref<TableInstance>();
 const receiptTableRef = ref<TableInstance>();
 const selectedSalesRows = ref<SalesRow[]>([]);
 const selectedReceiptRows = ref<ReceiptRow[]>([]);
-
-const salesRows = shallowRef<SalesRow[]>([]);
-const salesTotalCount = ref(0);
-const receiptRows = shallowRef<ReceiptRow[]>([]);
-const receiptTotalCount = ref(0);
-
-const salesFilters = ref({ keyword: '', dateRange: null as [string, string] | null });
-const receiptFilters = ref({ keyword: '', dateRange: null as [string, string] | null });
-/** 销售列筛选（服务端）：columnKey -> 选中的值数组，空数组表示不过滤该列 */
-const salesColumnFilters = ref<Record<string, string[]>>({});
-/** 收款列筛选（服务端） */
-const receiptColumnFilters = ref<Record<string, string[]>>({});
-const salesPage = ref(1);
-const salesPageSize = ref(200);
-const receiptPage = ref(1);
-const receiptPageSize = ref(200);
-const tabLoaded = ref<Record<TabName, boolean>>({ sales: false, receipts: false });
 
 const canEdit = computed(() => hasAnyRole(auth.role, ['super_admin', 'manager', 'sales']));
 const canExport = computed(() => !hasRole(auth.role, 'viewer'));
@@ -582,7 +583,7 @@ const modifierEmail = computed(() => {
   return auth.email || '';
 });
 
-/* ==================== 列筛选选项（从当前页收集，限制条数防卡顿；筛选由服务端执行） ==================== */
+/* ==================== 列筛选选项 ==================== */
 const FILTER_OPTIONS_MAX = 150;
 function collectFilterOptions(rows: object[], field: string): { text: string; value: string }[] {
   const seen = new Set<string>();
@@ -598,7 +599,6 @@ function collectFilterOptions(rows: object[], field: string): { text: string; va
   return result.sort((a, b) => a.text.localeCompare(b.text));
 }
 
-/* ==================== 销售数据 列筛选（从当前页数据动态收集，el-table 用） ==================== */
 const salesDateFilters = computed(() => collectFilterOptions(salesRows.value, 'document_date'));
 const salesDocumentNoFilters = computed(() => collectFilterOptions(salesRows.value, 'document_no'));
 const salesPaymentFilters = computed(() => collectFilterOptions(salesRows.value, 'payment_method'));
@@ -608,25 +608,23 @@ const salesGradeFilters = computed(() => collectFilterOptions(salesRows.value, '
 const salesCountryFilters = computed(() => collectFilterOptions(salesRows.value, 'export_country'));
 const salesLicensePlateFilter = computed(() => collectFilterOptions(salesRows.value, 'vehicle_no'));
 const salesContractNoFilters = computed(() => collectFilterOptions(salesRows.value, 'contract_no'));
-/* ==================== 收款数据 列筛选（从当前页数据动态收集，el-table 用） ==================== */
 const receiptDateFilters = computed(() => collectFilterOptions(receiptRows.value, 'receipt_date'));
 const receiptAccountFilters = computed(() => collectFilterOptions(receiptRows.value, 'account_name'));
 const receiptCustomerNameFilters = computed(() => collectFilterOptions(receiptRows.value, 'customer_name'));
 
-/* ==================== 导入相关 ==================== */
-const importVisible = ref(false);
-const importMode = ref<ImportMode>('sales');
-const importText = ref('');
-const importing = ref(false);
-const fileInputRef = ref<HTMLInputElement | null>(null);
-const parsedImportRows = ref<ImportRow[] | null>(null);
-
-const importProgress = ref({ total: 0, done: 0, written: 0 });
-const importProgressPercent = computed(() => {
-  if (importProgress.value.total <= 0) return 0;
-  return Math.round((importProgress.value.done / importProgress.value.total) * 100);
+/* ==================== 导入 ==================== */
+const batchImport = useBatchImport(async () => {
+  await fetchActiveTabData(true);
 });
-const importTitle = computed(() => (importMode.value === 'sales' ? '导入销售数据(xlsx/csv/json)' : '导入收款数据(xlsx/csv/json)'));
+const importVisible = batchImport.visible;
+const importTitle = batchImport.title;
+const importText = batchImport.text;
+const importing = batchImport.importing;
+const fileInputRef = batchImport.fileInputRef;
+const importProgress = batchImport.progress;
+const importProgressPercent = batchImport.progressPercent;
+const onPickImportFile = batchImport.onPickFile;
+const submitImport = batchImport.submit;
 
 /* ==================== 销售数据 新增/编辑 ==================== */
 const salesDialogVisible = ref(false);
@@ -753,79 +751,40 @@ async function saveReceiptBatch() {
   }
 }
 
-/* ==================== 数据获取 (服务端分页) ==================== */
+/* ==================== 数据获取 ==================== */
 async function fetchSalesData() {
-  loading.value = true;
   try {
-    const columnFilters = Object.keys(salesColumnFilters.value).length
-      ? { ...salesColumnFilters.value }
-      : undefined;
-    const res = await querySales({
-      page: salesPage.value,
-      pageSize: salesPageSize.value,
-      dateFrom: salesFilters.value.dateRange?.[0] || null,
-      dateTo: salesFilters.value.dateRange?.[1] || null,
-      keyword: salesFilters.value.keyword || undefined,
-      columnFilters,
-    });
-    salesRows.value = res.rows;
-    salesTotalCount.value = res.total;
-    tabLoaded.value.sales = true;
+    await salesTab.fetch();
     selectedSalesRows.value = [];
     salesTableRef.value?.clearSelection();
   } catch (error: unknown) {
     ElMessage.error(getErrorMessage(error, '销售数据加载失败'));
-    salesRows.value = [];
-    salesTotalCount.value = 0;
-  } finally {
-    loading.value = false;
   }
 }
 
 async function fetchReceiptData() {
-  loading.value = true;
   try {
-    const columnFilters = Object.keys(receiptColumnFilters.value).length
-      ? { ...receiptColumnFilters.value }
-      : undefined;
-    const res = await queryReceipts({
-      page: receiptPage.value,
-      pageSize: receiptPageSize.value,
-      dateFrom: receiptFilters.value.dateRange?.[0] || null,
-      dateTo: receiptFilters.value.dateRange?.[1] || null,
-      keyword: receiptFilters.value.keyword || undefined,
-      columnFilters,
-    });
-    receiptRows.value = res.rows;
-    receiptTotalCount.value = res.total;
-    tabLoaded.value.receipts = true;
+    await receiptTab.fetch();
     selectedReceiptRows.value = [];
     receiptTableRef.value?.clearSelection();
   } catch (error: unknown) {
     ElMessage.error(getErrorMessage(error, '收款数据加载失败'));
-    receiptRows.value = [];
-    receiptTotalCount.value = 0;
-  } finally {
-    loading.value = false;
   }
 }
 
-/** 销售列筛选变更：服务端筛选，重置到第一页 */
 function onSalesFilterChange(filters: Record<string, string[]>) {
-  salesColumnFilters.value = { ...filters };
-  salesPage.value = 1;
+  salesTab.onFilterChange(filters);
   fetchSalesData();
 }
 
-/** 收款列筛选变更：服务端筛选，重置到第一页 */
 function onReceiptFilterChange(filters: Record<string, string[]>) {
-  receiptColumnFilters.value = { ...filters };
-  receiptPage.value = 1;
+  receiptTab.onFilterChange(filters);
   fetchReceiptData();
 }
 
 function fetchActiveTabData(force = false) {
-  if (!force && tabLoaded.value[activeTab.value]) return;
+  const tab = activeTab.value === 'sales' ? salesTab : receiptTab;
+  if (!force && tab.loaded.value) return;
   if (activeTab.value === 'sales') return fetchSalesData();
   return fetchReceiptData();
 }
@@ -835,25 +794,22 @@ function onTabChange() {
 }
 
 function onSalesPageSizeChange() {
-  salesPage.value = 1;
+  salesTab.onPageSizeChange();
   fetchSalesData();
 }
 
 function onReceiptPageSizeChange() {
-  receiptPage.value = 1;
+  receiptTab.onPageSizeChange();
   fetchReceiptData();
 }
 
 function resetSalesFilters() {
-  salesFilters.value = { keyword: '', dateRange: null };
-  salesColumnFilters.value = {};
-  salesPage.value = 1;
+  salesTab.resetFilters();
   fetchSalesData();
 }
+
 function resetReceiptFilters() {
-  receiptFilters.value = { keyword: '', dateRange: null };
-  receiptColumnFilters.value = {};
-  receiptPage.value = 1;
+  receiptTab.resetFilters();
   fetchReceiptData();
 }
 
@@ -1037,7 +993,6 @@ async function confirmBatchDeleteSales() {
       '批量删除确认',
       { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
     );
-    loading.value = true;
     let deleted = 0;
     for (const row of rows) {
       try {
@@ -1052,9 +1007,6 @@ async function confirmBatchDeleteSales() {
     salesTableRef.value?.clearSelection();
     await fetchSalesData();
   } catch { /* cancelled */ }
-  finally {
-    loading.value = false;
-  }
 }
 
 /* ==================== 新增/编辑 收款数据 ==================== */
@@ -1164,7 +1116,6 @@ async function confirmBatchDeleteReceipt() {
       '批量删除确认',
       { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
     );
-    loading.value = true;
     let deleted = 0;
     for (const row of rows) {
       try {
@@ -1179,12 +1130,9 @@ async function confirmBatchDeleteReceipt() {
     receiptTableRef.value?.clearSelection();
     await fetchReceiptData();
   } catch { /* cancelled */ }
-  finally {
-    loading.value = false;
-  }
 }
 
-/* ==================== 导出（拉取全部数据） ==================== */
+/* ==================== 导出 ==================== */
 const SALES_EXPORT_COLS = [
   { key: 'document_date', label: '单据日期' },
   { key: 'document_no', label: '单据编号' },
@@ -1232,16 +1180,11 @@ async function exportSales() {
       keyword: salesFilters.value.keyword || undefined,
       columnFilters: Object.keys(salesColumnFilters.value).length ? { ...salesColumnFilters.value } : undefined,
     });
-    if (!allRows.length) {
-      ElMessage.warning('暂无可导出销售数据');
-      return;
-    }
+    if (!allRows.length) { ElMessage.warning('暂无可导出销售数据'); return; }
     exportToExcel(
       allRows.map((r) => {
         const row: ImportRow = {};
-        for (const col of SALES_EXPORT_COLS) {
-          row[col.key] = r[col.key as keyof typeof r] ?? '';
-        }
+        for (const col of SALES_EXPORT_COLS) row[col.key] = r[col.key as keyof typeof r] ?? '';
         return row;
       }),
       SALES_EXPORT_COLS,
@@ -1264,16 +1207,11 @@ async function exportReceipts() {
       keyword: receiptFilters.value.keyword || undefined,
       columnFilters: Object.keys(receiptColumnFilters.value).length ? { ...receiptColumnFilters.value } : undefined,
     });
-    if (!allRows.length) {
-      ElMessage.warning('暂无可导出收款数据');
-      return;
-    }
+    if (!allRows.length) { ElMessage.warning('暂无可导出收款数据'); return; }
     exportToExcel(
       allRows.map((r) => {
         const row: ImportRow = {};
-        for (const col of RECEIPT_EXPORT_COLS) {
-          row[col.key] = r[col.key as keyof typeof r] ?? '';
-        }
+        for (const col of RECEIPT_EXPORT_COLS) row[col.key] = r[col.key as keyof typeof r] ?? '';
         return row;
       }),
       RECEIPT_EXPORT_COLS,
@@ -1287,133 +1225,42 @@ async function exportReceipts() {
   }
 }
 
-/* ==================== 导入逻辑 ==================== */
+/* ==================== 导入 ==================== */
 function openImportDialog(mode: ImportMode) {
   if (!canEdit.value) return;
-  importMode.value = mode;
-  importText.value = '';
-  parsedImportRows.value = null;
-  importProgress.value = { total: 0, done: 0, written: 0 };
-  if (fileInputRef.value) fileInputRef.value.value = '';
-  importVisible.value = true;
-}
-
-async function onPickImportFile(event: Event) {
-  const target = event.target as HTMLInputElement;
-  const file = target.files?.[0];
-  if (!file) return;
-  try {
-    const rows = await parseRowsFromFile(file);
-    parsedImportRows.value = rows;
-    importText.value = JSON.stringify(rows.slice(0, 50), null, 2);
-    ElMessage.success(`已解析 ${rows.length} 行数据（文本框仅预览前 50 行，提交会导入全部）`);
-  } catch (error: unknown) {
-    ElMessage.error(getErrorMessage(error, '读取文件失败'));
-  }
-}
-
-async function submitImport() {
-  if (!canEdit.value) return;
-  const txt = importText.value.trim();
-  if (!txt && !parsedImportRows.value?.length) {
-    ElMessage.warning('请粘贴或选择数据');
-    return;
-  }
-  importing.value = true;
-  importProgress.value = { total: 0, done: 0, written: 0 };
-  try {
-    let payload: ImportRow[];
-    if (parsedImportRows.value && parsedImportRows.value.length > 0) {
-      payload = parsedImportRows.value;
-    } else {
-      const parsed = JSON.parse(txt);
-      if (!Array.isArray(parsed)) throw new Error('导入数据必须是 JSON 数组');
-      payload = parsed;
-    }
-    payload = normalizeImportRows(payload, importMode.value);
-    importProgress.value.total = payload.length;
-    const payloadWithSource = payload.map((r) => ({ ...r, source_type: 'excel' }));
-
-    const BATCH = 500;
-    let written = 0;
-    for (let i = 0; i < payloadWithSource.length; i += BATCH) {
-      const chunk = payloadWithSource.slice(i, i + BATCH);
-      const res = importMode.value === 'sales'
-        ? await importSalesRowsLegacy(chunk)
-        : await importReceiptRowsLegacy(chunk);
-      written += Number(res?.written ?? 0);
-      importProgress.value.done = Math.min(i + BATCH, payload.length);
-      importProgress.value.written = written;
-    }
-    ElMessage.success(`导入完成：共 ${payload.length} 行，已写入 ${written} 行`);
-    importVisible.value = false;
-    await fetchActiveTabData(true);
-  } catch (error: unknown) {
-    ElMessage.error(getErrorMessage(error, '导入失败'));
-  } finally {
-    importing.value = false;
-  }
+  batchImport.open(mode);
 }
 
 /* ==================== UI 持久化 ==================== */
-function restoreUiState() {
-  try {
-    const raw = localStorage.getItem(STATE_KEY);
-    if (!raw) return;
-    const s = JSON.parse(raw);
-    if (s?.activeTab === 'sales' || s?.activeTab === 'receipts') activeTab.value = s.activeTab;
-    if (s?.salesFilters) salesFilters.value = { ...salesFilters.value, ...s.salesFilters };
-    if (s?.receiptFilters) receiptFilters.value = { ...receiptFilters.value, ...s.receiptFilters };
-    if (Number(s?.salesPage) > 0) salesPage.value = Number(s.salesPage);
-    if (Number(s?.salesPageSize) > 0) salesPageSize.value = Number(s.salesPageSize);
-    if (Number(s?.receiptPage) > 0) receiptPage.value = Number(s.receiptPage);
-    if (Number(s?.receiptPageSize) > 0) receiptPageSize.value = Number(s.receiptPageSize);
-  } catch { /* ignore */ }
-}
-
-function persistUiState() {
-  try {
-    localStorage.setItem(
-      STATE_KEY,
-      JSON.stringify({
-        activeTab: activeTab.value,
-        salesFilters: salesFilters.value,
-        receiptFilters: receiptFilters.value,
-        salesPage: salesPage.value,
-        salesPageSize: salesPageSize.value,
-        receiptPage: receiptPage.value,
-        receiptPageSize: receiptPageSize.value,
-      })
-    );
-  } catch { /* ignore */ }
-}
-
-const PERSIST_DEBOUNCE_MS = 450;
-let persistTimer: ReturnType<typeof setTimeout> | null = null;
-function debouncedPersistUiState() {
-  if (persistTimer) clearTimeout(persistTimer);
-  persistTimer = setTimeout(() => {
-    persistTimer = null;
-    persistUiState();
-  }, PERSIST_DEBOUNCE_MS);
-}
-
-watch(
-  [activeTab, salesFilters, receiptFilters, salesPage, salesPageSize, receiptPage, receiptPageSize],
-  debouncedPersistUiState,
-  { deep: true }
+useUiStatePersistence(
+  'sales.module.ui_state.v4',
+  () => ({
+    activeTab: activeTab.value,
+    salesKeyword: salesFilters.value.keyword,
+    salesDateRange: salesFilters.value.dateRange,
+    receiptKeyword: receiptFilters.value.keyword,
+    receiptDateRange: receiptFilters.value.dateRange,
+    salesPage: salesPage.value,
+    salesPageSize: salesPageSize.value,
+    receiptPage: receiptPage.value,
+    receiptPageSize: receiptPageSize.value,
+  }),
+  (s) => {
+    if (s.activeTab === 'sales' || s.activeTab === 'receipts') activeTab.value = s.activeTab as TabName;
+    if (typeof s.salesKeyword === 'string') salesFilters.value.keyword = s.salesKeyword;
+    if (s.salesDateRange) salesFilters.value.dateRange = s.salesDateRange as [string, string];
+    if (typeof s.receiptKeyword === 'string') receiptFilters.value.keyword = s.receiptKeyword;
+    if (s.receiptDateRange) receiptFilters.value.dateRange = s.receiptDateRange as [string, string];
+    if (Number(s.salesPage) > 0) salesPage.value = Number(s.salesPage);
+    if (Number(s.salesPageSize) > 0) salesPageSize.value = Number(s.salesPageSize);
+    if (Number(s.receiptPage) > 0) receiptPage.value = Number(s.receiptPage);
+    if (Number(s.receiptPageSize) > 0) receiptPageSize.value = Number(s.receiptPageSize);
+  },
+  [activeTab, salesFilters, receiptFilters, salesPage, salesPageSize, receiptPage, receiptPageSize]
 );
 
 onMounted(() => {
-  restoreUiState();
   fetchActiveTabData(true);
-});
-
-onUnmounted(() => {
-  if (persistTimer) {
-    clearTimeout(persistTimer);
-    persistTimer = null;
-  }
 });
 </script>
 

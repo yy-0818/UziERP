@@ -610,13 +610,15 @@ import {
   createRewardDisciplineRecord,
   getSignedUrl,
   uploadEmployeeFile,
-  fetchEmployeeTimeline,
   isOnLeaveToday
 } from './api';
 import { exportToExcelMultiSheet } from '../../../composables/useExport';
 import './employees-cn.css';
 import { formatDateOnly } from './types';
-import type { CnEmployee, CnEmployeeWithStatus, EmployeeTimelineItem } from './types';
+import type { CnEmployee, CnEmployeeWithStatus } from './types';
+import { useArchiveFilters } from './composables/useArchiveFilters';
+import { useArchivePhotoMap } from './composables/useArchivePhotoMap';
+import { useArchiveTimeline } from './composables/useArchiveTimeline';
 
 const noPhotoUrl = 'https://cube.elemecdn.com/9/c2/f0ee8a3c7c9638a54940382568c9dpng.png';
 
@@ -642,9 +644,14 @@ const leaveRecords = ref<Awaited<ReturnType<typeof fetchLeaveRecords>>>([]);
 const loading = ref(false);
 const exporting = ref(false);
 const filters = ref<{ keyword: string; statusFilter: '' | 'active' | 'resigned' | 'pending' | 'onLeave' }>({ keyword: '', statusFilter: '' });
-const photoUrlMap = ref<Record<string, string>>({});
-const tableFilters = ref<Record<string, string[]>>({});
-const tableSort = ref<{ prop: string; order: 'ascending' | 'descending' | null }>({ prop: '', order: null });
+const { photoUrlMap, loadListPhotoUrls: _loadListPhotoUrls, loadSinglePhoto } = useArchivePhotoMap();
+const archiveFilters = useArchiveFilters(list);
+const { tableFilters, tableSort, displayList: tableDisplayList, departmentFilters, positionFilters, employeeNoFilters, filterMethod, onFilterChange, onSortChange } = archiveFilters;
+
+watch(filters, (f) => {
+  archiveFilters.keyword.value = f.keyword;
+  archiveFilters.statusFilter.value = f.statusFilter;
+}, { deep: true, immediate: true });
 
 function restoreUiState() {
   try {
@@ -692,92 +699,6 @@ function debouncedPersistUiState() {
   }, PERSIST_DEBOUNCE_MS);
 }
 
-const filteredList = computed(() => {
-  let rows = list.value;
-  const k = filters.value.keyword.trim().toLowerCase();
-  if (k) {
-    rows = rows.filter(
-      (e) =>
-        e.employee_no?.toLowerCase().includes(k) ||
-        e.name?.toLowerCase().includes(k) ||
-        e.department?.toLowerCase().includes(k)
-    );
-  }
-  if (filters.value.statusFilter === 'active') rows = rows.filter((e) => !e.resigned_at);
-  if (filters.value.statusFilter === 'resigned') rows = rows.filter((e) => !!e.resigned_at);
-  if (filters.value.statusFilter === 'pending') rows = rows.filter((e) => !e.hire_date && !e.resigned_at);
-  if (filters.value.statusFilter === 'onLeave') rows = rows.filter((e) => !!e.hire_date && !e.resigned_at && !!e.isOnLeave);
-  return rows;
-});
-
-function createFilter(field: keyof CnEmployeeWithStatus) {
-  return computed(() =>
-    Array.from(
-      new Set(
-        filteredList.value
-          .map(e => {
-            const val = e[field];
-            return typeof val === 'string' ? val.trim() : typeof val === 'number' ? String(val) : '';
-          })
-          .filter(v => v)
-      )
-    )
-      .sort()
-      .map(text => ({ text, value: text }))
-  );
-}
-const departmentFilters = createFilter('department');
-const positionFilters = createFilter('position');
-const employeeNoFilters = createFilter('employee_no');
-
-function filterMethod(columnKey: string) {
-  return (value: string, row: CnEmployeeWithStatus) => {
-    if (columnKey === 'status') {
-      if (value === 'resigned') return !!row.resigned_at;
-      if (value === 'pending') return !row.hire_date && !row.resigned_at;
-      if (value === 'onLeave') return !!row.hire_date && !row.resigned_at && !!row.isOnLeave;
-      if (value === 'active') return !!row.hire_date && !row.resigned_at && !row.isOnLeave;
-    }
-    if (columnKey === 'department') return (row.department || '') === value;
-    if (columnKey === 'position') return (row.position || '') === value;
-    return true;
-  };
-}
-
-function onFilterChange(filters: Record<string, string[]>) {
-  tableFilters.value = { ...filters };
-}
-
-function onSortChange({ prop, order }: { prop: string; order: string | null }) {
-  tableSort.value = { prop: prop || '', order: order as 'ascending' | 'descending' | null };
-}
-
-const tableDisplayList = computed(() => {
-  let rows = filteredList.value;
-  Object.entries(tableFilters.value).forEach(([key, values]) => {
-    if (!values?.length) return;
-    if (key === 'status') {
-      rows = rows.filter((r) => {
-        const status = r.resigned_at ? 'resigned' : !r.hire_date ? 'pending' : r.isOnLeave ? 'onLeave' : 'active';
-        return values.includes(status);
-      });
-    } else if (key === 'department') {
-      rows = rows.filter((r) => values.includes(r.department || ''));
-    } else if (key === 'position') {
-      rows = rows.filter((r) => values.includes(r.position || ''));
-    }
-  });
-  const { prop, order } = tableSort.value;
-  if (prop && order) {
-    rows = [...rows].sort((a, b) => {
-      const av = prop === 'hire_date' ? (a.hire_date || '') : (a as any)[prop] || '';
-      const bv = prop === 'hire_date' ? (b.hire_date || '') : (b as any)[prop] || '';
-      const cmp = String(av).localeCompare(String(bv), 'zh-CN');
-      return order === 'ascending' ? cmp : -cmp;
-    });
-  }
-  return rows;
-});
 
 function onMoreCommand(cmd: string, row: CnEmployeeWithStatus) {
   if (cmd === 'transfer') openTransfer(row);
@@ -835,19 +756,8 @@ async function exportArchives() {
   }
 }
 
-async function loadListPhotoUrls() {
-  const map: Record<string, string> = {};
-  const withPhoto = list.value.filter((e) => e.photo_url);
-  await Promise.all(
-    withPhoto.map(async (e) => {
-      try {
-        map[e.id] = await getSignedUrl(e.photo_url!);
-      } catch {
-        /* ignore */
-      }
-    })
-  );
-  photoUrlMap.value = { ...photoUrlMap.value, ...map };
+function loadListPhotoUrls() {
+  return _loadListPhotoUrls(list.value);
 }
 
 function applyFilters() {}
@@ -860,10 +770,7 @@ const detailTab = ref('invitation');
 const detailPhotoUrl = computed(() =>
   detailEmployeeId.value ? (photoUrlMap.value[detailEmployeeId.value] ?? '') : ''
 );
-const timelineItems = ref<EmployeeTimelineItem[]>([]);
-const timelineFolded = ref(true);
-const TIMELINE_DEFAULT_COUNT = 10;
-const TIMELINE_DAYS = 30;
+const { items: timelineItems, folded: timelineFolded, displayItems: timelineDisplayItems, hasMore: timelineHasMore, load: loadTimeline, reset: resetTimeline } = useArchiveTimeline();
 
 const timelineTypeConfig: Record<string, { color: string; icon: any }> = {
   invitation: { color: '#409EFF', icon: Document },
@@ -875,20 +782,6 @@ const timelineTypeConfig: Record<string, { color: string; icon: any }> = {
   reward: { color: '#00B894', icon: Medal },
 };
 
-const timelineDisplayItems = computed(() => {
-  const items = timelineItems.value;
-  if (!timelineFolded.value) return items;
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - TIMELINE_DAYS);
-  const cutoffStr = cutoff.toISOString();
-  const inRange = items.filter((i) => (i.date || '') >= cutoffStr);
-  if (inRange.length >= TIMELINE_DEFAULT_COUNT) return inRange;
-  return items.slice(0, TIMELINE_DEFAULT_COUNT);
-});
-
-const timelineHasMore = computed(
-  () => timelineItems.value.length > timelineDisplayItems.value.length
-);
 
 const detailEmployee = computed(() => {
   if (!detailEmployeeId.value) return null;
@@ -915,14 +808,9 @@ watch(
   [detailEmployeeId, detailTab],
   async ([id, tab]) => {
     if (id && tab === 'timeline') {
-      timelineFolded.value = true;
-      try {
-        timelineItems.value = await fetchEmployeeTimeline(id);
-      } catch {
-        timelineItems.value = [];
-      }
+      await loadTimeline(id);
     } else if (tab !== 'timeline') {
-      timelineItems.value = [];
+      resetTimeline();
     }
   },
   { immediate: true }
@@ -946,12 +834,7 @@ function formatTimelineDate(dateStr: string) {
 /** 刷新当前详情员工头像到 photoUrlMap（编辑/上传后调用），与表格共用缓存 */
 async function loadDetailPhoto() {
   if (!detailEmployee.value?.photo_url || !detailEmployeeId.value) return;
-  try {
-    const url = await getSignedUrl(detailEmployee.value.photo_url);
-    photoUrlMap.value = { ...photoUrlMap.value, [detailEmployeeId.value]: url };
-  } catch {
-    /* ignore */
-  }
+  await loadSinglePhoto(detailEmployeeId.value, detailEmployee.value.photo_url);
 }
 
 function openDetail(row: CnEmployeeWithStatus) {
