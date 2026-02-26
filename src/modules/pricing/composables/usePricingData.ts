@@ -12,109 +12,150 @@ import {
   fetchProductsBasic,
   type PriceFilters,
 } from '../api';
+import type {
+  CustomerBasic,
+  ProductBasic,
+  CustomerAccount,
+  PriceWideRow,
+  PriceCell,
+  PriceHistoryItem,
+  OptionsCachePayload,
+} from '../types';
 
 const OPTIONS_CACHE_KEY = 'price_options_cache';
 const OPTIONS_CACHE_TTL = 5 * 60 * 1000;
+const CACHE_SCHEMA_VERSION = 2;
+
+function safeStorageGet(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeStorageSet(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* QuotaExceededError or private browsing - degrade to in-memory only */
+  }
+}
+
+function safeStorageRemove(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch { /* ignore */ }
+}
 
 export function usePricingData(filters: { value: PriceFilters }) {
-  const rows = ref<any[]>([]);
+  const rows = ref<Record<string, unknown>[]>([]);
   const loading = ref(false);
-  const customers = ref<any[]>([]);
-  const products = ref<any[]>([]);
-  const accountsByCustomer = ref<Record<string, any[]>>({});
+  const customers = ref<CustomerBasic[]>([]);
+  const products = ref<ProductBasic[]>([]);
+  const accountsByCustomer = ref<Record<string, CustomerAccount[]>>({});
   const levelOptions = ref<string[]>([]);
   const regionOptions = ref<string[]>([]);
   const priceTypeOptions = ref<string[]>([]);
   const cacheStats = ref({ lastUpdate: 0, hitCount: 0, missCount: 0, cacheSize: 0 });
 
-  const wideRows = computed(() => {
-    const byKey = new Map<string, any>();
+  const wideRows = computed<PriceWideRow[]>(() => {
+    const byKey = new Map<string, PriceWideRow>();
     for (const r of rows.value) {
       const key = `${r.account_id}`;
       if (!byKey.has(key)) {
         byKey.set(key, {
-          company: r.company || '',
-          account_name: r.account_name || '',
-          level: r.level || '',
-          region: r.region || '',
-          price_type: r.price_type || '',
-          account_id: r.account_id,
-          customer_id: r.customer_id ?? null,
+          company: (r.company as string) || '',
+          account_name: (r.account_name as string) || '',
+          level: (r.level as string) || '',
+          region: (r.region as string) || '',
+          price_type: (r.price_type as string) || '',
+          account_id: r.account_id as number,
+          customer_id: (r.customer_id as number) ?? null,
           _cells: {},
         });
       }
-      const row = byKey.get(key);
-      const spec = r.product_spec || r.product_name || String(r.product_id);
-      row._cells[spec] = { price: r.price, product_id: r.product_id };
+      const row = byKey.get(key)!;
+      const spec = (r.product_spec as string) || (r.product_name as string) || String(r.product_id);
+      row._cells[spec] = { price: r.price as number | null, product_id: r.product_id as number };
     }
     return [...byKey.values()];
   });
 
-  const productColumns = computed(() => {
+  const productColumns = computed<string[]>(() => {
     return [...products.value]
-      .map((p: any) => p.spec || p.name || String(p.id))
+      .map((p) => p.spec || p.name || String(p.id))
       .filter(Boolean)
       .sort();
   });
 
-  const assignOptions = (data: any) => {
-    customers.value = data.customers || [];
-    products.value = data.products || [];
-    accountsByCustomer.value = data.accountsByCustomer || {};
+  const assignOptions = (data: Partial<OptionsCachePayload>) => {
+    customers.value = (data.customers || []) as CustomerBasic[];
+    products.value = (data.products || []) as ProductBasic[];
+    accountsByCustomer.value = (data.accountsByCustomer || {}) as Record<string, CustomerAccount[]>;
     levelOptions.value = data.levelOptions || [];
     regionOptions.value = data.regionOptions || [];
     priceTypeOptions.value = data.priceTypeOptions || [];
   };
 
-  const invalidateOptionsCache = () => localStorage.removeItem(OPTIONS_CACHE_KEY);
+  const invalidateOptionsCache = () => safeStorageRemove(OPTIONS_CACHE_KEY);
 
   async function loadOptions(force = false) {
     const now = Date.now();
     if (!force) {
       try {
-        const cached = localStorage.getItem(OPTIONS_CACHE_KEY);
+        const cached = safeStorageGet(OPTIONS_CACHE_KEY);
         if (cached) {
-          const parsed = JSON.parse(cached);
-          if (now - parsed.ts < OPTIONS_CACHE_TTL) {
+          const parsed = JSON.parse(cached) as Partial<OptionsCachePayload>;
+          if (
+            parsed.schemaVersion === CACHE_SCHEMA_VERSION &&
+            parsed.ts &&
+            now - parsed.ts < OPTIONS_CACHE_TTL
+          ) {
             assignOptions(parsed);
             cacheStats.value.hitCount += 1;
             return;
           }
         }
       } catch {
-        // noop
+        safeStorageRemove(OPTIONS_CACHE_KEY);
       }
     }
 
-    const [{ data: cs }, { data: ps }, { data: accounts }] = await Promise.all([
-      fetchCustomersBasic(),
-      fetchProductsBasic(),
-      fetchAccountsBasic(),
-    ]);
-    const customersData = cs || [];
-    const productsData = ps || [];
-    const accData = accounts || [];
+    try {
+      const [{ data: cs }, { data: ps }, { data: accounts }] = await Promise.all([
+        fetchCustomersBasic(),
+        fetchProductsBasic(),
+        fetchAccountsBasic(),
+      ]);
+      const customersData = (cs || []) as CustomerBasic[];
+      const productsData = (ps || []) as ProductBasic[];
+      const accData = (accounts || []) as CustomerAccount[];
 
-    const byCustomer: Record<string, any[]> = {};
-    accData.forEach((a: any) => {
-      const key = String(a.customer_id || '');
-      if (!key) return;
-      if (!byCustomer[key]) byCustomer[key] = [];
-      byCustomer[key].push(a);
-    });
+      const byCustomer: Record<string, CustomerAccount[]> = {};
+      accData.forEach((a) => {
+        const key = String(a.customer_id || '');
+        if (!key) return;
+        if (!byCustomer[key]) byCustomer[key] = [];
+        byCustomer[key].push(a);
+      });
 
-    const payload = {
-      customers: customersData,
-      products: productsData,
-      accountsByCustomer: byCustomer,
-      levelOptions: [...new Set(customersData.map((c: any) => c.level).filter(Boolean))].sort(),
-      regionOptions: [...new Set(customersData.map((c: any) => c.region).filter(Boolean))].sort(),
-      priceTypeOptions: [...new Set(accData.map((a: any) => a.price_type).filter(Boolean))].sort(),
-      ts: now,
-    };
-    assignOptions(payload);
-    cacheStats.value.missCount += 1;
-    localStorage.setItem(OPTIONS_CACHE_KEY, JSON.stringify(payload));
+      const payload: OptionsCachePayload = {
+        customers: customersData,
+        products: productsData,
+        accountsByCustomer: byCustomer,
+        levelOptions: [...new Set(customersData.map((c) => c.level).filter((v): v is string => !!v))].sort(),
+        regionOptions: [...new Set(customersData.map((c) => c.region).filter((v): v is string => !!v))].sort(),
+        priceTypeOptions: [...new Set(accData.map((a) => a.price_type).filter((v): v is string => !!v))].sort(),
+        ts: now,
+        schemaVersion: CACHE_SCHEMA_VERSION,
+      };
+      assignOptions(payload);
+      cacheStats.value.missCount += 1;
+      safeStorageSet(OPTIONS_CACHE_KEY, JSON.stringify(payload));
+    } catch (e: unknown) {
+      ElMessage.error((e as Error)?.message || '加载选项数据失败');
+    }
   }
 
   async function fetchData() {
@@ -140,49 +181,49 @@ export function usePricingData(filters: { value: PriceFilters }) {
         return;
       }
 
-      const accIds = [...new Set(prices.map((r: any) => r.account_id).filter(Boolean))];
-      const prodIds = [...new Set(prices.map((r: any) => r.product_id).filter(Boolean))];
+      const accIds = [...new Set(prices.map((r: Record<string, unknown>) => r.account_id as number).filter(Boolean))];
+      const prodIds = [...new Set(prices.map((r: Record<string, unknown>) => r.product_id as number).filter(Boolean))];
       const related = await fetchPriceRelatedData(accIds, prodIds);
 
-      const key = (x: any) => (x == null ? '' : String(x));
-      const accountMap: Record<string, any> = {};
-      related.accounts.forEach((a: any) => {
+      const key = (x: unknown) => (x == null ? '' : String(x));
+      const accountMap: Record<string, CustomerAccount> = {};
+      (related.accounts as CustomerAccount[]).forEach((a) => {
         accountMap[key(a.id)] = a;
         if (a.account_id != null) accountMap[key(a.account_id)] = a;
       });
-      const customerMap = Object.fromEntries(related.customers.map((c: any) => [key(c.id), c]));
-      const productMap = Object.fromEntries(related.products.map((p: any) => [key(p.id), p]));
+      const customerMap = Object.fromEntries((related.customers as CustomerBasic[]).map((c) => [key(c.id), c]));
+      const productMap = Object.fromEntries((related.products as ProductBasic[]).map((p) => [key(p.id), p]));
 
-      rows.value = prices.map((r: any) => {
-        const acc = accountMap[key(r.account_id)] || {};
-        const cust = customerMap[key(acc.customer_id)] || {};
-        const prod = productMap[key(r.product_id)] || {};
+      rows.value = prices.map((r: Record<string, unknown>) => {
+        const acc = accountMap[key(r.account_id)] || ({} as Partial<CustomerAccount>);
+        const cust = customerMap[key((acc as CustomerAccount).customer_id)] || ({} as Partial<CustomerBasic>);
+        const prod = productMap[key(r.product_id)] || ({} as Partial<ProductBasic>);
         return {
           ...r,
-          customer_id: cust.id ?? acc.customer_id,
-          company: cust.name || '',
-          account_name: acc.account_name || '',
-          level: cust.level || '',
-          region: cust.region || '',
-          price_type: acc.price_type || '',
-          product_name: prod.name || '',
-          product_spec: prod.spec || '',
+          customer_id: (cust as CustomerBasic).id ?? (acc as CustomerAccount).customer_id,
+          company: (cust as CustomerBasic).name || '',
+          account_name: (acc as CustomerAccount).account_name || '',
+          level: (cust as CustomerBasic).level || '',
+          region: (cust as CustomerBasic).region || '',
+          price_type: (acc as CustomerAccount).price_type || '',
+          product_name: (prod as ProductBasic).name || '',
+          product_spec: (prod as ProductBasic).spec || '',
         };
       });
       cacheStats.value.lastUpdate = Date.now();
       cacheStats.value.cacheSize = JSON.stringify(rows.value).length;
-    } catch (e: any) {
-      ElMessage.error(e?.message || '查询失败');
+    } catch (e: unknown) {
+      ElMessage.error((e as Error)?.message || '查询失败');
       rows.value = [];
     } finally {
       loading.value = false;
     }
   }
 
-  async function getHistory(accountId: number, productId: number) {
+  async function getHistory(accountId: number, productId: number): Promise<PriceHistoryItem[]> {
     const { data, error } = await fetchPriceHistory(accountId, productId);
     if (error) throw error;
-    return data || [];
+    return (data || []) as PriceHistoryItem[];
   }
 
   return {
