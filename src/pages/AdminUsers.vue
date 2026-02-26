@@ -218,20 +218,18 @@ async function fetchRoles() {
       .order('code');
     if (error) throw error;
 
-    const { data: rpCounts } = await supabase.from('role_permissions').select('role_id');
     const { data: urCounts } = await supabase.from('user_roles').select('role_id');
 
-    const permCountMap = new Map<string, number>();
     const userCountMap = new Map<string, number>();
-    (rpCounts || []).forEach((r: any) => permCountMap.set(r.role_id, (permCountMap.get(r.role_id) || 0) + 1));
     (urCounts || []).forEach((r: any) => { if (r.role_id) userCountMap.set(r.role_id, (userCountMap.get(r.role_id) || 0) + 1); });
 
+    // 权限数统一用前端 ROLE_PERMISSION_MAP 计算，与用户列表的 perm_count 一致
     roleTemplates.value = (roles || []).map((r: any) => ({
       id: r.id,
       code: r.code,
       name: r.name,
       description: r.description,
-      perm_count: permCountMap.get(r.id) || 0,
+      perm_count: getPermissionsByRoles([r.code]).size,
       user_count: userCountMap.get(r.id) || 0,
     }));
   } catch (e: any) {
