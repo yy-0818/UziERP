@@ -5,14 +5,16 @@ import { supabase } from '../supabase';
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null);
+  /** 主角色编码（第一个角色，用于菜单/路由兼容） */
   const role = ref<string | null>(null);
+  /** 用户拥有的所有角色编码列表（支持多角色组合） */
+  const roles = ref<string[]>([]);
   const initialized = ref(false);
   const authReady = ref(false);
 
   let refreshTask: Promise<void> | null = null;
 
   const isLoggedIn = computed(() => !!user.value);
-  /** 当前用户邮箱（经办人/修改人） */
   const email = computed(() => (user.value?.email as string) ?? '');
 
   async function loadUser() {
@@ -20,14 +22,20 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = data.user ?? null;
 
     if (user.value) {
-      const { data: roleRow } = await supabase
+      const { data: roleRows } = await supabase
         .from('user_roles')
-        .select('role')
-        .eq('user_id', user.value.id)
-        .maybeSingle();
-      role.value = roleRow?.role ?? null;
+        .select('role_id, roles:role_id(code)')
+        .eq('user_id', user.value.id);
+
+      const codes = (roleRows || [])
+        .map((r: any) => r.roles?.code as string | undefined)
+        .filter((c): c is string => !!c);
+
+      roles.value = codes;
+      role.value = codes[0] ?? null;
     } else {
       role.value = null;
+      roles.value = [];
     }
     initialized.value = true;
     authReady.value = true;
@@ -54,6 +62,7 @@ export const useAuthStore = defineStore('auth', () => {
     if (event === 'SIGNED_OUT') {
       user.value = null;
       role.value = null;
+      roles.value = [];
       initialized.value = true;
       authReady.value = true;
       return;
@@ -78,6 +87,7 @@ export const useAuthStore = defineStore('auth', () => {
     await supabase.auth.signOut();
     user.value = null;
     role.value = null;
+    roles.value = [];
     initialized.value = true;
     authReady.value = true;
   }
@@ -85,6 +95,7 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     user,
     role,
+    roles,
     email,
     initialized,
     authReady,

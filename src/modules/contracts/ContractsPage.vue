@@ -282,11 +282,14 @@ import type { ContractWithDetails, ContractVersion, ContractAttachment } from '.
 import ContractUploadDialog from './components/ContractUploadDialog.vue';
 import { exportToExcel } from '../../composables/useExport';
 import { useAuthStore } from '../../stores/auth';
+import { usePermission } from '../../permissions';
+import { P } from '../../permissions/constants';
 
 const list = shallowRef<ContractWithDetails[]>([]);
 const loading = ref(false);
 const auth = useAuthStore();
-const canManage = computed(() => (auth.role || '') !== 'viewer');
+const { can } = usePermission();
+const canManage = can(P.CONTRACTS_FILE_UPDATE);
 const filters = ref({
   keyword: '',
   business_type: '' as string,

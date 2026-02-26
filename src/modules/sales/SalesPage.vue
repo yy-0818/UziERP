@@ -530,7 +530,8 @@ import {
   type ImportMode,
   type ImportRow,
 } from './composables/salesImportUtils';
-import { hasAnyRole, hasRole } from '../../utils/permissions';
+import { usePermission } from '../../permissions';
+import { P } from '../../permissions/constants';
 
 type TabName = 'sales' | 'receipts';
 
@@ -571,9 +572,10 @@ const receiptTableRef = ref<TableInstance>();
 const selectedSalesRows = ref<SalesRow[]>([]);
 const selectedReceiptRows = ref<ReceiptRow[]>([]);
 
-const canEdit = computed(() => hasAnyRole(auth.role, ['super_admin', 'manager', 'sales']));
-const canExport = computed(() => !hasRole(auth.role, 'viewer'));
-const canDelete = computed(() => hasRole(auth.role, 'super_admin'));
+const { can } = usePermission();
+const canEdit = can(P.SALES_RECORD_UPDATE);
+const canExport = can(P.SALES_RECORD_EXPORT);
+const canDelete = can(P.SALES_RECORD_DELETE);
 
 const modifierEmail = computed(() => {
   try {
