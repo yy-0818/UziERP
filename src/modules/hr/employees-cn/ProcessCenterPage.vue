@@ -317,6 +317,8 @@ import { ElMessage } from 'element-plus';
 import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { useAuthStore } from '../../../stores/auth';
+import { usePermission } from '../../../permissions';
+import { P } from '../../../permissions/constants';
 import {
   fetchEmployees,
   fetchInvitationApplications,
@@ -349,7 +351,8 @@ import './employees-cn.css';
 
 const route = useRoute();
 const auth = useAuthStore();
-const canManage = computed(() => auth.role === 'super_admin');
+const { can } = usePermission();
+const canManage = can(P.HR_EMPLOYEE_CN_MANAGE);
 const currentOperator = computed(() => auth.user?.email ?? (auth as any).email ?? null);
 
 const STATE_KEY = 'hr.employees-cn.process.ui_state.v1';

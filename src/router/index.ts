@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import { hasAnyRole } from '../utils/permissions';
+import { getPermissionsByRole, type PermissionCode } from '../permissions';
 
 // 认证模块
 const Login = () => import('../pages/Login.vue');
@@ -99,32 +100,32 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'hr/employees-cn',
         component: EmployeesCn,
-        meta: { module: 'hr', title: '中国员工', requiresRole: ['super_admin'] },
+        meta: { module: 'hr', title: '中国员工', requiresPermission: 'hr.employee_cn.read' },
         redirect: { name: 'hr-employees-cn-archives' },
         children: [
           {
             path: 'archives',
             name: 'hr-employees-cn-archives',
             component: EmployeesCnArchives,
-            meta: { module: 'hr', title: '档案管理', requiresRole: ['super_admin'] },
+            meta: { module: 'hr', title: '档案管理', requiresPermission: 'hr.employee_cn.read' },
           },
           {
             path: 'process',
             name: 'hr-employees-cn-process',
             component: EmployeesCnProcess,
-            meta: { module: 'hr', title: '流程中心', requiresRole: ['super_admin'] },
+            meta: { module: 'hr', title: '流程中心', requiresPermission: 'hr.employee_cn.read' },
           },
           {
             path: 'attendance',
             name: 'hr-employees-cn-attendance',
             component: EmployeesCnAttendance,
-            meta: { module: 'hr', title: '考勤与人事', requiresRole: ['super_admin'] },
+            meta: { module: 'hr', title: '考勤与人事', requiresPermission: 'hr.employee_cn.read' },
           },
           {
             path: 'todos',
             name: 'hr-employees-cn-todos',
             component: EmployeesCnTodos,
-            meta: { module: 'hr', title: '待办中心', requiresRole: ['super_admin'] },
+            meta: { module: 'hr', title: '待办中心', requiresPermission: 'hr.employee_cn.read' },
           },
           // 旧路径重定向到合并页（兼容书签/外链）
           { path: 'invitations', redirect: { name: 'hr-employees-cn-process', query: { tab: 'invitation' } } },
@@ -140,13 +141,13 @@ const routes: RouteRecordRaw[] = [
         path: 'admin/users',
         name: 'admin-users',
         component: AdminUsers,
-        meta: { module: 'admin', title: '用户与角色', requiresRole: ['super_admin'] },
+        meta: { module: 'admin', title: '用户与角色', requiresPermission: 'admin.user.manage' },
       },
       {
         path: 'admin/operation-log',
         name: 'admin-operation-log',
         component: OperationLog,
-        meta: { module: 'admin', title: '操作日志', requiresRole: ['super_admin'] },
+        meta: { module: 'admin', title: '操作日志', requiresPermission: 'admin.auditlog.read' },
       },
     ],
   },
@@ -173,7 +174,14 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   const needRoles = to.meta.requiresRole as string[] | undefined;
-  if (needRoles && !hasAnyRole(auth.role, needRoles)) {
+  const needPermission = to.meta.requiresPermission as string | string[] | undefined;
+
+  if (needPermission) {
+    const perms = getPermissionsByRole(auth.role);
+    const permArr = Array.isArray(needPermission) ? needPermission : [needPermission];
+    const hasAccess = permArr.some((p) => perms.has(p as PermissionCode));
+    if (!hasAccess) return next('/business/pricing');
+  } else if (needRoles && !hasAnyRole(auth.role, needRoles)) {
     return next('/business/pricing');
   }
 

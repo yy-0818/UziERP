@@ -596,6 +596,8 @@ import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { Refresh, View, Edit, Finished, Avatar, FolderAdd, Download, Document, Stamp, Ticket, Notebook, Sort, Calendar, Medal } from '@element-plus/icons-vue';
 import { useAuthStore } from '../../../stores/auth';
+import { usePermission } from '../../../permissions';
+import { P } from '../../../permissions/constants';
 import {
   fetchEmployees,
   fetchEmployeeById,
@@ -633,7 +635,8 @@ const EmployeeTabReward = defineAsyncComponent(() => import('./components/Employ
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
-const canManage = computed(() => auth.role === 'super_admin');
+const { can } = usePermission();
+const canManage = can(P.HR_EMPLOYEE_CN_MANAGE);
 /** 当前操作人（调岗/调薪/离职/请假/奖励违纪 必写，便于审计） */
 const currentOperator = computed(() => auth.user?.email ?? auth.email ?? null);
 

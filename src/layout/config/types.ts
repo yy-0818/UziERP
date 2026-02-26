@@ -10,6 +10,8 @@ export interface MenuItemLeaf {
   icon?: string;
   /** 需要具备的角色之一才显示，不传则所有人可见 */
   requiresRole?: string[];
+  /** 需要具备的权限之一才显示（优先于 requiresRole） */
+  requiresPermission?: string | string[];
   /** 用于注入红点/数字的 key，如 'todoCount' */
   badgeKey?: string;
   /** 红点或数字（由布局注入） */
@@ -24,6 +26,8 @@ export interface MenuItemGroup {
   icon?: string;
   /** 分组本身可见性；不传则按子项权限聚合 */
   requiresRole?: string[];
+  /** 需要具备的权限之一才显示（优先于 requiresRole） */
+  requiresPermission?: string | string[];
   children: MenuNode[];
 }
 
