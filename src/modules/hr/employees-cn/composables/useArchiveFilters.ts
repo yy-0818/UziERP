@@ -88,8 +88,8 @@ export function useArchiveFilters(list: { value: CnEmployeeWithStatus[] }) {
     const { prop, order } = tableSort.value;
     if (prop && order) {
       rows = [...rows].sort((a, b) => {
-        const av = prop === 'hire_date' ? (a.hire_date || '') : ((a as Record<string, unknown>)[prop] as string) || '';
-        const bv = prop === 'hire_date' ? (b.hire_date || '') : ((b as Record<string, unknown>)[prop] as string) || '';
+        const av = prop === 'hire_date' ? (a.hire_date || '') : ((a as unknown as Record<string, unknown>)[prop] as string) || '';
+        const bv = prop === 'hire_date' ? (b.hire_date || '') : ((b as unknown as Record<string, unknown>)[prop] as string) || '';
         const cmp = String(av).localeCompare(String(bv), 'zh-CN');
         return order === 'ascending' ? cmp : -cmp;
       });
