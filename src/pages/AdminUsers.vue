@@ -1,80 +1,81 @@
 <template>
   <div class="page-container admin-users-page">
-    <!-- 用户角色管理 -->
     <el-card class="erp-card admin-card" shadow="hover">
       <template #header>
         <div class="admin-card-header">
-          <div class="admin-card-header__left">
-            <span class="admin-card-title">用户与角色</span>
-            <el-tag size="small" effect="plain">{{ userList.length }} 人</el-tag>
-          </div>
-          <div class="admin-card-header__right">
+          <span class="admin-card-title">用户与角色管理</span>
+          <div>
             <el-button type="primary" :icon="Plus" size="small" @click="openAddUser">添加用户</el-button>
             <el-button :icon="Refresh" size="small" @click="fetchData">刷新</el-button>
           </div>
         </div>
       </template>
 
-      <el-table :data="userList" v-loading="loading" stripe row-key="user_id" style="width: 100%">
-        <el-table-column prop="name" label="姓名" width="90">
-          <template #default="{ row }"><span class="user-name">{{ row.name || '—' }}</span></template>
-        </el-table-column>
-        <el-table-column prop="email" label="邮箱" min-width="200" show-overflow-tooltip />
-        <el-table-column label="永久角色" width="130">
-          <template #default="{ row }">
-            <el-tag v-if="row.role_code" :type="(ROLE_TAG_TYPES[row.role_code] || 'info') as any" size="small" effect="light">{{ ROLE_LABELS[row.role_code] || row.role_code }}</el-tag>
-            <el-tag v-else size="small" type="info" effect="plain">待分配</el-tag>
+      <el-tabs v-model="activeTab" class="admin-tabs">
+        <el-tab-pane label="用户列表" name="users">
+          <template #label>
+            <span class="tab-label">用户列表</span>
+            <el-tag size="small" effect="plain" class="tab-tag">{{ userList.length }} 人</el-tag>
           </template>
-        </el-table-column>
-        <el-table-column label="临时权限" width="130">
-          <template #default="{ row }">
-            <template v-if="row.active_temp_count > 0">
-              <el-tag type="warning" size="small" effect="light">{{ row.active_temp_count }} 项生效中</el-tag>
-            </template>
-            <span v-else class="text-placeholder">无</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="权限" width="65" align="center">
-          <template #default="{ row }">
-            <span class="perm-badge">{{ row.perm_count }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="最后登录" width="140">
-          <template #default="{ row }">
-            <span v-if="row.last_sign_in_at" class="text-muted">{{ formatDateTime(row.last_sign_in_at, 'short') }}</span>
-            <span v-else class="text-placeholder">从未登录</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="140" align="center" fixed="right">
-          <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="openDetail(row)">详情</el-button>
-            <el-button link size="small" @click="openChangeRole(row)">改角色</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+          <el-table :data="userList" v-loading="loading" stripe row-key="user_id" style="width: 100%">
+            <el-table-column prop="name" label="姓名" width="90">
+              <template #default="{ row }"><span class="user-name">{{ row.name || '—' }}</span></template>
+            </el-table-column>
+            <el-table-column prop="email" label="邮箱" min-width="200" show-overflow-tooltip />
+            <el-table-column label="永久角色" width="130">
+              <template #default="{ row }">
+                <el-tag v-if="row.role_code" :type="(ROLE_TAG_TYPES[row.role_code] || 'info') as any" size="small" effect="light">{{ ROLE_LABELS[row.role_code] || row.role_code }}</el-tag>
+                <el-tag v-else size="small" type="info" effect="plain">待分配</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="临时权限" width="130">
+              <template #default="{ row }">
+                <template v-if="row.active_temp_count > 0">
+                  <el-tag type="warning" size="small" effect="light">{{ row.active_temp_count }} 项生效中</el-tag>
+                </template>
+                <span v-else class="text-placeholder">无</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="权限" width="65" align="center">
+              <template #default="{ row }">
+                <span class="perm-badge">{{ row.perm_count }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="最后登录" width="140">
+              <template #default="{ row }">
+                <span v-if="row.last_sign_in_at" class="text-muted">{{ formatDateTime(row.last_sign_in_at, 'short') }}</span>
+                <span v-else class="text-placeholder">从未登录</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="140" align="center" fixed="right">
+              <template #default="{ row }">
+                <el-button type="primary" link size="small" @click="openDetail(row)">详情</el-button>
+                <el-button link size="small" @click="openChangeRole(row)">改角色</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
 
-    <!-- 角色模板 -->
-    <el-card class="erp-card admin-card" shadow="hover" style="margin-top: 16px">
-      <template #header>
-        <div class="admin-card-header">
-          <span class="admin-card-title">角色模板</span>
-          <el-tag size="small" effect="plain">{{ roleTemplates.length }} 个</el-tag>
-        </div>
-      </template>
-      <div class="role-grid">
-        <div v-for="r in roleTemplates" :key="r.id" class="role-card">
-          <div class="role-card__header">
-            <el-tag :type="(ROLE_TAG_TYPES[r.code] || 'info') as any" size="small" effect="light">{{ r.name }}</el-tag>
-            <span class="role-card__code">{{ r.code }}</span>
+        <el-tab-pane label="角色模板" name="roles">
+          <template #label>
+            <span class="tab-label">角色模板</span>
+            <el-tag size="small" effect="plain" class="tab-tag">{{ roleTemplates.length }} 个</el-tag>
+          </template>
+          <div class="role-grid">
+            <div v-for="r in roleTemplates" :key="r.id" class="role-card">
+              <div class="role-card__header">
+                <el-tag :type="(ROLE_TAG_TYPES[r.code] || 'info') as any" size="small" effect="light">{{ r.name }}</el-tag>
+                <span class="role-card__code">{{ r.code }}</span>
+              </div>
+              <div class="role-card__desc">{{ r.description || '—' }}</div>
+              <div class="role-card__stats">
+                <span>{{ r.perm_count }} 项权限</span>
+                <span>{{ r.user_count }} 人</span>
+              </div>
+            </div>
           </div>
-          <div class="role-card__desc">{{ r.description || '—' }}</div>
-          <div class="role-card__stats">
-            <span>{{ r.perm_count }} 项权限</span>
-            <span>{{ r.user_count }} 人</span>
-          </div>
-        </div>
-      </div>
+        </el-tab-pane>
+      </el-tabs>
     </el-card>
 
     <!-- 添加用户弹窗 -->
@@ -237,6 +238,7 @@ interface TempGrant {
 interface RoleTemplate { id: string; code: string; name: string; description: string | null; perm_count: number; user_count: number; }
 
 const auth = useAuthStore();
+const activeTab = ref<'users' | 'roles'>('users');
 const userList = ref<UserRow[]>([]);
 const roleTemplates = ref<RoleTemplate[]>([]);
 const loading = ref(false);
@@ -271,8 +273,8 @@ const grantableRoles = computed(() => {
 });
 
 function isActive(grant: TempGrant): boolean {
-  const now = Date.now();
-  return new Date(grant.effective_from).getTime() <= now && new Date(grant.effective_to).getTime() > now;
+  const now = getLocalNow();
+  return grant.effective_from <= now && grant.effective_to > now;
 }
 
 async function fetchData() {
@@ -459,8 +461,12 @@ onMounted(fetchData);
 .admin-card { border-radius: 12px; }
 .admin-card-header { display: flex; justify-content: space-between; align-items: center; }
 .admin-card-header__left { display: flex; align-items: center; gap: 10px; }
-.admin-card-header__right { display: flex; gap: 8px; }
+.admin-card-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .admin-card-title { font-size: 15px; font-weight: 600; }
+.admin-tabs { margin-top: -4px; }
+.admin-tabs :deep(.el-tabs__header) { margin-bottom: 12px; }
+.tab-label { margin-right: 6px; }
+.tab-tag { vertical-align: middle; }
 .user-name { font-weight: 500; }
 .perm-badge {
   display: inline-flex; align-items: center; justify-content: center;
