@@ -41,7 +41,7 @@
         </el-table-column>
         <el-table-column label="最后登录" width="140">
           <template #default="{ row }">
-            <span v-if="row.last_sign_in_at" class="text-muted">{{ formatTime(row.last_sign_in_at) }}</span>
+            <span v-if="row.last_sign_in_at" class="text-muted">{{ formatDateTime(row.last_sign_in_at, 'short') }}</span>
             <span v-else class="text-placeholder">从未登录</span>
           </template>
         </el-table-column>
@@ -210,7 +210,7 @@ import { Refresh, Plus } from '@element-plus/icons-vue';
 import { supabase } from '../supabase';
 import { useAuthStore } from '../stores/auth';
 import { ROLE_LABELS, ROLE_TAG_TYPES, getPermissionsByRoles, getPermissionsByRole } from '../permissions';
-import { getLocalIsoString } from '../utils/datetime';
+import { getLocalNow, formatDateTime, formatDate, isExpired } from '../utils/datetime';
 
 interface UserRow {
   user_id: string;
@@ -270,16 +270,6 @@ const grantableRoles = computed(() => {
   return roleTemplates.value.filter(r => r.id !== currentRoleId);
 });
 
-function formatTime(iso: string): string {
-  try { return new Date(iso).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }); }
-  catch { return iso; }
-}
-
-function formatDate(iso: string): string {
-  try { return new Date(iso).toLocaleDateString('zh-CN'); }
-  catch { return iso; }
-}
-
 function isActive(grant: TempGrant): boolean {
   const now = Date.now();
   return new Date(grant.effective_from).getTime() <= now && new Date(grant.effective_to).getTime() > now;
@@ -299,7 +289,7 @@ async function fetchUsers() {
     const roleMap = new Map<string, { code: string; name: string }>();
     for (const rt of roleTemplates.value) roleMap.set(rt.id, { code: rt.code, name: rt.name });
 
-    const now = getLocalIsoString();
+    const now = getLocalNow();
     const { data: activeTempData } = await supabase
       .from('temp_role_grants')
       .select('user_id')
@@ -449,7 +439,7 @@ async function submitGrantTemp() {
       user_id: detailUser.value.user_id,
       role_id: grantForm.value.roleId,
       granted_by: auth.user?.id || null,
-      effective_from: getLocalIsoString(),
+      effective_from: getLocalNow(),
       effective_to: grantForm.value.effectiveTo,
       reason: grantForm.value.reason.trim() || null,
     });
