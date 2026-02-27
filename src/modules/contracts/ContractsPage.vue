@@ -120,17 +120,50 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="合同日期" width="100">
+        <el-table-column
+          label="合同日期"
+          width="120"
+          :filters="contractDateFilters"
+          :filter-method="filterByContractDate"
+          column-key="contract_date"
+        >
           <template #default="{ row }">{{ formatDateOnly(currentVersion(row)?.contract_date) }}</template>
         </el-table-column>
-        <el-table-column prop="contract_no" label="合同号" min-width="140" show-overflow-tooltip />
-        <el-table-column label="公司名称" min-width="200" show-overflow-tooltip>
+        <el-table-column
+          prop="contract_no"
+          label="合同号"
+          min-width="140"
+          show-overflow-tooltip
+          :filters="contractNoFilters"
+          :filter-method="filterByContractNo"
+          column-key="contract_no"
+        />
+        <el-table-column
+          label="公司名称"
+          min-width="200"
+          show-overflow-tooltip
+          column-key="company_name"
+        >
           <template #default="{ row }">{{ currentVersion(row)?.company_name || '—' }}</template>
         </el-table-column>
-        <el-table-column label="税号" width="160" show-overflow-tooltip>
+        <el-table-column
+          label="税号"
+          width="160"
+          show-overflow-tooltip
+          :filters="taxNumberFilters"
+          :filter-method="filterByTaxNumber"
+          column-key="tax_number"
+        >
           <template #default="{ row }">{{ currentVersion(row)?.tax_number || '—' }}</template>
         </el-table-column>
-        <el-table-column label="账户" min-width="160" show-overflow-tooltip>
+        <el-table-column
+          label="账户"
+          min-width="160"
+          show-overflow-tooltip
+          :filters="accountNameFilters"
+          :filter-method="filterByAccountName"
+          column-key="account_name"
+        >
           <template #default="{ row }">{{ row.account_name || row.customer_display_name || '—' }}</template>
         </el-table-column>
         <el-table-column prop="business_type" label="业务类型" width="96">
@@ -281,13 +314,11 @@ import { BUSINESS_TYPE_LABELS, formatContractDate, CONTRACT_FILE_TYPES, ATTACHME
 import type { ContractWithDetails, ContractVersion, ContractAttachment } from './types';
 import ContractUploadDialog from './components/ContractUploadDialog.vue';
 import { exportToExcel } from '../../composables/useExport';
-import { useAuthStore } from '../../stores/auth';
 import { usePermission } from '../../permissions';
 import { P } from '../../permissions/constants';
 
 const list = shallowRef<ContractWithDetails[]>([]);
 const loading = ref(false);
-const auth = useAuthStore();
 const { can } = usePermission();
 const canManage = can(P.CONTRACTS_FILE_UPDATE);
 const filters = ref({
@@ -296,6 +327,44 @@ const filters = ref({
   dateRange: null as [string, string] | null,
   onlyWithAttachments: false,
 });
+
+type ColumnFilterOption = { text: string; value: string };
+
+function createColumnFilters(
+  getter: (row: ContractWithDetails) => string | null | undefined,
+  options?: { sortDesc?: boolean; formatter?: (value: string) => string },
+): ColumnFilterOption[] {
+  const set = new Set<string>();
+  (list.value || []).forEach((row) => {
+    const raw = getter(row);
+    const v = raw == null ? '' : String(raw).trim();
+    if (v) set.add(v);
+  });
+  const values = Array.from(set);
+  values.sort((a, b) => (options?.sortDesc ? b.localeCompare(a) : a.localeCompare(b)));
+  const format = options?.formatter ?? ((v: string) => v);
+  return values.map((v) => ({ text: format(v), value: v }));
+}
+
+// 表头筛选选项
+const contractDateFilters = computed(() =>
+  createColumnFilters(
+    (c) => currentVersion(c)?.contract_date || '',
+    { sortDesc: true, formatter: (d) => formatDateOnly(d) },
+  ),
+);
+
+const contractNoFilters = computed(() =>
+  createColumnFilters((c) => c.contract_no || ''),
+);
+
+const taxNumberFilters = computed(() =>
+  createColumnFilters((c) => currentVersion(c)?.tax_number || ''),
+);
+
+const accountNameFilters = computed(() =>
+  createColumnFilters((c) => c.account_name || c.customer_display_name || ''),
+);
 
 const filteredList = computed(() => {
   let rows = list.value;
@@ -409,6 +478,32 @@ async function fetchData() {
     loading.value = false;
   }
 }
+
+// 表头筛选回调（相等匹配通用工厂）
+function createEqualityFilter(
+  getter: (row: ContractWithDetails) => string | null | undefined,
+) {
+  return (value: string, row: ContractWithDetails) => {
+    const v = getter(row);
+    return (v == null ? '' : String(v)) === value;
+  };
+}
+
+const filterByContractDate = createEqualityFilter(
+  (row) => currentVersion(row)?.contract_date || '',
+);
+
+const filterByContractNo = createEqualityFilter(
+  (row) => row.contract_no || '',
+);
+
+const filterByTaxNumber = createEqualityFilter(
+  (row) => currentVersion(row)?.tax_number || '',
+);
+
+const filterByAccountName = createEqualityFilter(
+  (row) => row.account_name || row.customer_display_name || '',
+);
 
 function applyFilters() {}
 
