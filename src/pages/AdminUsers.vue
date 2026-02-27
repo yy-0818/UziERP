@@ -210,6 +210,7 @@ import { Refresh, Plus } from '@element-plus/icons-vue';
 import { supabase } from '../supabase';
 import { useAuthStore } from '../stores/auth';
 import { ROLE_LABELS, ROLE_TAG_TYPES, getPermissionsByRoles, getPermissionsByRole } from '../permissions';
+import { getLocalIsoString } from '../utils/datetime';
 
 interface UserRow {
   user_id: string;
@@ -298,7 +299,7 @@ async function fetchUsers() {
     const roleMap = new Map<string, { code: string; name: string }>();
     for (const rt of roleTemplates.value) roleMap.set(rt.id, { code: rt.code, name: rt.name });
 
-    const now = new Date().toISOString();
+    const now = getLocalIsoString();
     const { data: activeTempData } = await supabase
       .from('temp_role_grants')
       .select('user_id')
@@ -448,7 +449,7 @@ async function submitGrantTemp() {
       user_id: detailUser.value.user_id,
       role_id: grantForm.value.roleId,
       granted_by: auth.user?.id || null,
-      effective_from: new Date().toISOString(),
+      effective_from: getLocalIsoString(),
       effective_to: grantForm.value.effectiveTo,
       reason: grantForm.value.reason.trim() || null,
     });

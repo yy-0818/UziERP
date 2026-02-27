@@ -22,7 +22,9 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = data.user ?? null;
 
     if (user.value) {
-      const now = new Date().toISOString();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const d = new Date();
+      const now = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
       const [{ data: roleRows }, { data: tempRows }] = await Promise.all([
         supabase.from('user_roles').select('role_id, roles:role_id(code)').eq('user_id', user.value.id),
         supabase.from('temp_role_grants').select('role_id, roles:role_id(code), effective_to')
