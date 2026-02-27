@@ -97,11 +97,6 @@ export const ROLE_PERMISSION_MAP: Record<string, PermissionCode[]> = {
   'biz.viewer': VIEWER_PERMISSIONS,
   'audit.viewer': AUDIT_VIEWER_PERMISSIONS,
 
-  // 旧角色兼容（逐步淘汰）
-  super_admin: ALL_PERMISSIONS,
-  manager: SALES_MANAGER_PERMISSIONS,
-  sales: SALES_OPERATOR_PERMISSIONS,
-  viewer: VIEWER_PERMISSIONS,
 };
 
 export function getPermissionsByRole(role: string | null | undefined): Set<PermissionCode> {
@@ -124,13 +119,13 @@ export function getPermissionsByRoles(roles: string[]): Set<PermissionCode> {
 export const ROLE_LABELS: Record<string, string> = {
   'platform.owner': '平台拥有者',
   'platform.admin': '系统管理员',
-  'sales.manager': '销售经理',
-  'sales.operator': '销售操作员',
-  'pricing.operator': '价格维护员',
-  'contracts.operator': '合同操作员',
-  'finance.receipt.operator': '收款操作员',
-  'hr.uz.admin': '乌兹员工管理员',
-  'hr.cn.admin': '中国员工管理员',
+  'sales.manager': '销售主管',
+  'sales.operator': '销售专员',
+  'pricing.operator': '价格管理员',
+  'contracts.operator': '合同管理员',
+  'finance.receipt.operator': '财务收款员',
+  'hr.uz.admin': '乌方员工管理员',
+  'hr.cn.admin': '中方员工管理员',
   'biz.viewer': '业务查看者',
   'audit.viewer': '审计查看者',
 };
