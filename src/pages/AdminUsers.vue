@@ -169,15 +169,15 @@
     <!-- 授予临时权限弹窗 -->
     <el-dialog v-model="grantTempVisible" title="授予临时权限" width="480px" append-to-body>
       <el-alert type="info" :closable="false" style="margin-bottom: 16px">
-        <template #title>临时授予高于当前永久角色的权限，到期自动失效</template>
+        <template #title>临时授予当前永久角色之外的权限，到期自动失效</template>
       </el-alert>
       <el-form label-width="80px">
         <el-form-item label="目标角色">
           <el-select v-model="grantForm.roleId" placeholder="选择要临时授予的角色" style="width: 100%">
             <el-option
-              v-for="r in higherRoles"
+              v-for="r in grantableRoles"
               :key="r.id"
-              :label="`${r.name}（${r.perm_count} 项权限）`"
+              :label="`${r.name}（${r.code}，${r.perm_count} 项权限）`"
               :value="r.id"
             />
           </el-select>
@@ -250,10 +250,11 @@ const tempGrants = ref<TempGrant[]>([]);
 const grantTempVisible = ref(false);
 const grantForm = ref({ roleId: '', effectiveTo: '', reason: '' });
 
-const higherRoles = computed(() => {
+/** 可授予的临时角色：排除用户当前永久角色，显示所有其他角色 */
+const grantableRoles = computed(() => {
   if (!detailUser.value) return roleTemplates.value;
-  const currentPermCount = detailUser.value.perm_count;
-  return roleTemplates.value.filter(r => r.perm_count > currentPermCount);
+  const currentRoleId = detailUser.value.role_id;
+  return roleTemplates.value.filter(r => r.id !== currentRoleId);
 });
 
 function formatTime(iso: string): string {
