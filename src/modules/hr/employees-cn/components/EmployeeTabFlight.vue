@@ -221,6 +221,7 @@ const applyVisible = ref(false);
 const saving = ref(false);
 const handleVisible = ref(false);
 const editVisible = ref(false);
+const isEditMode = ref(false);
 const currentEditHandleId = ref<string | null>(null);
 const applyForm = ref({
   depart_city: '',

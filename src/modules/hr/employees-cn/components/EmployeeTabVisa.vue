@@ -258,7 +258,6 @@ async function submitApply() {
 }
 
 function openHandle(row: VisaApplication) {
-  isEditMode.value = false;
   currentEditHandleId.value = null;
   currentApply.value = row;
   handleForm.value = {

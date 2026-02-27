@@ -161,7 +161,6 @@ async function submitApply() {
 }
 
 function openHandle(row: InvitationApplication) {
-  isEditMode.value = false;
   currentEditHandleId.value = null;
   currentApply.value = row;
   handleForm.value = { letter_date: null, fee_amount: null, letter_image_url: null };

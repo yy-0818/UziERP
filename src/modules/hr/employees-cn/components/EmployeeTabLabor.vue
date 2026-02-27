@@ -212,7 +212,6 @@ async function submitApply() {
 }
 
 function openHandle(row: LaborPermitApplication) {
-  isEditMode.value = false;
   currentEditHandleId.value = null;
   currentApply.value = row;
   handleForm.value = {
