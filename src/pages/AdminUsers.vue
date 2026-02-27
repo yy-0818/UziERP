@@ -167,17 +167,23 @@
     </el-dialog>
 
     <!-- 授予临时权限弹窗 -->
-    <el-dialog v-model="grantTempVisible" title="授予临时权限" width="480px" append-to-body>
+    <el-dialog v-model="grantTempVisible" title="授予临时权限" width="500px" append-to-body>
       <el-alert type="info" :closable="false" style="margin-bottom: 16px">
         <template #title>临时授予当前永久角色之外的权限，到期自动失效</template>
       </el-alert>
       <el-form label-width="80px">
+        <el-form-item label="授权人">
+          <el-input :model-value="currentGrantorDisplay" disabled />
+        </el-form-item>
+        <el-form-item label="被授权人">
+          <el-input :model-value="detailUser?.name || detailUser?.email || '—'" disabled />
+        </el-form-item>
         <el-form-item label="目标角色">
           <el-select v-model="grantForm.roleId" placeholder="选择要临时授予的角色" style="width: 100%">
             <el-option
               v-for="r in grantableRoles"
               :key="r.id"
-              :label="`${r.name}（${r.code}，${r.perm_count} 项权限）`"
+              :label="`${r.name}（${r.perm_count} 项权限）`"
               :value="r.id"
             />
           </el-select>
@@ -203,7 +209,7 @@ import { ElMessage } from 'element-plus';
 import { Refresh, Plus } from '@element-plus/icons-vue';
 import { supabase } from '../supabase';
 import { useAuthStore } from '../stores/auth';
-import { ROLE_LABELS, ROLE_TAG_TYPES, getPermissionsByRoles } from '../permissions';
+import { ROLE_LABELS, ROLE_TAG_TYPES, getPermissionsByRoles, getPermissionsByRole } from '../permissions';
 
 interface UserRow {
   user_id: string;
@@ -249,6 +255,12 @@ const tempGrants = ref<TempGrant[]>([]);
 
 const grantTempVisible = ref(false);
 const grantForm = ref({ roleId: '', effectiveTo: '', reason: '' });
+
+const currentGrantorDisplay = computed(() => {
+  const me = userList.value.find(u => u.user_id === auth.user?.id);
+  if (me) return `${me.name || ''}（${me.email}）`.replace(/^（/, '（');
+  return auth.email || auth.user?.id || '—';
+});
 
 /** 可授予的临时角色：排除用户当前永久角色，显示所有其他角色 */
 const grantableRoles = computed(() => {
@@ -331,15 +343,13 @@ async function fetchRoles() {
   try {
     const { data: roles, error } = await supabase.from('roles').select('id, code, name, description').eq('is_active', true).order('code');
     if (error) throw error;
-    const { data: rpCounts } = await supabase.from('role_permissions').select('role_id');
     const { data: urCounts } = await supabase.from('user_roles').select('role_id');
-    const permCountMap = new Map<string, number>();
     const userCountMap = new Map<string, number>();
-    (rpCounts || []).forEach((r: any) => permCountMap.set(r.role_id, (permCountMap.get(r.role_id) || 0) + 1));
     (urCounts || []).forEach((r: any) => { if (r.role_id) userCountMap.set(r.role_id, (userCountMap.get(r.role_id) || 0) + 1); });
     roleTemplates.value = (roles || []).map((r: any) => ({
       id: r.id, code: r.code, name: r.name, description: r.description,
-      perm_count: permCountMap.get(r.id) || 0, user_count: userCountMap.get(r.id) || 0,
+      perm_count: getPermissionsByRole(r.code).size,
+      user_count: userCountMap.get(r.id) || 0,
     }));
   } catch (e: any) { ElMessage.error(e?.message || '加载角色失败'); }
   finally { rolesLoading.value = false; }
