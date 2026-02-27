@@ -22,17 +22,24 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = data.user ?? null;
 
     if (user.value) {
-      const { data: roleRows } = await supabase
-        .from('user_roles')
-        .select('role_id, roles:role_id(code)')
-        .eq('user_id', user.value.id);
+      const now = new Date().toISOString();
+      const [{ data: roleRows }, { data: tempRows }] = await Promise.all([
+        supabase.from('user_roles').select('role_id, roles:role_id(code)').eq('user_id', user.value.id),
+        supabase.from('temp_role_grants').select('role_id, roles:role_id(code), effective_to')
+          .eq('user_id', user.value.id).gte('effective_to', now),
+      ]);
 
       const codes = (roleRows || [])
         .map((r: any) => r.roles?.code as string | undefined)
         .filter((c): c is string => !!c);
 
-      roles.value = codes;
-      role.value = codes[0] ?? null;
+      const tempCodes = (tempRows || [])
+        .map((r: any) => r.roles?.code as string | undefined)
+        .filter((c): c is string => !!c);
+
+      const allCodes = [...new Set([...codes, ...tempCodes])];
+      roles.value = allCodes;
+      role.value = allCodes[0] ?? null;
     } else {
       role.value = null;
       roles.value = [];
