@@ -47,15 +47,17 @@ import { useRouter } from 'vue-router';
 import AppBreadcrumb from '../components/common/AppBreadcrumb.vue';
 import { useAuthStore } from '../stores/auth';
 import { useLayoutStore } from '../stores/layout';
+import { usePermission, P } from '../permissions';
 import { useTheme } from '../composables/useTheme';
 import { fetchTodoCount, subscribeTodoListUpdates } from '../modules/hr/employees-cn/api';
 
 const router = useRouter();
 const layout = useLayoutStore();
 const auth = useAuthStore();
+const { can } = usePermission();
 const { isDark, toggleTheme } = useTheme();
 const todoCount = ref<number | undefined>(undefined);
-const canSeeTodo = computed(() => auth.role === 'super_admin');
+const canSeeTodo = can(P.HR_EMPLOYEE_CN_READ);
 
 async function refreshTodoCount() {
   if (!canSeeTodo.value) return;

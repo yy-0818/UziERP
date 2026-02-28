@@ -1,8 +1,8 @@
 /**
- * ERP 侧栏菜单配置 - 集中维护、按权限过滤，便于扩展新模块
+ * ERP 侧栏菜单配置 - 按权限点过滤，requiresPermissions 优先
  */
 import type { MenuNode } from './types';
-import { getPermissionsByRole, type PermissionCode } from '../../permissions';
+import { getPermissionsByRoles } from '../../permissions';
 
 /** 原始菜单树（与路由对应，新增模块在此追加） */
 export const rawMenuTree: MenuNode[] = [
@@ -44,13 +44,12 @@ export const rawMenuTree: MenuNode[] = [
         type: 'group',
         index: 'hr-employees-cn',
         title: '中国员工',
-        requiresPermission: 'hr.employee_cn.read',
+        requiresPermissions: ['hr.employee_cn.read'],
         children: [
           { type: 'item', index: '/hr/employees-cn/archives', title: '档案管理' },
           { type: 'item', index: '/hr/employees-cn/process', title: '流程中心' },
           { type: 'item', index: '/hr/employees-cn/attendance', title: '考勤与人事' },
           { type: 'item', index: '/hr/employees-cn/todos', title: '待办中心' },
-          // { type: 'item', index: '/hr/employees-cn/todos', title: '待办中心', badgeKey: 'todoCount' },
         ],
       },
     ],
@@ -60,7 +59,7 @@ export const rawMenuTree: MenuNode[] = [
     index: 'admin',
     title: '系统管理',
     icon: 'Tools',
-    requiresPermission: 'admin.user.manage',
+    requiresPermissions: ['admin.user.manage'],
     children: [
       { type: 'item', index: '/admin/users', title: '用户与角色' },
       { type: 'item', index: '/admin/operation-log', title: '操作日志' },
@@ -68,33 +67,36 @@ export const rawMenuTree: MenuNode[] = [
   },
 ];
 
-function checkAccess(
-  requiresRole: string[] | undefined,
-  requiresPermission: string | string[] | undefined,
-  userRole: string | null
-): boolean {
-  if (requiresPermission) {
-    const perms = getPermissionsByRole(userRole);
-    const permArr = Array.isArray(requiresPermission) ? requiresPermission : [requiresPermission];
-    return permArr.some((p) => perms.has(p as PermissionCode));
-  }
-  if (requiresRole && requiresRole.length > 0) {
-    if (!userRole) return false;
-    return requiresRole.includes(userRole);
-  }
+function hasAnyPermission(userPerms: Set<string>, required: string[] | undefined): boolean {
+  if (!required || required.length === 0) return true;
+  return required.some((p) => userPerms.has(p));
+}
+
+function checkNodeAccess(node: MenuNode, userPerms: Set<string>, userRoles: string[]): boolean {
+  const perms = node.requiresPermissions ?? (node.requiresPermission != null ? (Array.isArray(node.requiresPermission) ? node.requiresPermission : [node.requiresPermission]) : undefined);
+  if (perms && perms.length > 0) return hasAnyPermission(userPerms, perms);
+  if (node.requiresRole && node.requiresRole.length > 0) return node.requiresRole.some((r) => userRoles.includes(r));
   return true;
 }
 
-export function filterMenuByRole(menuTree: MenuNode[], userRole: string | null): MenuNode[] {
+/** 按权限点过滤菜单；传入当前用户 permissions 与 roles（过渡期兼容 requiresRole） */
+export function filterMenuByPermission(menuTree: MenuNode[], permissions: string[], roles: string[] = []): MenuNode[] {
+  const permSet = new Set(permissions);
   const result: MenuNode[] = [];
   for (const node of menuTree) {
     if (node.type === 'item') {
-      if (checkAccess(node.requiresRole, node.requiresPermission, userRole)) result.push(node);
+      if (checkNodeAccess(node, permSet, roles)) result.push(node);
       continue;
     }
-    const filteredChildren = filterMenuByRole(node.children, userRole);
-    const groupVisible = checkAccess(node.requiresRole, node.requiresPermission, userRole) && filteredChildren.length > 0;
+    const filteredChildren = filterMenuByPermission(node.children, permissions, roles);
+    const groupVisible = checkNodeAccess(node, permSet, roles) && filteredChildren.length > 0;
     if (groupVisible) result.push({ ...node, children: filteredChildren });
   }
   return result;
+}
+
+/** @deprecated 过渡期保留，请使用 filterMenuByPermission(menuTree, auth.permissions, auth.roles) */
+export function filterMenuByRole(menuTree: MenuNode[], userRole: string | null): MenuNode[] {
+  const perms = Array.from(getPermissionsByRoles(userRole ? [userRole] : []));
+  return filterMenuByPermission(menuTree, perms, userRole ? [userRole] : []);
 }

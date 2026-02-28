@@ -1,23 +1,21 @@
 /**
- * v-can 指令：按权限点控制元素可见性
+ * v-can 指令：按权限点控制元素可见性，以 auth.permissions 为数据源
  * 用法: v-can="'sales.record.create'" 或 v-can="['sales.record.create', 'sales.record.update']"
  */
 import type { Directive, DirectiveBinding } from 'vue';
 import { useAuthStore } from '../stores/auth';
-import { getPermissionsByRole } from './roleMap';
-import type { PermissionCode } from './constants';
 
 function checkPermission(el: HTMLElement, binding: DirectiveBinding) {
   const auth = useAuthStore();
-  const perms = getPermissionsByRole(auth.role);
+  const perms = new Set(auth.permissions);
 
   const value = binding.value;
   let hasPermission = false;
 
   if (typeof value === 'string') {
-    hasPermission = perms.has(value as PermissionCode);
+    hasPermission = perms.has(value);
   } else if (Array.isArray(value)) {
-    hasPermission = value.some((p: string) => perms.has(p as PermissionCode));
+    hasPermission = value.some((p: string) => perms.has(p));
   }
 
   if (!hasPermission) {

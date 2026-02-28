@@ -53,10 +53,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { useAuthStore } from '../stores/auth';
-import { hasAnyRole } from '../utils/permissions';
+import { usePermission, P } from '../permissions';
 import {
   listProducts,
   upsertProduct,
@@ -64,6 +64,7 @@ import {
 } from '../modules/master-data/api';
 
 const auth = useAuthStore();
+const { can } = usePermission();
 const keyword = ref('');
 const rows = ref<ProductRecord[]>([]);
 const loading = ref(false);
@@ -78,7 +79,7 @@ const editForm = ref<{ id?: string; name: string; category: string; spec: string
 });
 const saving = ref(false);
 
-const canEdit = computed(() => hasAnyRole(auth.role, ['super_admin', 'manager']));
+const canEdit = can(P.MASTER_PRODUCT_UPDATE);
 
 async function fetchData() {
   loading.value = true;

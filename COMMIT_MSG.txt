@@ -1,0 +1,26 @@
+feat(auth): 权限模型 P0 改造 - 角色集+权限集、路由/菜单/按钮统一权限入口
+
+## 认证层 (authStore)
+- 新增 permissions: string[]、permissionVersion
+- loadUser() 优先调用 RPC get_user_roles_and_permissions，失败则前端聚合 user_roles + temp_role_grants 得到 permissions
+- 保留 role 仅作兼容（@deprecated）
+
+## 路由
+- meta 支持 permissions[]、permissionsRequireAll；守卫统一用 auth.permissions 做 canAny/canAll
+- 未授权跳转 /forbidden（403 页），不再跳转 pricing
+- 新增 Forbidden.vue 403 页面
+
+## 菜单
+- MenuNode 增加 requiresPermissions?: string[]；菜单树中国员工/系统管理改用 requiresPermissions
+- 新增 filterMenuByPermission(menuTree, permissions, roles)；保留 filterMenuByRole 过渡
+- LayoutSidebar 使用 filterMenuByPermission + auth.permissions/auth.roles
+
+## 页面与指令
+- usePermission() 以 auth.permissions 为数据源，can/canAny/canAll 支持 string
+- v-can 指令改为基于 auth.permissions
+- Customers/Products/PriceList(pages)/AttendancePersonnelPage/TodosPage/LayoutHeader/LayoutSidebar：去掉 hasAnyRole、auth.role，统一改为 usePermission().can(P.xxx)
+
+## 文档与规范
+- AGENTS.md 增加权限模型说明与禁止直接使用 auth.role/hasRole 的约定
+- 新增 docs/RPC_get_user_roles_and_permissions.md 供后端实现 RPC
+- auth 从 permissions/roleMap 直接导入 getPermissionsByRoles，消除循环依赖

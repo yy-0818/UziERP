@@ -52,10 +52,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { useAuthStore } from '../stores/auth';
-import { hasAnyRole } from '../utils/permissions';
+import { usePermission, P } from '../permissions';
 import {
   listCustomers,
   upsertCustomer,
@@ -70,6 +70,7 @@ interface CustomerEditForm {
 }
 
 const auth = useAuthStore();
+const { can } = usePermission();
 const keyword = ref('');
 const rows = ref<CustomerRecord[]>([]);
 const loading = ref(false);
@@ -78,7 +79,7 @@ const editTitle = ref('');
 const editForm = ref<CustomerEditForm>({ name: '', level: '', region: '' });
 const saving = ref(false);
 
-const canEdit = computed(() => hasAnyRole(auth.role, ['super_admin', 'manager']));
+const canEdit = can(P.MASTER_CUSTOMER_UPDATE);
 
 async function fetchData() {
   loading.value = true;

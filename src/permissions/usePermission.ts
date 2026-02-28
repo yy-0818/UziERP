@@ -1,39 +1,29 @@
 /**
  * 统一权限服务 composable
- * 支持多角色组合——用户可同时拥有多个角色，权限取并集
+ * 以 auth.permissions 为唯一数据源，禁止在页面中直接使用 auth.role / hasRole
  */
 import { computed, type ComputedRef } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { type PermissionCode } from './constants';
-import { getPermissionsByRole } from './roleMap';
+import { getPermissionsByRoles } from './roleMap';
 
 export function usePermission() {
   const auth = useAuthStore();
 
   const permissions = computed(() => {
-    const allPerms = new Set<PermissionCode>();
-    for (const roleCode of auth.roles) {
-      for (const p of getPermissionsByRole(roleCode)) {
-        allPerms.add(p);
-      }
-    }
-    if (!allPerms.size && auth.role) {
-      for (const p of getPermissionsByRole(auth.role)) {
-        allPerms.add(p);
-      }
-    }
-    return allPerms;
+    if (auth.permissions.length > 0) return new Set<string>(auth.permissions);
+    return getPermissionsByRoles(auth.roles);
   });
 
-  function can(permission: PermissionCode): ComputedRef<boolean> {
+  function can(permission: PermissionCode | string): ComputedRef<boolean> {
     return computed(() => permissions.value.has(permission));
   }
 
-  function canAny(...perms: PermissionCode[]): ComputedRef<boolean> {
+  function canAny(...perms: (PermissionCode | string)[]): ComputedRef<boolean> {
     return computed(() => perms.some((p) => permissions.value.has(p)));
   }
 
-  function canAll(...perms: PermissionCode[]): ComputedRef<boolean> {
+  function canAll(...perms: (PermissionCode | string)[]): ComputedRef<boolean> {
     return computed(() => perms.every((p) => permissions.value.has(p)));
   }
 

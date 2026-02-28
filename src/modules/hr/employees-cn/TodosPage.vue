@@ -199,6 +199,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { useAuthStore } from '../../../stores/auth';
+import { usePermission, P } from '../../../permissions';
 import {
   fetchTodoList,
   subscribeTodoListUpdates,
@@ -218,7 +219,8 @@ import { ElMessage } from 'element-plus';
 import './employees-cn.css';
 
 const auth = useAuthStore();
-const canManage = computed(() => auth.role === 'super_admin');
+const { can } = usePermission();
+const canManage = can(P.HR_EMPLOYEE_CN_MANAGE);
 const currentOperator = computed(() => auth.user?.email ?? auth.email ?? null);
 
 const STATE_KEY = 'hr.employees-cn.todos.ui_state.v1';

@@ -138,6 +138,7 @@ import { useRoute } from 'vue-router';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { useAuthStore } from '../../../stores/auth';
+import { usePermission, P } from '../../../permissions';
 import {
   fetchEmployees,
   fetchLeaveRecords,
@@ -152,7 +153,8 @@ import './employees-cn.css';
 
 const route = useRoute();
 const auth = useAuthStore();
-const canManage = computed(() => auth.role === 'super_admin');
+const { can } = usePermission();
+const canManage = can(P.HR_EMPLOYEE_CN_MANAGE);
 const currentOperator = computed(() => auth.user?.email ?? auth.email ?? null);
 
 const STATE_KEY = 'hr.employees-cn.attendance.ui_state.v1';

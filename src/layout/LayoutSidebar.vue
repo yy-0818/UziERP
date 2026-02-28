@@ -37,23 +37,26 @@ import {
   FolderOpened,
 } from '@element-plus/icons-vue';
 import type { Component } from 'vue';
-import { filterMenuByRole, rawMenuTree } from './config/menuConfig';
+import { filterMenuByPermission, rawMenuTree } from './config/menuConfig';
 import type { MenuNode } from './config/types';
 import { useAuthStore } from '../stores/auth';
 import { useLayoutStore } from '../stores/layout';
+import { usePermission } from '../permissions';
+import { P } from '../permissions';
 import SidebarMenuNode from './SidebarMenuNode.vue';
 import { fetchTodoCount } from '../modules/hr/employees-cn/api';
 
 const route = useRoute();
 const auth = useAuthStore();
 const layout = useLayoutStore();
+const { can } = usePermission();
 const todoCount = ref(0);
 
 const sidebarWidth = computed(() => (layout.sidebarCollapsed ? '64px' : '220px'));
 const active = computed(() => route.path);
 
 const menuTree = computed<MenuNode[]>(() =>
-  filterMenuByRole(rawMenuTree, auth.role)
+  filterMenuByPermission(rawMenuTree, auth.permissions, auth.roles)
 );
 
 function injectBadge(nodes: MenuNode[]): MenuNode[] {
@@ -67,8 +70,10 @@ function injectBadge(nodes: MenuNode[]): MenuNode[] {
 }
 const menuTreeWithBadge = computed<MenuNode[]>(() => injectBadge(menuTree.value));
 
+const canSeeTodoBadge = can(P.HR_EMPLOYEE_CN_READ);
+
 onMounted(async () => {
-  if (auth.role !== 'super_admin') return;
+  if (!canSeeTodoBadge.value) return;
   try {
     todoCount.value = await fetchTodoCount();
   } catch {

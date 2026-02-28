@@ -1,10 +1,9 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
-import { hasAnyRole } from '../utils/permissions';
-import { getPermissionsByRole, type PermissionCode } from '../permissions';
 
-// 认证模块
+// 认证与错误页
 const Login = () => import('../pages/Login.vue');
+const Forbidden = () => import('../pages/Forbidden.vue');
 
 // 布局
 const Layout = () => import('../pages/Layout.vue');
@@ -34,6 +33,13 @@ const routes: RouteRecordRaw[] = [
     path: '/login',
     name: 'login',
     component: Login,
+  },
+  // 403 无权限（独立页，不进入 Layout）
+  {
+    path: '/forbidden',
+    name: 'forbidden',
+    component: Forbidden,
+    meta: { title: '无访问权限' },
   },
   // 应用主布局 & 业务路由
   {
@@ -161,7 +167,6 @@ const router = createRouter({
 router.beforeEach(async (to, _from, next) => {
   const auth = useAuthStore();
 
-  // 仅首次等待 auth 就绪，避免每次切换页面都强制刷新用户/角色（原逻辑导致每次点击都请求接口，切换卡顿）
   await auth.ensureAuthReady();
 
   if (to.path === '/login') {
@@ -169,20 +174,26 @@ router.beforeEach(async (to, _from, next) => {
     return next();
   }
 
+  if (to.path === '/forbidden') {
+    return next();
+  }
+
   if (to.meta.requiresAuth && !auth.isLoggedIn) {
     return next('/login');
   }
 
+  const permSet = new Set(auth.permissions);
+  const needPerms = (to.meta.permissions as string[] | undefined) ?? (to.meta.requiresPermission as string | string[] | undefined);
   const needRoles = to.meta.requiresRole as string[] | undefined;
-  const needPermission = to.meta.requiresPermission as string | string[] | undefined;
 
-  if (needPermission) {
-    const perms = getPermissionsByRole(auth.role);
-    const permArr = Array.isArray(needPermission) ? needPermission : [needPermission];
-    const hasAccess = permArr.some((p) => perms.has(p as PermissionCode));
-    if (!hasAccess) return next('/business/pricing');
-  } else if (needRoles && !hasAnyRole(auth.role, needRoles)) {
-    return next('/business/pricing');
+  if (needPerms) {
+    const arr = Array.isArray(needPerms) ? needPerms : [needPerms];
+    const requireAll = (to.meta.permissionsRequireAll as boolean) === true;
+    const hasAccess = requireAll ? arr.every((p) => permSet.has(p)) : arr.some((p) => permSet.has(p));
+    if (!hasAccess) return next('/forbidden');
+  } else if (needRoles && needRoles.length > 0) {
+    const hasRole = auth.roles.some((r) => needRoles!.includes(r));
+    if (!hasRole) return next('/forbidden');
   }
 
   next();

@@ -109,14 +109,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted } from 'vue';
 import dayjs from 'dayjs';
 import { ElMessage } from 'element-plus';
 import { supabase } from '../supabase';
 import { useAuthStore } from '../stores/auth';
-import { hasAnyRole } from '../utils/permissions';
+import { usePermission, P } from '../permissions';
 
 const auth = useAuthStore();
+const { can } = usePermission();
 const keyword = ref('');
 const rows = ref<any[]>([]);
 const loading = ref(false);
@@ -137,7 +138,7 @@ const saving = ref(false);
 const customers = ref<any[]>([]);
 const products = ref<any[]>([]);
 
-const canEdit = computed(() => hasAnyRole(auth.role, ['super_admin', 'manager', 'sales']));
+const canEdit = can(P.PRICING_PRICE_UPDATE);
 
 function formatTime(v: string | null) {
   if (!v) return '';
