@@ -17,11 +17,21 @@ export const useAuthStore = defineStore('auth', () => {
   const permissionVersion = ref(0);
   const initialized = ref(false);
   const authReady = ref(false);
+  /** 当前用户在 user_roles 表中的 name、email（用于展示与操作人标识） */
+  const userRoleProfile = ref<{ name: string; email: string }>({ name: '', email: '' });
 
   let refreshTask: Promise<void> | null = null;
 
   const isLoggedIn = computed(() => !!user.value);
   const email = computed(() => (user.value?.email as string) ?? '');
+  /** 当前账户展示/操作人标识：优先 user_role.name，为空则 user_role.email，再空则 Supabase user.email */
+  const accountDisplay = computed(() => {
+    const name = (userRoleProfile.value?.name ?? '').trim();
+    if (name) return name;
+    const roleEmail = userRoleProfile.value?.email ?? '';
+    if (roleEmail) return roleEmail;
+    return (user.value?.email as string) ?? '';
+  });
 
   async function loadUser() {
     const { data } = await supabase.auth.getUser();
@@ -43,12 +53,12 @@ export const useAuthStore = defineStore('auth', () => {
         role.value = roles.value[0] ?? null;
       } else {
         const [{ data: roleRows }, { data: tempRows }] = await Promise.all([
-          supabase.from('user_roles').select('role_id, roles:role_id(code)').eq('user_id', uid),
+          supabase.from('user_roles').select('role_id, roles:role_id(code), name, email').eq('user_id', uid),
           supabase.from('temp_role_grants').select('role_id, roles:role_id(code), effective_to')
             .eq('user_id', uid).gte('effective_to', now),
         ]);
 
-        type RoleRow = { roles?: { code?: string } | { code?: string }[] };
+        type RoleRow = { roles?: { code?: string } | { code?: string }[]; name?: string; email?: string };
         const toCode = (r: RoleRow): string | undefined => {
           const roles = r.roles;
           if (!roles) return undefined;
@@ -64,12 +74,26 @@ export const useAuthStore = defineStore('auth', () => {
         roles.value = allCodes;
         role.value = allCodes[0] ?? null;
         permissions.value = Array.from(getPermissionsByRoles(allCodes));
+
+        const firstRoleRow = (roleRows || [])[0] as RoleRow | undefined;
+        userRoleProfile.value = {
+          name: firstRoleRow?.name ?? '',
+          email: firstRoleRow?.email ?? '',
+        };
       }
+
+      if (useRpc) {
+        const { data: urRow } = await supabase.from('user_roles').select('name, email').eq('user_id', uid).maybeSingle();
+        const ur = urRow as { name?: string; email?: string } | null;
+        userRoleProfile.value = { name: ur?.name ?? '', email: ur?.email ?? '' };
+      }
+
       permissionVersion.value += 1;
     } else {
       role.value = null;
       roles.value = [];
       permissions.value = [];
+      userRoleProfile.value = { name: '', email: '' };
     }
     initialized.value = true;
     authReady.value = true;
@@ -98,6 +122,7 @@ export const useAuthStore = defineStore('auth', () => {
       role.value = null;
       roles.value = [];
       permissions.value = [];
+      userRoleProfile.value = { name: '', email: '' };
       initialized.value = true;
       authReady.value = true;
       return;
@@ -124,6 +149,7 @@ export const useAuthStore = defineStore('auth', () => {
     role.value = null;
     roles.value = [];
     permissions.value = [];
+    userRoleProfile.value = { name: '', email: '' };
     initialized.value = true;
     authReady.value = true;
   }
@@ -135,6 +161,8 @@ export const useAuthStore = defineStore('auth', () => {
     permissions,
     permissionVersion,
     email,
+    accountDisplay,
+    userRoleProfile,
     initialized,
     authReady,
     isLoggedIn,

@@ -197,7 +197,7 @@
           />
         </el-form-item>
         <el-form-item label="修改人">
-          <el-input :model-value="modifierEmail" disabled placeholder="以 localStorage 的 user.email 或当前登录为准" />
+          <el-input :model-value="modifierEmail" disabled placeholder="当前账户（优先 user_role.name，否则 user_role.email）" />
         </el-form-item>
       </template>
     </el-form>

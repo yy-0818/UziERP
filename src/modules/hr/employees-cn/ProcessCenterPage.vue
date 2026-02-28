@@ -353,7 +353,7 @@ const route = useRoute();
 const auth = useAuthStore();
 const { can } = usePermission();
 const canManage = can(P.HR_EMPLOYEE_CN_MANAGE);
-const currentOperator = computed(() => auth.user?.email ?? (auth as any).email ?? null);
+const currentOperator = computed(() => auth.accountDisplay || null);
 
 const STATE_KEY = 'hr.employees-cn.process.ui_state.v1';
 

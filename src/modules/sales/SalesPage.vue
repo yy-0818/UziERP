@@ -577,13 +577,7 @@ const canEdit = can(P.SALES_RECORD_UPDATE);
 const canExport = can(P.SALES_RECORD_EXPORT);
 const canDelete = can(P.SALES_RECORD_DELETE);
 
-const modifierEmail = computed(() => {
-  try {
-    const fromStorage = typeof localStorage !== 'undefined' && localStorage.getItem('user.email');
-    if (fromStorage) return fromStorage;
-  } catch { /* ignore */ }
-  return auth.email || '';
-});
+const modifierEmail = computed(() => auth.accountDisplay || '');
 
 /* ==================== 列筛选选项 ==================== */
 const FILTER_OPTIONS_MAX = 150;

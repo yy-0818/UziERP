@@ -73,7 +73,7 @@ const auth = useAuthStore();
 const filters = ref({ keyword: '', level: [], region: [], price_type: [], product_ids: [] as number[] });
 const { can } = usePermission();
 const canEdit = can(P.PRICING_PRICE_UPDATE);
-const modifierEmail = computed(() => auth.email || '');
+const modifierEmail = computed(() => auth.accountDisplay || '');
 
 const {
   loading,

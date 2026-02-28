@@ -262,7 +262,7 @@ const grantForm = ref({ roleId: '', effectiveTo: '', reason: '' });
 const currentGrantorDisplay = computed(() => {
   const me = userList.value.find(u => u.user_id === auth.user?.id);
   if (me) return `${me.name || ''}（${me.email}）`.replace(/^（/, '（');
-  return auth.email || auth.user?.id || '—';
+  return auth.accountDisplay || auth.user?.id || '—';
 });
 
 /** 可授予的临时角色：排除用户当前永久角色，显示所有其他角色 */

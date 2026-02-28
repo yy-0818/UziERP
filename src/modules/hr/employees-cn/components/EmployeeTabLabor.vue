@@ -142,7 +142,7 @@ import type { LaborPermitApplication, LaborPermitHandle } from '../types';
 
 const props = defineProps<{ employeeId: string; canManage: boolean }>();
 const auth = useAuthStore();
-const applicantValue = computed(() => auth.email || null);
+const applicantValue = computed(() => auth.accountDisplay || null);
 
 const list = ref<LaborPermitApplication[]>([]);
 const loading = ref(false);
@@ -268,7 +268,7 @@ async function submitEdit() {
       expiry_date: editForm.value.expiry_date,
       fee_amount: editForm.value.fee_amount,
       image_url: editForm.value.image_url,
-      operator: auth.user?.email ?? auth.email ?? null,
+      operator: auth.accountDisplay || null,
     });
     ElMessage.success('已保存');
     editVisible.value = false;
@@ -323,7 +323,7 @@ async function submitHandle() {
       expiry_date: handleForm.value.expiry_date,
       fee_amount: handleForm.value.fee_amount,
       image_url: handleForm.value.image_url,
-      operator: auth.user?.email ?? auth.email ?? null,
+      operator: auth.accountDisplay || null,
     });
     ElMessage.success('办理完成');
     handleVisible.value = false;

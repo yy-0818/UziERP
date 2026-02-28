@@ -188,7 +188,7 @@ import { VISA_TYPE_OPTIONS } from '../types';
 
 const props = defineProps<{ employeeId: string; canManage: boolean }>();
 const auth = useAuthStore();
-const submittedBy = computed(() => auth.email || null);
+const submittedBy = computed(() => auth.accountDisplay || null);
 
 const list = ref<VisaApplication[]>([]);
 const validVisas = ref<VisaHandle[]>([]);

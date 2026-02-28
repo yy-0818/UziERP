@@ -221,7 +221,7 @@ import './employees-cn.css';
 const auth = useAuthStore();
 const { can } = usePermission();
 const canManage = can(P.HR_EMPLOYEE_CN_MANAGE);
-const currentOperator = computed(() => auth.user?.email ?? auth.email ?? null);
+const currentOperator = computed(() => auth.accountDisplay || null);
 
 const STATE_KEY = 'hr.employees-cn.todos.ui_state.v1';
 

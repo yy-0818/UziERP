@@ -5,6 +5,7 @@
 import { supabase } from '../../../supabase';
 import { getLocalIsoString } from '../../../utils/datetime';
 import { parseRpcEnvelope } from '../../../utils/rpc';
+import { useAuthStore } from '../../../stores/auth';
 import { logOperation } from '../../operation-log/api';
 import type {
   CnEmployee,
@@ -126,6 +127,7 @@ export async function createEmployee(params: Partial<CnEmployee>): Promise<CnEmp
   const emp = data as CnEmployee;
   try {
     await logOperation({
+      operator_name: useAuthStore().accountDisplay,
       category: 'employee',
       action: '新增员工',
       target_type: 'cn_employees',
@@ -166,6 +168,7 @@ export async function setEmployeeResigned(
   });
   try {
     await logOperation({
+      operator_name: useAuthStore().accountDisplay,
       category: 'resign',
       action: '离职',
       target_type: 'cn_employees',
@@ -228,6 +231,7 @@ export async function createInvitationApplication(params: {
   try {
     const brief = await getEmployeeBrief(app.employee_id);
     await logOperation({
+      operator_name: useAuthStore().accountDisplay,
       category: 'invitation',
       action: '邀请函申请',
       target_type: 'cn_invitation_applications',
@@ -271,6 +275,7 @@ export async function createInvitationHandle(params: {
       .maybeSingle();
     const brief = appRow?.employee_id ? await getEmployeeBrief(appRow.employee_id) : null;
     await logOperation({
+      operator_name: useAuthStore().accountDisplay,
       category: 'invitation',
       action: '邀请函办理',
       target_type: 'cn_invitation_handles',
@@ -309,6 +314,7 @@ export async function updateInvitationHandle(
     const { data: appRow } = appId ? await supabase.from('cn_invitation_applications').select('employee_id').eq('id', appId).maybeSingle() : { data: null };
     const brief = appRow?.employee_id ? await getEmployeeBrief(appRow.employee_id) : null;
     await logOperation({
+      operator_name: useAuthStore().accountDisplay,
       category: 'invitation',
       action: '邀请函编辑',
       target_type: 'cn_invitation_handles',
@@ -387,6 +393,7 @@ export async function createVisaApplication(params: {
   try {
     const brief = await getEmployeeBrief(app.employee_id);
     await logOperation({
+      operator_name: useAuthStore().accountDisplay,
       category: 'visa',
       action: '签证申请',
       target_type: 'cn_visa_applications',
@@ -439,6 +446,7 @@ export async function createVisaHandle(params: {
       .maybeSingle();
     const brief = appRow?.employee_id ? await getEmployeeBrief(appRow.employee_id) : null;
     await logOperation({
+      operator_name: useAuthStore().accountDisplay,
       category: 'visa',
       action: '签证办理',
       target_type: 'cn_visa_handles',
@@ -496,6 +504,7 @@ export async function updateVisaHandle(
     const { data: appRow } = appId ? await supabase.from('cn_visa_applications').select('employee_id').eq('id', appId).maybeSingle() : { data: null };
     const brief = appRow?.employee_id ? await getEmployeeBrief(appRow.employee_id) : null;
     await logOperation({
+      operator_name: useAuthStore().accountDisplay,
       category: 'visa',
       action: '签证编辑',
       target_type: 'cn_visa_handles',
@@ -560,6 +569,7 @@ export async function createFlightApplication(params: {
   try {
     const brief = await getEmployeeBrief(app.employee_id);
     await logOperation({
+      operator_name: useAuthStore().accountDisplay,
       category: 'flight',
       action: '机票申请',
       target_type: 'cn_flight_applications',
@@ -624,6 +634,7 @@ export async function createFlightHandle(params: {
       .maybeSingle();
     const brief = appRow?.employee_id ? await getEmployeeBrief(appRow.employee_id) : null;
     await logOperation({
+      operator_name: useAuthStore().accountDisplay,
       category: 'flight',
       action: '机票办理',
       target_type: 'cn_flight_handles',
@@ -683,6 +694,7 @@ export async function updateFlightHandle(
     const { data: appRow } = appId ? await supabase.from('cn_flight_applications').select('employee_id').eq('id', appId).maybeSingle() : { data: null };
     const brief = appRow?.employee_id ? await getEmployeeBrief(appRow.employee_id) : null;
     await logOperation({
+      operator_name: useAuthStore().accountDisplay,
       category: 'flight',
       action: '机票编辑',
       target_type: 'cn_flight_handles',
@@ -741,6 +753,7 @@ export async function createLaborPermitApplication(params: {
   try {
     const brief = await getEmployeeBrief(app.employee_id);
     await logOperation({
+      operator_name: useAuthStore().accountDisplay,
       category: 'labor_permit',
       action: '劳动许可申请',
       target_type: 'cn_labor_permit_applications',
@@ -788,6 +801,7 @@ export async function createLaborPermitHandle(params: {
       .maybeSingle();
     const brief = appRow?.employee_id ? await getEmployeeBrief(appRow.employee_id) : null;
     await logOperation({
+      operator_name: useAuthStore().accountDisplay,
       category: 'labor_permit',
       action: '劳动许可办理',
       target_type: 'cn_labor_permit_handles',
@@ -830,6 +844,7 @@ export async function updateLaborPermitHandle(
     const { data: appRow } = appId ? await supabase.from('cn_labor_permit_applications').select('employee_id').eq('id', appId).maybeSingle() : { data: null };
     const brief = appRow?.employee_id ? await getEmployeeBrief(appRow.employee_id) : null;
     await logOperation({
+      operator_name: useAuthStore().accountDisplay,
       category: 'labor_permit',
       action: '劳动许可编辑',
       target_type: 'cn_labor_permit_handles',
@@ -880,6 +895,7 @@ export async function createTransferRecord(params: {
   try {
     const brief = await getEmployeeBrief(params.employee_id);
     await logOperation({
+      operator_name: useAuthStore().accountDisplay,
       category: 'transfer',
       action: '调岗',
       target_type: 'cn_transfer_records',
@@ -927,6 +943,7 @@ export async function createSalaryChangeRecord(params: {
   try {
     const brief = await getEmployeeBrief(params.employee_id);
     await logOperation({
+      operator_name: useAuthStore().accountDisplay,
       category: 'salary',
       action: '调薪',
       target_type: 'cn_salary_change_records',
@@ -999,6 +1016,7 @@ export async function createLeaveRecord(params: {
   try {
     const brief = await getEmployeeBrief(params.employee_id);
     await logOperation({
+      operator_name: useAuthStore().accountDisplay,
       category: 'leave',
       action: '请假',
       target_type: 'cn_leave_records',
@@ -1035,6 +1053,7 @@ export async function createRewardDisciplineRecord(params: {
   try {
     const brief = await getEmployeeBrief(params.employee_id);
     await logOperation({
+      operator_name: useAuthStore().accountDisplay,
       category: 'reward_discipline',
       action: params.record_type === 'reward' ? '奖励' : '违纪',
       target_type: 'cn_reward_discipline_records',

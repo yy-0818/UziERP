@@ -638,7 +638,7 @@ const auth = useAuthStore();
 const { can } = usePermission();
 const canManage = can(P.HR_EMPLOYEE_CN_MANAGE);
 /** 当前操作人（调岗/调薪/离职/请假/奖励违纪 必写，便于审计） */
-const currentOperator = computed(() => auth.user?.email ?? auth.email ?? null);
+const currentOperator = computed(() => auth.accountDisplay || null);
 
 const STATE_KEY = 'hr.employees-cn.archives.ui_state.v1';
 

@@ -224,7 +224,7 @@ async function submit() {
       }
       await createInvitationApplication({
         employee_id: invForm.value.employee_id,
-        submitted_by: auth.email || null,
+        submitted_by: auth.accountDisplay || null,
       });
     } else if (props.tab === 'visa') {
       if (!visaForm.value.employee_id) {
@@ -235,7 +235,7 @@ async function submit() {
         employee_id: visaForm.value.employee_id,
         application_type: visaForm.value.application_type || null,
         expected_departure_at: visaForm.value.expected_departure_at,
-        submitted_by: auth.email || null,
+        submitted_by: auth.accountDisplay || null,
       });
     } else if (props.tab === 'flight') {
       if (!flightForm.value.employee_id) {
@@ -252,7 +252,7 @@ async function submit() {
         arrive_city: flightForm.value.arrive_city || null,
         expected_departure_at: flightForm.value.expected_departure_at,
         remark: flightForm.value.remark || null,
-        submitted_by: auth.email || null,
+        submitted_by: auth.accountDisplay || null,
       });
     } else if (props.tab === 'labor') {
       if (!laborForm.value.employee_id) {

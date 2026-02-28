@@ -20,7 +20,7 @@
           <el-icon><Sunny v-if="isDark" /><Moon v-else /></el-icon>
         </el-button>
       </el-tooltip>
-      <span class="erp-user-email">{{ auth.user?.email }}</span>
+      <span class="erp-user-email">{{ auth.accountDisplay }}</span>
       <el-dropdown trigger="click" @command="onCommand">
         <el-button type="primary" link>
           <el-icon><UserFilled /></el-icon>

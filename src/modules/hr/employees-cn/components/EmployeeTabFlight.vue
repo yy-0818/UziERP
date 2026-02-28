@@ -211,7 +211,7 @@ import { CITY_OPTIONS, ISSUER_TYPE_OPTIONS } from '../types';
 
 const props = defineProps<{ employeeId: string; canManage: boolean }>();
 const auth = useAuthStore();
-const submittedBy = computed(() => auth.email || null);
+const submittedBy = computed(() => auth.accountDisplay || null);
 
 const list = ref<FlightApplication[]>([]);
 const validVisas = ref<VisaHandle[]>([]);
@@ -380,7 +380,7 @@ async function submitEdit() {
       issuer_company: editForm.value.issuer_company,
       cost_bearer: editForm.value.cost_bearer,
       approver: editForm.value.approver,
-      operator: auth.user?.email ?? auth.email ?? null,
+      operator: auth.accountDisplay || null,
     });
     ElMessage.success('已保存');
     editVisible.value = false;
@@ -442,7 +442,7 @@ async function submitHandle() {
       ticket_amount: handleForm.value.ticket_amount,
       ticket_image_url: handleForm.value.ticket_image_url,
       issuer_company: handleForm.value.issuer_company,
-      operator: auth.user?.email ?? auth.email ?? null,
+      operator: auth.accountDisplay || null,
     });
     ElMessage.success('办理完成');
     handleVisible.value = false;

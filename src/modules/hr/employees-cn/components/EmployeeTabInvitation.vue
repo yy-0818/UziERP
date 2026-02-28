@@ -103,7 +103,7 @@ import type { InvitationApplication, InvitationHandle } from '../types';
 const props = defineProps<{ employeeId: string; canManage: boolean }>();
 const emit = defineEmits<{ (e: 'refresh'): void }>();
 const auth = useAuthStore();
-const submittedBy = computed(() => auth.email || null);
+const submittedBy = computed(() => auth.accountDisplay || null);
 
 const list = ref<InvitationApplication[]>([]);
 const loading = ref(false);
