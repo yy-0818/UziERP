@@ -139,6 +139,12 @@ const routes: RouteRecordRaw[] = [
           { path: 'flights', redirect: { name: 'hr-employees-cn-process', query: { tab: 'flight' } } },
           { path: 'labor-permits', redirect: { name: 'hr-employees-cn-process', query: { tab: 'labor' } } },
           { path: 'personnel', redirect: { name: 'hr-employees-cn-attendance', query: { tab: 'reward' } } },
+          {
+            path: 'operation-log',
+            name: 'hr-employees-cn-operation-log',
+            component: OperationLog,
+            meta: { module: 'hr', title: '中方员工日志', requiresPermission: 'admin.auditlog.read' },
+          },
         ],
       },
 
@@ -149,12 +155,8 @@ const routes: RouteRecordRaw[] = [
         component: AdminUsers,
         meta: { module: 'admin', title: '用户与角色', requiresPermission: 'admin.user.manage' },
       },
-      {
-        path: 'admin/operation-log',
-        name: 'admin-operation-log',
-        component: OperationLog,
-        meta: { module: 'admin', title: '操作日志', requiresPermission: 'admin.auditlog.read' },
-      },
+      // 操作日志已迁至 中国员工 > 中方员工日志，保留旧路径重定向
+      { path: 'admin/operation-log', redirect: { name: 'hr-employees-cn-operation-log' } },
     ],
   },
 ];

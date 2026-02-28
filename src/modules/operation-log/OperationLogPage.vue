@@ -4,7 +4,7 @@
       <template #header>
         <div class="erp-card-header">
           <div>
-            <div class="title">操作日志</div>
+            <div class="title">中方员工日志</div>
           </div>
           <div class="header-actions">
             <el-button :icon="Printer" type="success" :loading="exporting" @click="exportData">

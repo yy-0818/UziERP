@@ -50,6 +50,7 @@ export const rawMenuTree: MenuNode[] = [
           { type: 'item', index: '/hr/employees-cn/process', title: '流程中心' },
           { type: 'item', index: '/hr/employees-cn/attendance', title: '考勤与人事' },
           { type: 'item', index: '/hr/employees-cn/todos', title: '待办中心' },
+          { type: 'item', index: '/hr/employees-cn/operation-log', title: '中方员工日志', requiresPermissions: ['admin.auditlog.read'] },
         ],
       },
     ],
@@ -62,7 +63,6 @@ export const rawMenuTree: MenuNode[] = [
     requiresPermissions: ['admin.user.manage'],
     children: [
       { type: 'item', index: '/admin/users', title: '用户与角色' },
-      { type: 'item', index: '/admin/operation-log', title: '操作日志' },
     ],
   },
 ];
