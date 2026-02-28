@@ -113,7 +113,7 @@ const routes: RouteRecordRaw[] = [
             path: 'archives',
             name: 'hr-employees-cn-archives',
             component: EmployeesCnArchives,
-            meta: { module: 'hr', title: '档案管理', requiresPermission: 'hr.employee_cn.read' },
+            meta: { module: 'hr', title: '中方档案管理', requiresPermission: 'hr.employee_cn.read' },
           },
           {
             path: 'process',
