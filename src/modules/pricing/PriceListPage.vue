@@ -19,6 +19,7 @@
         :level-options="levelOptions"
         :region-options="regionOptions"
         :price-type-options="priceTypeOptions"
+        :account-name-options="accountNameOptions"
         :products="products"
         @query="fetchData"
         @clear="clearFilters"
@@ -70,7 +71,9 @@ import { usePermission } from '../../permissions';
 import { P } from '../../permissions/constants';
 
 const auth = useAuthStore();
-const filters = ref({ keyword: '', level: [], region: [], price_type: [], product_ids: [] as number[] });
+/** 账户筛选下拉选项 */
+const accountNameOptions = ['1账户', '2账户', '3账户'];
+const filters = ref({ keyword: '', level: [], region: [], price_type: [], account_name: [] as string[], product_ids: [] as number[] });
 const { can } = usePermission();
 const canEdit = can(P.PRICING_PRICE_UPDATE);
 const modifierEmail = computed(() => auth.accountDisplay || '');
@@ -160,7 +163,7 @@ async function openHistoryForCell(row: any, spec: string) {
 }
 
 function clearFilters() {
-  filters.value = { keyword: '', level: [], region: [], price_type: [], product_ids: [] };
+  filters.value = { keyword: '', level: [], region: [], price_type: [], account_name: [], product_ids: [] };
 }
 
 async function refreshData() {

@@ -5,6 +5,8 @@ export type PriceFilters = {
   level: string[];
   region: string[];
   price_type: string[];
+  /** 账户筛选：1账户、2账户、3账户 */
+  account_name: string[];
   product_ids: number[];
 };
 
@@ -49,6 +51,13 @@ export async function fetchAccountIdsByCustomerFilter(field: 'level' | 'region',
 
 export async function fetchAccountIdsByPriceType(values: string[]) {
   const { data } = await supabase.from('customer_accounts').select('id, account_id').in('price_type', values);
+  return (data || []).map((a: any) => (a.account_id != null ? a.account_id : a.id));
+}
+
+/** 按账户名称筛选（1账户、2账户、3账户等） */
+export async function fetchAccountIdsByAccountName(values: string[]) {
+  if (!values.length) return [];
+  const { data } = await supabase.from('customer_accounts').select('id, account_id').in('account_name', values);
   return (data || []).map((a: any) => (a.account_id != null ? a.account_id : a.id));
 }
 

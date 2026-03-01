@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import {
+  fetchAccountIdsByAccountName,
   fetchAccountIdsByCustomerFilter,
   fetchAccountIdsByKeyword,
   fetchAccountIdsByPriceType,
@@ -170,6 +171,7 @@ export function usePricingData(filters: { value: PriceFilters }) {
       if (f.level.length) merge(await fetchAccountIdsByCustomerFilter('level', f.level));
       if (f.region.length) merge(await fetchAccountIdsByCustomerFilter('region', f.region));
       if (f.price_type.length) merge(await fetchAccountIdsByPriceType(f.price_type));
+      if (f.account_name?.length) merge(await fetchAccountIdsByAccountName(f.account_name));
       if (accountIds !== null && accountIds.length === 0) {
         rows.value = [];
         return;

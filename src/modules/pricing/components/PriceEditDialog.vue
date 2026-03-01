@@ -79,7 +79,14 @@
           </el-col>
           <el-col :span="12">
             <el-form-item v-if="isNewCompany" label="账户" prop="new_account_name">
-              <el-input v-model="form.new_account_name" placeholder="请输入新账户名" clearable />
+              <el-select
+                v-model="form.new_account_name"
+                placeholder="请选择账户"
+                style="width: 100%"
+                clearable
+              >
+                <el-option v-for="opt in newAccountOptions" :key="opt" :label="opt" :value="opt" />
+              </el-select>
             </el-form-item>
             <el-form-item v-else label="账户" prop="account_id">
               <el-select
@@ -213,27 +220,10 @@
 <script setup lang="ts">
 import { reactive, watch, computed, ref } from 'vue';
 import type { FormInstance, FormRules } from 'element-plus';
+import type { CustomerBasic, ProductBasic, CustomerAccount } from '../types';
 
-interface Customer {
-  id: number;
-  name: string;
-  region?: string;
-  level?: string;
-}
-
-interface Account {
-  id: number;
-  account_id?: number | null;
-  customer_id: number;
-  account_name: string;
-  price_type?: string;
-}
-
-interface Product {
-  id: number;
-  name: string;
-  spec?: string;
-}
+/** 新公司时账户下拉选项（与等级、国家/地区、价格类型一致为下拉） */
+const newAccountOptions = ['1账户', '2账户', '3账户'];
 
 export interface EditForm {
   /** 表格内修改：只读展示 */
@@ -263,9 +253,9 @@ const props = withDefaults(
   defineProps<{
     visible: boolean;
     title: string;
-    customers: Customer[];
-    products: Product[];
-    accountsByCustomer: Record<number, Account[]>;
+    customers: CustomerBasic[];
+    products: ProductBasic[];
+    accountsByCustomer: Record<string, CustomerAccount[]>;
     levelOptions: string[];
     regionOptions: string[];
     priceTypeOptions: string[];
@@ -316,13 +306,12 @@ const isNewCompany = computed(() => {
 const accountOptions = computed(() => {
   const cid = form.customer_id;
   if (cid == null) return [];
-  const byId = props.accountsByCustomer as Record<string, Account[]>;
-  return byId[String(cid)] || [];
+  return props.accountsByCustomer[String(cid)] || [];
 });
 
 const selectedProductsWithPrices = computed(() => {
   const ids = form.product_ids || [];
-  return ids.map((id) => props.products.find((p) => p.id === id)).filter(Boolean) as Product[];
+  return ids.map((id) => props.products.find((p) => p.id === id)).filter(Boolean) as ProductBasic[];
 });
 
 const rules = computed<FormRules>(() => {
@@ -345,7 +334,7 @@ const rules = computed<FormRules>(() => {
     ],
     update_reason: [{ required: true, message: '修改理由必填', trigger: 'blur' }],
   };
-  if (isNewCompany.value) r.new_account_name = [{ required: true, message: '请输入账户名', trigger: 'blur' }];
+  if (isNewCompany.value) r.new_account_name = [{ required: true, message: '请选择账户', trigger: 'change' }];
   else r.account_id = [{ required: true, message: '请选择账户', trigger: 'change' }];
   return r;
 });
